@@ -820,7 +820,7 @@ CREATE TABLE IF NOT EXISTS lhjypt.metric_sample (
 **功能描述**：计算组合/账户/策略在置信度下的最大可能损失，支持历史模拟法（默认）与方差协方差法。
 
 **业务规则**：
-- 输入：持仓（portfolio_position / account 持仓快照）+ 历史行情（ClickHouse `lhjypt.bar` 日线）→ 计算组合日损益序列 → 取分位数。
+- 输入：持仓（portfolio_position / account 持仓快照）+ 历史行情（ClickHouse `lhjypt.bar_data` 日线，对齐 P0 实际表名）→ 计算组合日损益序列 → 取分位数。
 - 方法：`HISTORICAL`（默认，1d 95%）、`VAR_COV`；`confidence`/`horizon_days` 可配。
 - 触发：按需计算 `POST /api/var/compute`；记录 `var_calculation`（含 calc_time），查询最近值。
 - 与风险预算联动：组合 `config_json.risk_budget.max_var_95_1d` 被比对，超限触发 IntradayRisk `VAR_LIMIT`。

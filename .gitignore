@@ -31,6 +31,9 @@ htmlcov/
 .env
 .env.local
 
+# 策略加密密钥库（本地，不入库；示例见 config/key-store.properties.example）
+config/key-store.properties
+
 # 日志
 *.log
 logs/

@@ -72,6 +72,19 @@ lhjypt:
     enabled: true
     sample-interval: 10000      # 指标采样间隔(ms)
     evaluate-interval: 15000    # 告警评估间隔(ms)
+  # P1 策略加密与沙箱配置
+  strategy:
+    crypto:
+      key-store-path: ${LHJYPT_KEYSTORE_PATH:config/key-store.properties}
+      active-key-id: ${LHJYPT_ACTIVE_KEY_ID:local-dev-1}
+      allow-dev-fallback: ${LHJYPT_ALLOW_DEV_KEY:true}
+    sandbox:
+      python: ${LHJYPT_SANDBOX_PYTHON:python3}
+      sdk-path: ${LHJYPT_SDK_PATH:strategy-sdk}
+      timeout-seconds: 30
+      max-memory-mb: 256
+      max-cpu-seconds: 30
+      output-tail-bytes: 4096
 
 logging:
   level:

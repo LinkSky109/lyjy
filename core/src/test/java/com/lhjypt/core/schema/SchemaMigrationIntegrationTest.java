@@ -51,6 +51,11 @@ class SchemaMigrationIntegrationTest {
             assertTrue(tableExists(connection, "var_calculation"));
             assertTrue(columnExists(connection, "var_calculation", "calc_id"));
             assertTrue(columnExists(connection, "var_calculation", "var_value"));
+            assertTrue(tableExists(connection, "strategy_info"));
+            assertTrue(tableExists(connection, "strategy_crypto"));
+            assertTrue(tableExists(connection, "strategy_audit_log"));
+            assertTrue(columnExists(connection, "strategy_crypto", "ciphertext"));
+            assertTrue(columnExists(connection, "strategy_audit_log", "detail_json"));
         }
     }
 

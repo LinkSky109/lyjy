@@ -1,8 +1,10 @@
 package com.lhjypt.core.service.trade;
 
 import com.lhjypt.core.model.trade.*;
+import com.lhjypt.core.service.trade.impl.CTPGatewayAdapter;
 import com.lhjypt.core.service.trade.impl.MockCTPGateway;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -21,20 +23,38 @@ public class TradeExecutionService {
 
 
     private final MockCTPGateway mockGateway;
+    private final CTPGatewayAdapter ctpGateway;
 
     /** 当前使用的网关 */
     private TradingGateway currentGateway;
+    private GatewayMode currentMode;
+
+    @Value("${lhjypt.trade.mode:MOCK}")
+    private String configuredMode;
 
     /**
      * 连接柜台
      */
     public void connect(CTPConfig config) {
-        // 根据模式选择网关
-        if ("LIVE".equals(config.getMode())) {
-            log.warn("真实CTP模式暂未实现，回退到Mock模式");
+        GatewayMode requestedMode = GatewayMode.from(
+                config.getMode() == null || config.getMode().isBlank()
+                        ? configuredMode
+                        : config.getMode());
+
+        if (requestedMode == GatewayMode.LIVE) {
+            if (!ctpGateway.isAvailable()) {
+                throw new IllegalStateException(
+                        "LIVE 模式不可用：真实 CTP 适配器尚未实现，禁止回退到 Mock 网关");
+            }
+            currentGateway = ctpGateway;
+        } else {
+            currentGateway = mockGateway;
         }
-        currentGateway = mockGateway;
+
         currentGateway.connect(config);
+        currentMode = requestedMode;
+        log.info("交易网关已连接: mode={} gateway={}",
+                requestedMode, currentGateway.getName());
     }
 
     /**
@@ -44,6 +64,7 @@ public class TradeExecutionService {
         if (currentGateway != null) {
             currentGateway.disconnect();
         }
+        currentMode = null;
     }
 
     /**
@@ -106,6 +127,13 @@ public class TradeExecutionService {
      */
     public boolean isAuthenticated() {
         return currentGateway != null && currentGateway.isAuthenticated();
+    }
+
+    public String getMode() {
+        if (currentMode != null) {
+            return currentMode.name();
+        }
+        return GatewayMode.from(configuredMode).name();
     }
 
     private void checkReady() {

@@ -43,7 +43,8 @@ public class TradeController {
     public Result<java.util.Map<String, Object>> status() {
         return Result.success(java.util.Map.of(
                 "connected", tradeService.isConnected(),
-                "authenticated", tradeService.isAuthenticated()
+                "authenticated", tradeService.isAuthenticated(),
+                "mode", tradeService.getMode()
         ));
     }
 

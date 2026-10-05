@@ -79,6 +79,10 @@ public class CTPConfig {
         return mode;
     }
 
+    public void setMode(String mode) {
+        this.mode = mode;
+    }
+
     public boolean isUdpEnabled() {
         return udpEnabled;
     }

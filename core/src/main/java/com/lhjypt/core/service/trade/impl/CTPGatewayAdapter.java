@@ -53,6 +53,13 @@ public class CTPGatewayAdapter implements TradingGateway {
         throw new UnsupportedOperationException("真实CTP接入待实现，请使用MockCTPGateway");
     }
 
+    /**
+     * 当前没有真实 CTP 原生 SDK，LIVE 模式必须由上层快速失败。
+     */
+    public boolean isAvailable() {
+        return false;
+    }
+
     @Override
     public void disconnect() {
         // Release() 释放API

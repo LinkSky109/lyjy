@@ -1,0 +1,194 @@
+package com.lhjypt.core.service.fund;
+
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.lhjypt.core.mapper.*;
+import com.lhjypt.core.model.FundAccount;
+import com.lhjypt.core.model.fund.CashTransaction;
+import com.lhjypt.core.model.fund.FundFlow;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * 资金管理服务
+ *
+ * 核心能力：
+ * 1. 出入金申请、审核、执行
+ * 2. 资金冻结/解冻（保证金）
+ * 3. 资金变动流水记录
+ * 4. 透支控制（禁止可用资金为负）
+ * 5. 账户余额管理
+ */
+@Service
+@RequiredArgsConstructor
+public class FundManagementService {
+    private static final Logger log = LoggerFactory.getLogger(FundManagementService.class);
+
+
+    private final CashTransactionMapper cashTransactionMapper;
+    private final FundFlowMapper fundFlowMapper;
+    private final FundAccountMapper fundAccountMapper;
+
+    private final AtomicInteger flowCounter = new AtomicInteger(0);
+    private final AtomicInteger txCounter = new AtomicInteger(0);
+
+    /**
+     * 提交出入金申请
+     */
+    @Transactional
+    public CashTransaction applyCashTransaction(CashTransaction request) {
+        request.setTransactionNo(generateNo("TXN"));
+        request.setStatus("PENDING");
+        request.setCreateTime(LocalDateTime.now());
+
+        if ("WITHDRAW".equals(request.getType())) {
+            // 出金前检查可用资金
+            FundAccount account = fundAccountMapper.selectByAccountId(request.getAccountId());
+            if (account.getAvailableCash().compareTo(request.getAmount()) < 0) {
+                throw new IllegalStateException("可用资金不足，无法出金 " + request.getAmount());
+            }
+        }
+
+        cashTransactionMapper.insert(request);
+        log.info("出入金申请: no={} type={} amount={}",
+                request.getTransactionNo(), request.getType(), request.getAmount());
+        return request;
+    }
+
+    /**
+     * 审核出入金
+     */
+    @Transactional
+    public CashTransaction approve(String transactionNo, String approver, boolean approved) {
+        CashTransaction tx = findTransaction(transactionNo);
+        tx.setApprover(approver);
+        tx.setApproveTime(LocalDateTime.now());
+        tx.setStatus(approved ? "COMPLETED" : "REJECTED");
+
+        if (approved) {
+            executeCashTransaction(tx);
+            tx.setCompleteTime(LocalDateTime.now());
+        }
+
+        cashTransactionMapper.updateById(tx);
+        return tx;
+    }
+
+    /**
+     * 执行出入金，更新账户余额并记录流水
+     */
+    private void executeCashTransaction(CashTransaction tx) {
+        FundAccount account = fundAccountMapper.selectByAccountId(tx.getAccountId());
+        BigDecimal before = account.getTotalAsset();
+        BigDecimal change = "DEPOSIT".equals(tx.getType())
+                ? tx.getAmount() : tx.getAmount().negate();
+
+        BigDecimal after = before.add(change);
+        account.setTotalAsset(after);
+        account.setAvailableCash(account.getAvailableCash().add(change));
+        fundAccountMapper.updateById(account);
+
+        recordFlow(tx.getAccountId(), tx.getType(), tx.getTransactionNo(),
+                change, before, after, null);
+    }
+
+    /**
+     * 冻结资金（开仓保证金）
+     */
+    @Transactional
+    public void freezeCash(String accountId, BigDecimal amount, String bizNo, String symbol) {
+        FundAccount account = fundAccountMapper.selectByAccountId(accountId);
+
+        // 透支控制
+        if (account.getAvailableCash().compareTo(amount) < 0) {
+            throw new IllegalStateException(
+                    "可用资金不足冻结，需 " + amount + " 实际 " + account.getAvailableCash());
+        }
+
+        BigDecimal before = account.getAvailableCash();
+        account.setAvailableCash(before.subtract(amount));
+        account.setFrozenCash(account.getFrozenCash().add(amount));
+        fundAccountMapper.updateById(account);
+
+        recordFlow(accountId, "MARGIN_FREEZE", bizNo, amount.negate(),
+                before, account.getAvailableCash(), symbol);
+    }
+
+    /**
+     * 解冻资金（平仓释放保证金）
+     */
+    @Transactional
+    public void releaseCash(String accountId, BigDecimal amount, String bizNo, String symbol) {
+        FundAccount account = fundAccountMapper.selectByAccountId(accountId);
+        BigDecimal before = account.getAvailableCash();
+
+        account.setFrozenCash(account.getFrozenCash().subtract(amount));
+        account.setAvailableCash(before.add(amount));
+        fundAccountMapper.updateById(account);
+
+        recordFlow(accountId, "MARGIN_RELEASE", bizNo, amount,
+                before, account.getAvailableCash(), symbol);
+    }
+
+    /**
+     * 记录手续费
+     */
+    @Transactional
+    public void chargeCommission(String accountId, BigDecimal commission,
+                                 String bizNo, String symbol) {
+        FundAccount account = fundAccountMapper.selectByAccountId(accountId);
+        BigDecimal before = account.getAvailableCash();
+        account.setAvailableCash(before.subtract(commission));
+        fundAccountMapper.updateById(account);
+
+        recordFlow(accountId, "COMMISSION", bizNo, commission.negate(),
+                before, account.getAvailableCash(), symbol);
+    }
+
+    /**
+     * 记录资金流水
+     */
+    private void recordFlow(String accountId, String bizType, String bizNo,
+                            BigDecimal change, BigDecimal before, BigDecimal after, String symbol) {
+        FundFlow flow = new FundFlow();
+        flow.setFlowNo(generateNo("FLOW"));
+        flow.setAccountId(accountId);
+        flow.setBizType(bizType);
+        flow.setBizNo(bizNo);
+        flow.setChangeAmount(change);
+        flow.setBalanceBefore(before);
+        flow.setBalanceAfter(after);
+        flow.setSymbol(symbol);
+        flow.setCreateTime(LocalDateTime.now());
+        fundFlowMapper.insert(flow);
+    }
+
+    /**
+     * 查询资金流水
+     */
+    public List<FundFlow> getFlows(String accountId, LocalDateTime start, LocalDateTime end) {
+        return fundFlowMapper.selectByAccountAndTime(accountId, start, end);
+    }
+
+    private CashTransaction findTransaction(String no) {
+        QueryWrapper<CashTransaction> wrapper = new QueryWrapper<>();
+        wrapper.eq("transaction_no", no);
+        CashTransaction tx = cashTransactionMapper.selectOne(wrapper);
+        if (tx == null) throw new IllegalArgumentException("出入金单不存在: " + no);
+        return tx;
+    }
+
+    private String generateNo(String prefix) {
+        String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        return prefix + time + String.format("%04d",
+                (prefix.equals("FLOW") ? flowCounter : txCounter).incrementAndGet());
+    }
+}

@@ -1,0 +1,95 @@
+server:
+  # 8080 被本机其他容器(compose-web)占用，改用8081
+  port: 8081
+
+spring:
+  application:
+    name: lhjypt-core
+
+  datasource:
+    # PostgreSQL - 交易/持仓/资金数据
+    primary:
+      jdbc-url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/lhjypt}
+      username: ${POSTGRES_USER:lhjypt}
+      password: ${POSTGRES_PASSWORD:lhjypt_local_dev}
+      driver-class-name: org.postgresql.Driver
+    # ClickHouse - 行情时序数据
+    clickhouse:
+      jdbc-url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123/lhjypt}
+      username: ${CLICKHOUSE_USER:default}
+      password: ${CLICKHOUSE_PASSWORD:}
+      driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: lhjypt-core
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+# MyBatis-Plus
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# 交易平台配置
+lhjypt:
+  # 交易运行模式：MOCK / LIVE。LIVE 在真实适配器就绪前必须启动失败。
+  trade:
+    mode: ${LHJYPT_TRADE_MODE:MOCK}
+  # CTP柜台配置
+  ctp:
+    enabled: false
+    broker-id: ""
+    user-id: ""
+    password: ""
+    md-front: ""
+    td-front: ""
+  # 风控配置
+  risk:
+    max-position-per-symbol: 0.1
+    max-total-position: 0.8
+    max-daily-loss: 0.05
+    stop-loss-line: 0.03
+    intraday:
+      eval-interval: 5000        # 事中风控评估间隔(ms)
+  # 资金配置
+  fund:
+    overdraft-allowed: false
+    margin-ratio: 0.1
+  # P1 监控告警配置
+  monitoring:
+    enabled: true
+    sample-interval: 10000      # 指标采样间隔(ms)
+    evaluate-interval: 15000    # 告警评估间隔(ms)
+
+logging:
+  level:
+    com.lhjypt: DEBUG
+    org.springframework.kafka: INFO
+
+# ==================== P1 监控告警配置 ====================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,info
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: false
+    tags:
+      application: ${spring.application.name}

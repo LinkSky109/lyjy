@@ -1,0 +1,216 @@
+# 全局上下文 - 企业级量化交易平台
+task_id: "TASK-20261002-001"
+task_name: "企业级量化交易平台（lhjypt）"
+create_time: "2026-10-02 13:05:00"
+# 当前活跃任务以 active_workflow 为准；P0/P1 字段保留为历史基线
+current_global_state: "GLOBAL_IN_DEV"
+
+# 需求基础信息
+requirement:
+  req_id: "REQ-38445228733467138"
+  req_title: "企业级量化交易平台能力建设"
+  req_source: "对话 38445228733467138"
+  acceptance_criteria:
+    - "P0一期：单市场行情接入、Python策略SDK、tick级回测、CTP柜台接入、事前风控、OMS、基础资金管理（冻结/解冻/透支控制）"
+    - "P1二期：多柜台多通道、事中风控、VaR计算、监控告警、组合构建与再平衡、日终清算对账、策略代码加密与沙箱隔离、异常交易监控、性能降级预案"
+    - "P2三期：微秒级链路、多租户隔离、监管报送与AML、异地灾备、绩效归因、风险预算分配、知识产权保护、跨境交收、自动伸缩"
+  product_owner: "link"
+  req_doc_link: "对话ID: 38445228733467138"
+  supplement_doc: ".workflow/requirements-supplement.md"
+  supplemented_modules:
+    - "资金清算与结算"
+    - "组合管理"
+    - "策略安全与知识产权保护"
+    - "监管报送与合规"
+    - "容量规划与性能管理"
+
+# 开发阶段上下文
+dev_context:
+  dev_owner: "link"
+  feature_branch: "feature/p0-core-platform"
+  mr_id: ""
+  cr_approvers: []
+  unit_test_coverage: 0
+  lint_result: "pending"
+  dev_complete_time: ""
+  current_phase: "P0"
+  phase_tasks_total: 9
+  phase_tasks_done: 9
+  current_task: "P0_DEV_COMPLETE"
+  current_task_status: "DONE"
+
+# 测试阶段上下文
+test_context:
+  test_owner: "agent/agent-continuous-workflow"
+  test_env: "local（JDK17 + Maven3.10 + Lima/Docker：PG/ClickHouse/Kafka/Redis/ZK）"
+  test_case_total: 14
+  test_case_pass: 14
+  static_check: "PASSED"
+  compile_check: "PASSED（mvn clean compile BUILD SUCCESS，81源文件）"
+  interface_test_status: "PASSED（7模块48接口实测：行情/交易/资金/风控/OMS/回测/数据治理全部通过）"
+  smoke_test_status: "PASSED（入金→下单→成交→持仓→保证金冻结→手续费→流水→对账 全链路联动验证）"
+  service_port: 8081
+  bug_count: 10
+  bug_closed_count: 10
+  test_report_link: ".workflow/test-report.md"
+  test_plan_link: ".workflow/test-plan.md"
+  test_complete_time: "2026-10-02 14:50:00"
+  test_state: "TEST_PASSED"
+
+# P1 二期规划上下文（2026-10-02 新增）
+p1_context:
+  plan_doc_link: "docs/p1-prd.md"
+  tasks_link: ".workflow/tasks-p1.md"
+  sql_link: "scripts/init-p1.sql"
+  plan_status: "IN_DEV"
+  task_count: 9
+  task_done: 4
+  current_task: "TASK-P1-005"
+  current_task_status: "PENDING_DEV"
+  java_test_baseline: "48用例全通过（包含监控、事中风控、异常交易、降级、令牌与市价单回归）"
+  build_note: "JDK27默认关闭classpath注解处理致Lombok不生效；已在pom显式配annotationProcessorPaths，编译测试统一用JDK17"
+  batch_order: "第一批（监控→风控→异常→降级）→ 第二批（多柜台→日终对账）→ 第三批（组合→VaR→策略安全）"
+  plan_constraints:
+    - "完整生产级 PRD，9 功能模块全量纳入"
+    - "本地可运行优先（Mock 网关/行情/密钥），生产依赖以适配层预留"
+    - "延续 P0 技术栈（Java17/SpringBoot3.2.5/MyBatis-Plus/PG/CH/Kafka/Redis），不拆微服务"
+    - "PG 类型规约对齐 P0 init-db.sql（DECIMAL(20,8)/TIMESTAMP/SMALLINT deleted）"
+  p1_deadline: "2026-12-31 18:00:00"
+  next_action: "P1 第一批已完成；先执行 P1.5 主链路闭环，再进入 TASK-P1-005 多柜台多通道"
+
+# P1.5 当前活跃工作流（P0/P1 上下文保留为历史基线）
+active_workflow:
+  workflow_id: "dev-test-consistency-p15"
+  task_id: "TASK-20261005-002"
+  task_name: "P1.5 交易主链路闭环与工程化加固"
+  create_time: "2026-10-05 19:14:11"
+  current_phase: "P1.5"
+  current_global_state: "GLOBAL_IN_DEV"
+  current_node: "NODE-P15-000"
+  current_node_status: "PENDING_DEV"
+  requirement_doc: "docs/p1.5-trade-closure-requirements.md"
+  tasks_doc: ".workflow/tasks-p15.md"
+  workflow_plan_doc: ".workflow/workflow-plan-p15.md"
+  test_plan_doc: ".workflow/test-plan-p15.md"
+  blocking_reason: "当前目录不是 Git 仓库，无法创建分支、建立基线提交和运行 CI"
+  next_action: "确认需求与开放问题，初始化 Git 基线，然后执行 P15-000"
+
+p15_context:
+  plan_status: "PLANNED"
+  requirement_status: "PENDING_REVIEW"
+  task_count: 13
+  task_done: 0
+  current_task: "P15-000"
+  current_task_status: "PENDING_DEV"
+  batch_order: "A 基线准入 -> B 统一交易编排 -> C 回报与持久化 -> D 权限与SDK -> E 全链路验收"
+  java_baseline: "mvn clean verify 通过，48/48 单元测试通过，112 个主源码文件"
+  python_baseline: "14/14 测试通过，覆盖率 65%"
+  quality_target: "Java/Python 覆盖率均不低于 80%，新增代码不低于 85%"
+  gates:
+    - "Git 基线存在"
+    - "订单必须经过统一编排层"
+    - "重复回报不重复记账"
+    - "LIVE 模式不得回退 Mock"
+    - "四维一致性校验通过"
+  open_questions:
+    - "Q-01 持仓成本算法"
+    - "Q-02 保证金公式"
+    - "Q-03 策略级与账户级持仓汇总"
+    - "Q-04 平今和平昨范围"
+    - "Q-05 本地认证适配器边界"
+    - "Q-06 Git 初始化方式"
+  risks:
+    - "R-01 当前无 Git 仓库"
+    - "R-02 Mock 账户与 PG 账户双状态"
+    - "R-03 旧入口兼容"
+    - "R-04 部分成交和乱序回报"
+
+# 一致性校验上下文
+consistency_context:
+  code_check: "PASSED（81文件编译通过、无死代码、7控制器47端点8Mapper）"
+  env_check: "PASSED（5容器健康、端口8081、服务200）"
+  data_check: "PASSED（PG10表+CH lhjypt库3表、对账MATCHED差异0）"
+  doc_check: "PASSED（修正启动横幅与SDK默认地址8080→8081）"
+  inspection_report_link: ".workflow/consistency-report.md"
+
+# SLA与风险信息
+sla_info:
+  total_deadline: "2026-12-31 18:00:00"
+  p0_deadline: "2026-11-15 18:00:00"
+  current_node_timeout: 0
+  risk_level: "normal"
+
+# 全链路操作日志
+operation_logs:
+  - time: "2026-10-02 13:05:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "启动工作流，初始化全局上下文，需求验证完成，流转至GLOBAL_IN_DEV"
+    result: "success"
+  - time: "2026-10-02 13:15:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "补充5个模块需求（资金清算、组合管理、策略安全、监管报送、容量规划），P0任务增至9项，更新验收标准"
+    result: "success"
+  - time: "2026-10-02 13:25:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "TASK-P0-001 项目骨架搭建完成：创建Maven多模块结构、Java核心服务骨架、Python策略SDK、Docker Compose环境、CI配置、技术文档、数据库初始化脚本。Python SDK语法验证通过。下一任务：TASK-P0-002 行情数据接入层"
+    result: "success"
+  - time: "2026-10-02 13:40:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "TASK-P0-002 行情数据接入层完成：创建TickData/BarData行情模型、MarketDataProvider/Repository/Publisher接口、Mock行情源实现（500ms推送五档行情）、ClickHouse存储实现、Kafka行情分发、MarketDataService统一服务、MarketDataController REST API（9个接口）、多数据源配置（PG+ClickHouse）、ClickHouse建表脚本（tick/bar/subscription三张表）。文件结构验证通过。下一任务：TASK-P0-003 数据治理模块"
+    result: "success"
+  - time: "2026-10-02 13:55:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "TASK-P0-003 数据治理模块完成：创建DataCleaningService（6类异常检测：零值/跳变/缺失/倒挂/时间异常/价格上限）、AdjustmentService（前复权/后复权/除权参考价计算）、UnifiedDataModelService（多行情源统一转换+交易所品种自动推断）、DataQualityMonitor（实时统计+延迟告警+异常率告警+每分钟定时巡检）、DataGovernanceController（9个API接口）、AdjustmentFactor/UnifiedMarketData/DataQualityStats模型、数据治理SQL脚本（复权因子表/质量日志表/日统计表）。启动类添加@EnableScheduling。文件结构验证通过（24个Java文件）。下一任务：TASK-P0-004 tick级回测引擎"
+    result: "success"
+  - time: "2026-10-02 14:15:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "TASK-P0-004 tick级回测引擎完成：创建BacktestConfig/BacktestResult/TradeRecord/PositionSnapshot/PerformanceMetrics模型、MatchingEngine接口+TickMatchingEngine实现（限价/市价撮合+涨跌停限制）、TransactionCostCalculator（手续费/印花税/滑点/冲击成本4种成本模型）、LookaheadBiasDetector（时间穿越/收盘价交易/未来数据引用3类检测）、PerformanceCalculator（年化收益/波动率/最大回撤/夏普/索提诺/卡玛/胜率/盈亏比等18项指标）、BacktestEngine核心（事件驱动逐tick回测+同步/异步运行+模拟行情生成）、BacktestController（5个API接口）。文件结构验证通过（36个Java文件）。下一任务：TASK-P0-005 Python策略SDK"
+    result: "success"
+  - time: "2026-10-02 14:35:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "TASK-P0-005 Python策略SDK完成：完善策略基类（生命周期+交易/数据接口）、技术指标库（SMA/EMA/WMA/RSI/KDJ/MACD/BOLL/ATR/OBV/VR共10个指标）、K线合成器（tick合成1m~1d多周期K线）、回测API实现（BacktestDataAPI+BacktestOrderAPI对接撮合引擎）、实盘API实现（RestClient+LiveDataAPI+LiveOrderAPI对接Java核心服务REST接口）、策略运行器（策略文件加载/上下文注入/生命周期管理/事件驱动）、2个示例策略（双均线交叉+网格交易）、14个单元测试全部通过。SDK共21个Python模块。下一任务：TASK-P0-006 CTP交易柜台接入"
+    result: "success"
+  - time: "2026-10-02 14:55:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "TASK-P0-006 CTP交易柜台接入完成：创建CTPConfig/TradeRequest/OrderReport/TradeReport/PositionDetail/AccountInfo共6个交易模型、TradingGateway统一交易网关接口（连接/认证/报单/撤单/查询+回报监听器）、MockCTPGateway完整实现（模拟登录认证流程、报单自动成交、订单状态流转、持仓更新、资金保证金计算、手续费计算）、CTPGatewayAdapter真实CTP适配层预留（含CTP原生SDK对接步骤说明：CreateFtdcTraderApi/Spi回调/ReqOrderInsert等）、TradeExecutionService交易执行服务（网关选择/业务入口）、TradeController REST API（10个接口）。文件结构验证通过（47个Java文件）。下一任务：TASK-P0-007 OMS订单管理系统"
+    result: "success"
+  - time: "2026-10-02 15:15:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "TASK-P0-007 OMS订单管理系统完成：创建OrderStatus订单状态枚举（8个状态+终态/活跃判断）、OrderStateMachine订单状态机（严格定义合法流转路径，非法流转抛异常）、OrderNumberGenerator全局唯一订单号生成器（时间戳+序列号）、IdempotentRecord幂等记录模型、CreateOrderCommand创建命令、OrderIdempotentService幂等性服务（幂等键校验+SHA256请求摘要+重复请求返回原订单+防止键复用）、OrderManagementService OMS核心服务（创建/状态流转/成交处理/查询，全流程状态机校验）、OrderMapper+IdempotentMapper数据访问层、OrderManagementController REST API（5个接口）、init-db.sql新增order_idempotent幂等表。文件结构验证通过（57个Java文件，5个控制器）。下一任务：TASK-P0-008 事前风控引擎"
+    result: "success"
+  - time: "2026-10-02 15:40:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "TASK-P0-008 事前风控引擎完成：创建RiskRule规则接口（可插拔扩展+RiskContext上下文）、PositionLimitRule持仓限额（最大持仓量+持仓集中度）、FundRiskRule资金风控（保证金充足性+最低资金留存）、OrderFrequencyRule交易频率限制（每秒/每分钟下单次数，防策略失控刷单）、SelfTradePreventionRule自成交防护（买卖价与自身反向挂单交叉检测）、BlacklistRule黑白名单（黑名单禁止+白名单模式）、PreTradeRiskService事前风控服务（统一执行所有规则+拦截日志记录+频率统计）、RiskRuleConfig/RiskCheckResult/RiskInterceptLog模型、RiskRuleConfigMapper/RiskInterceptLogMapper、RiskController REST API（6个接口）、init-db.sql新增risk_rule_config和risk_intercept_log表。文件结构验证通过（70个Java文件，6个控制器）。下一任务：TASK-P0-009 基础资金管理"
+    result: "success"
+  - time: "2026-10-02 16:05:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "TASK-P0-009 基础资金管理完成，P0开发阶段全部结束：创建CashTransaction出入金申请、FundFlow资金流水、FundReconciliation对账记录模型、FundManagementService资金管理服务（出入金申请审核、资金冻结/解冻、手续费扣收、透支控制、流水记录）、ReconciliationService对账服务（系统账面与柜台资金逐字段比对+容差判断+差异工单）、CashTransactionMapper/FundFlowMapper/FundReconciliationMapper/FundAccountMapper、FundManagementController REST API（4个接口）、init-db.sql新增cash_transaction/fund_flow/fund_reconciliation表。文件结构验证通过（80个Java文件，7个控制器，8个Mapper）。P0共9项任务全部完成，全局状态流转至GLOBAL_IN_TEST，进入测试阶段。"
+    result: "success"
+  - time: "2026-10-02 16:30:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "测试阶段执行（test-workflow-agent）：编制测试计划（test-plan.md，含14自动化用例+48接口用例+冒烟链路）。执行Python自动化测试14/14全部通过（1.04s）。执行Java静态一致性检查6类全部通过（服务依赖/方法签名/模型字段/ORM映射/Mapper表结构/死代码扫描）。发现并闭环3个缺陷：BUG-001 OrderManagementService.processTrade不完整死代码（调用selectByOrderId(null)）已移除、BUG-002连带未调用的updateFill已移除、BUG-003未使用TradeReport import已清理；修复后重跑14/14通过无回归。生成测试报告（test-report.md）。接口测试48例与冒烟测试受本机无JDK/Maven及中间件环境限制未执行（非代码缺陷），状态保持GLOBAL_IN_TEST，待IDE启动服务后按测试计划完成再流转TEST_PASSED→GLOBAL_IN_CONSISTENCY。"
+    result: "success"
+  - time: "2026-10-02 14:50:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "安装运行环境并完成接口/冒烟测试：Homebrew安装openjdk@17与maven3.10，Lima实例tuna-docker启动5个中间件容器（PG/ClickHouse/Kafka/Redis/ZK）并初始化库表。真实启动Spring服务（端口改8081规避占用），实测7模块48接口并修复7个运行时缺陷：BUG-004 OrderStateMachine缺@Component注解、BUG-005 编译未开-parameters导致路径变量解析失败、BUG-006 风控strategyId为null触发NPE（兜底DEFAULT）、BUG-007 OMS空幂等键报错（改为按请求内容SHA256自动生成）、BUG-008 回测无策略信号源0交易（新增BuiltInStrategy双均线内置策略）、BUG-009 市价单时序错位且成交丢失（重构为入队在processTick统一撮合）、BUG-010 胜率统计以成本判定致全亏失真（改为FIFO买卖配对按完整开平回合算真实盈亏：28回合5胜23负胜率17.86%盈亏比0.70总收益-0.17%）。冒烟链路联动通过：入金50万余额100万→150万、买入2手自动成交、保证金699.60手续费2.10、对账MATCHED差异0。累计10个缺陷全部闭环，测试通过，流转TEST_PASSED→GLOBAL_IN_CONSISTENCY，进入发布前一致性校验。"
+    result: "success"
+  - time: "2026-10-02 15:05:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "执行发布前一致性巡检（consistency-workflow-agent）四维度全部通过：代码（81文件编译通过、无死代码、7控制器47端点8Mapper）、环境（5容器健康、端口8081、服务200）、数据（PG10表+CH lhjypt库3表、对账MATCHED差异0）、文档（修正启动横幅与SDK默认地址8080→8081）。生成一致性巡检报告consistency-report.md。全链路开发→测试→一致性准出标准均满足，全局状态流转GLOBAL_DONE，P0一期可交付。"
+    result: "success"
+  - time: "2026-10-03 17:20:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "P1第一批开发推进（dev+test双环节）：TASK-P1-001监控告警、TASK-P1-002事中风控编码完成并通过单元验证。修复环境级缺陷BUG-011：Maven默认JDK27下classpath注解处理关闭致Lombok全量失效，父pom显式配置maven-compiler-plugin annotationProcessorPaths+lombok后恢复（统一JDK17构建）。新增P1测试基线：OpenBlockRegistry 8例+IntradayRiskService 5例+AlertEvaluator 4例。一致性走查发现PRD§3.5偏差BUG-012：强平敏感操作缺X-Confirm-Token二次确认，按TDD补ConfirmTokenService（6例：一次性消费/30s过期/空值拒绝）+confirmForceClose接入+AuthController签发端点（1例），全量回归26/26通过。"
+    result: "success"
+  - time: "2026-10-03 18:20:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "TASK-P1-002事中风控端到端冒烟与缺陷闭环：应用P1建表脚本（PG 17表+CH含metric_sample）后重启服务。正向链路全验证：建仓60手→触发持仓超限→BLOCK_OPEN处置生成→限制开仓清单生效→新开仓REJECT/平仓放行/他品种放行/解除后恢复；冷却去重（二次评估0处置）验证通过。发现并闭环2个缺陷：BUG-013市价单空价格致Mock网关成交计算NPE（强平发出0笔平仓指令），TDD补市价单兜底取价（平仓取对侧持仓成本价/开仓取参考默认价）；BUG-014 P0潜伏缺陷updatePosition不区分开平方向（SELL平多误创建SHORT空头仓），按持仓侧语义修复。修复后28/28单元回归通过，E2E复验强平确认SUCCESS发出1笔平仓、持仓60→0清零，敏感操作无令牌409/带令牌放行链路完整。TASK-P1-002状态置DONE。下一任务：TASK-P1-003异常交易监控。"
+    result: "success"
+  - time: "2026-10-03 19:10:00"
+    operator: "agent/agent-continuous-workflow"
+    action: "TASK-P1-003异常交易监控完成（dev+test+冒烟闭环）：TDD先写8例行为测试观察RED，实现AbnormalTradeMonitor四类评分（SELF_TRADE自成交/FREQ_CANCEL频繁撤单/FALSE_ORDER虚假申报/PUMP_DUMP拉抬打压，滑动窗口+severity分级+同维度OPEN幂等去重+阈值热更新）+AbnormalTradeAlert实体/Mapper+SurveillanceController 7接口（确认上报/关闭走X-Confirm-Token）+OrderMapper窗口查询+30s周期扫描（异常自吞不阻塞交易）。发现并闭环BUG-015：评分判断撤单状态用CANCELLED而OMS枚举为CANCELED，生产会漏判撤单类异常，补isCanceled兼容判定并将测试数据对齐真实枚举。全量回归36/36通过。E2E冒烟：OMS合法链路（PENDING→SUBMITTED→ACCEPTED→终态）构造三类场景命中告警（SELF_TRADE score1.0 CRITICAL/FREQ_CANCEL 0.667/FALSE_ORDER 0.5）+PUMP_DUMP拉抬命中+幂等复扫0新增+无令牌409/带令牌CONFIRMED/重复确认拒绝/关闭后重扫重新告警。TASK-P1-003状态置DONE。下一任务：TASK-P1-004性能降级预案（进行中）。"
+    result: "success"
+  - time: "2026-10-05 19:14:11"
+    operator: "codex/agent-continuous-workflow"
+    action: "完成P1.5交易主链路闭环与工程化加固详细需求分析，创建需求规格、任务看板、工作流计划和测试计划，初始化 TASK-20261005-002 全局上下文。当前状态 GLOBAL_IN_DEV / PENDING_DEV，阻塞项为 Git 仓库缺失，下一步确认需求与开放问题并执行 P15-000。"
+    result: "success"

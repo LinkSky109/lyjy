@@ -1,0 +1,148 @@
+package com.lhjypt.core.service.order;
+
+import com.alibaba.fastjson2.JSON;
+import com.lhjypt.core.mapper.OrderMapper;
+import com.lhjypt.core.model.Order;
+import com.lhjypt.core.model.order.CreateOrderCommand;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * OMS订单管理服务
+ *
+ * 订单全生命周期管理：
+ * 1. 创建订单（幂等校验 → 生成订单号 → 持久化）
+ * 2. 提交柜台
+ * 3. 接收柜台回报，更新订单状态
+ * 4. 处理成交，更新成交数量
+ * 5. 订单查询
+ *
+ * 所有状态流转严格通过OrderStateMachine校验
+ */
+@Service
+@RequiredArgsConstructor
+public class OrderManagementService {
+    private static final Logger log = LoggerFactory.getLogger(OrderManagementService.class);
+
+
+    private final OrderMapper orderMapper;
+    private final OrderStateMachine stateMachine;
+    private final OrderNumberGenerator numberGenerator;
+    private final OrderIdempotentService idempotentService;
+
+    /**
+     * 创建订单（本地，未提交柜台）
+     */
+    @Transactional
+    public Order createOrder(CreateOrderCommand command) {
+        // 0. 未显式提供幂等键时，基于请求内容自动生成（保证幂等且避免空键报错）
+        if (command.getIdempotentKey() == null || command.getIdempotentKey().isBlank()) {
+            command.setIdempotentKey("AUTO-" + sha256(JSON.toJSONString(command)));
+        }
+        // 1. 幂等校验
+        String requestContent = JSON.toJSONString(command);
+        var idempotentCheck = idempotentService.check(
+                command.getIdempotentKey(), requestContent);
+
+        // 重复请求直接返回原订单
+        if (idempotentCheck.isDuplicate()) {
+            return orderMapper.selectByOrderId(idempotentCheck.existingOrderId());
+        }
+
+        // 2. 创建订单实体
+        Order order = new Order();
+        order.setOrderId(numberGenerator.generate());
+        order.setStrategyId(command.getStrategyId());
+        order.setAccountId(command.getAccountId());
+        order.setSymbol(command.getSymbol());
+        order.setDirection(command.getDirection());
+        order.setOrderType(command.getOrderType());
+        order.setPrice(command.getPrice());
+        order.setQuantity(command.getQuantity());
+        order.setFilledQuantity(BigDecimal.ZERO);
+        order.setAvgFillPrice(BigDecimal.ZERO);
+        order.setStatus(OrderStatus.PENDING.getCode());
+        order.setCreateTime(LocalDateTime.now());
+        order.setUpdateTime(LocalDateTime.now());
+
+        // 3. 持久化
+        orderMapper.insert(order);
+
+        // 4. 关联幂等记录
+        idempotentService.complete(command.getIdempotentKey(), order.getOrderId());
+
+        log.info("订单创建: orderId={} {} {} x{}",
+                order.getOrderId(), order.getSymbol(),
+                order.getDirection(), order.getQuantity());
+
+        return order;
+    }
+
+    /**
+     * 更新订单状态（状态机校验）
+     */
+    @Transactional
+    public Order updateStatus(String orderId, OrderStatus targetStatus, String errorMsg) {
+        Order order = getOrderByOrderId(orderId);
+        OrderStatus currentStatus = OrderStatus.fromCode(order.getStatus());
+
+        // 状态机校验
+        stateMachine.validateTransit(currentStatus, targetStatus);
+
+        order.setStatus(targetStatus.getCode());
+        order.setUpdateTime(LocalDateTime.now());
+        if (errorMsg != null) {
+            order.setErrorMessage(errorMsg);
+        }
+        orderMapper.updateById(order);
+
+        log.info("订单状态流转: {} {} → {}", orderId, currentStatus.getCode(), targetStatus.getCode());
+        return order;
+    }
+
+    /**
+     * 根据订单ID查询
+     */
+    public Order getOrderByOrderId(String orderId) {
+        Order order = orderMapper.selectByOrderId(orderId);
+        if (order == null) {
+            throw new IllegalArgumentException("订单不存在: " + orderId);
+        }
+        return order;
+    }
+
+    /**
+     * 查询策略订单
+     */
+    public List<Order> getOrdersByStrategy(String strategyId) {
+        return orderMapper.selectByStrategy(strategyId);
+    }
+
+    /**
+     * 查询所有活跃订单
+     */
+    public List<Order> getActiveOrders() {
+        return orderMapper.selectActiveOrders();
+    }
+
+    private static String sha256(String input) {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : hash) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+}

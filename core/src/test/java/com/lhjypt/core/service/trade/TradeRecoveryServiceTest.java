@@ -1,5 +1,6 @@
 package com.lhjypt.core.service.trade;
 
+import com.lhjypt.core.config.DistributedLock;
 import com.lhjypt.core.model.Order;
 import com.lhjypt.core.model.trade.OrderReport;
 import com.lhjypt.core.service.order.OrderManagementService;
@@ -9,6 +10,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -20,7 +23,8 @@ class TradeRecoveryServiceTest {
     void recoversActiveOrderByQueryingGateway() {
         OrderManagementService orderService = mock(OrderManagementService.class);
         TradeExecutionService executionService = mock(TradeExecutionService.class);
-        TradeRecoveryService service = new TradeRecoveryService(orderService, executionService);
+        DistributedLock distributedLock = mock(DistributedLock.class);
+        TradeRecoveryService service = new TradeRecoveryService(orderService, executionService, distributedLock);
 
         Order order = new Order();
         order.setOrderId("ORD-001");
@@ -41,7 +45,8 @@ class TradeRecoveryServiceTest {
     void skipsOrderWithoutExchangeOrderId() {
         OrderManagementService orderService = mock(OrderManagementService.class);
         TradeExecutionService executionService = mock(TradeExecutionService.class);
-        TradeRecoveryService service = new TradeRecoveryService(orderService, executionService);
+        DistributedLock distributedLock = mock(DistributedLock.class);
+        TradeRecoveryService service = new TradeRecoveryService(orderService, executionService, distributedLock);
 
         Order order = new Order();
         order.setOrderId("ORD-001");
@@ -50,5 +55,26 @@ class TradeRecoveryServiceTest {
 
         assertEquals(0, service.recoverActiveOrders());
         verify(executionService, never()).queryOrder(any(), any());
+    }
+
+    @Test
+    void scheduledRecoveryRunsThroughDistributedLock() {
+        OrderManagementService orderService = mock(OrderManagementService.class);
+        TradeExecutionService executionService = mock(TradeExecutionService.class);
+        DistributedLock distributedLock = mock(DistributedLock.class);
+        TradeRecoveryService service = new TradeRecoveryService(orderService, executionService, distributedLock);
+
+        when(executionService.isAuthenticated()).thenReturn(true);
+        when(orderService.getActiveOrders()).thenReturn(List.of());
+        when(distributedLock.execute(anyString(), any(Runnable.class)))
+                .thenAnswer(invocation -> {
+                    invocation.getArgument(1, Runnable.class).run();
+                    return true;
+                });
+
+        service.scheduledRecovery();
+
+        verify(distributedLock).execute(eq("trade.recovery"), any(Runnable.class));
+        verify(orderService).getActiveOrders();
     }
 }

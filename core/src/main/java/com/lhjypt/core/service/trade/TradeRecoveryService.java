@@ -1,5 +1,6 @@
 package com.lhjypt.core.service.trade;
 
+import com.lhjypt.core.config.DistributedLock;
 import com.lhjypt.core.model.Order;
 import com.lhjypt.core.model.trade.OrderReport;
 import com.lhjypt.core.service.order.OrderManagementService;
@@ -22,6 +23,7 @@ public class TradeRecoveryService {
 
     private final OrderManagementService orderManagementService;
     private final TradeExecutionService tradeExecutionService;
+    private final DistributedLock distributedLock;
 
     public int recoverActiveOrders() {
         if (!tradeExecutionService.isAuthenticated()) {
@@ -57,10 +59,12 @@ public class TradeRecoveryService {
 
     @Scheduled(initialDelay = 30_000, fixedDelay = 60_000)
     public void scheduledRecovery() {
-        try {
-            recoverActiveOrders();
-        } catch (Exception error) {
-            log.debug("定时订单恢复跳过: {}", error.getMessage());
-        }
+        distributedLock.execute("trade.recovery", () -> {
+            try {
+                recoverActiveOrders();
+            } catch (Exception error) {
+                log.debug("定时订单恢复跳过: {}", error.getMessage());
+            }
+        });
     }
 }

@@ -4,6 +4,7 @@ import com.lhjypt.core.config.KeyStoreProperties;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
@@ -22,6 +23,8 @@ import java.util.Properties;
  */
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "lhjypt.strategy.crypto.provider",
+        havingValue = "local", matchIfMissing = true)
 public class LocalCryptoKeyProvider implements CryptoKeyProvider {
 
     private static final Logger log = LoggerFactory.getLogger(LocalCryptoKeyProvider.class);

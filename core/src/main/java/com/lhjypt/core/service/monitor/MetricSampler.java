@@ -1,5 +1,6 @@
 package com.lhjypt.core.service.monitor;
 
+import com.lhjypt.core.config.DistributedLock;
 import com.lhjypt.core.mapper.MetricSampleMapper;
 import com.lhjypt.core.model.monitor.MetricSample;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,24 +18,33 @@ import java.time.LocalDateTime;
  */
 @Service
 public class MetricSampler {
+
+    /** 分布式调度锁的锁键（多实例下同一时刻仅一个实例采样） */
+    static final String LOCK_KEY = "monitor.metricSampler";
     
     private final MetricSampleMapper metricSampleMapper;
+    private final DistributedLock distributedLock;
     private final MemoryMXBean memoryMXBean;
     private final OperatingSystemMXBean osMXBean;
     private final ThreadMXBean threadMXBean;
     
-    public MetricSampler(MetricSampleMapper metricSampleMapper) {
+    public MetricSampler(MetricSampleMapper metricSampleMapper, DistributedLock distributedLock) {
         this.metricSampleMapper = metricSampleMapper;
+        this.distributedLock = distributedLock;
         this.memoryMXBean = ManagementFactory.getMemoryMXBean();
         this.osMXBean = ManagementFactory.getOperatingSystemMXBean();
         this.threadMXBean = ManagementFactory.getThreadMXBean();
     }
     
     /**
-     * 定时采样（默认每10秒）
+     * 定时采样（默认每10秒）；多实例下经分布式锁保证只跑一次。
      */
     @Scheduled(fixedRateString = "${lhjypt.monitoring.sample-interval:10000}")
     public void sample() {
+        distributedLock.execute(LOCK_KEY, this::doSample);
+    }
+
+    private void doSample() {
         LocalDateTime now = LocalDateTime.now();
         String labels = "{}";
         

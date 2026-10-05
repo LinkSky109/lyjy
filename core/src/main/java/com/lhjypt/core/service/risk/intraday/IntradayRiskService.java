@@ -2,6 +2,7 @@ package com.lhjypt.core.service.risk.intraday;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
+import com.lhjypt.core.config.DistributedLock;
 import com.lhjypt.core.mapper.FundAccountMapper;
 import com.lhjypt.core.mapper.IntradayRiskRuleMapper;
 import com.lhjypt.core.mapper.RiskDispositionLogMapper;
@@ -55,6 +56,7 @@ public class IntradayRiskService {
     private final OpenBlockRegistry openBlockRegistry;
     private final com.lhjypt.core.common.auth.ConfirmTokenService confirmTokenService;
     private final VarService varService;
+    private final DistributedLock distributedLock;
 
     /** 冷却表：ruleId|scopeType|scopeId -> 最近处置时间(ms) */
     private final Map<String, Long> cooldownMap = new ConcurrentHashMap<>();
@@ -62,12 +64,14 @@ public class IntradayRiskService {
     /** 定时评估所有启用的事中规则 */
     @Scheduled(fixedRateString = "${lhjypt.risk.intraday.eval-interval:5000}")
     public void scheduledEvaluate() {
-        try {
-            evaluateAll();
-        } catch (Exception e) {
-            // 事中评估异常不阻断交易主链路
-            log.warn("事中风控评估异常: {}", e.getMessage());
-        }
+        distributedLock.execute("risk.intraday.evaluate", () -> {
+            try {
+                evaluateAll();
+            } catch (Exception e) {
+                // 事中评估异常不阻断交易主链路
+                log.warn("事中风控评估异常: {}", e.getMessage());
+            }
+        });
     }
 
     /**

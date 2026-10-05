@@ -26,6 +26,7 @@ class AlertEvaluatorTest {
     private MetricSampleMapper metricMapper;
     private AlertEventMapper eventMapper;
     private AlertNotificationService notificationService;
+    private AlertNotifier alertNotifier;
     private AlertEvaluator evaluator;
 
     @BeforeEach
@@ -34,7 +35,8 @@ class AlertEvaluatorTest {
         metricMapper = mock(MetricSampleMapper.class);
         eventMapper = mock(AlertEventMapper.class);
         notificationService = mock(AlertNotificationService.class);
-        evaluator = new AlertEvaluator(ruleMapper, metricMapper, eventMapper, notificationService);
+        alertNotifier = mock(AlertNotifier.class);
+        evaluator = new AlertEvaluator(ruleMapper, metricMapper, eventMapper, notificationService, alertNotifier);
     }
 
     private AlertRule gtRule(String id, String metric, double threshold) {
@@ -67,6 +69,8 @@ class AlertEvaluatorTest {
         assertThat(e.getSeverity()).isEqualTo("WARN");
         assertThat(e.getValue()).isEqualTo("90.00");
         verify(notificationService).send(any(AlertEvent.class), any(AlertRule.class));
+        // 新生成告警事件落库后触发外部渠道通知
+        verify(alertNotifier).notify(any(AlertEvent.class));
     }
 
     @Test
@@ -79,6 +83,7 @@ class AlertEvaluatorTest {
 
         verify(eventMapper, never()).insert(any());
         verify(notificationService, never()).send(any(), any());
+        verify(alertNotifier, never()).notify(any());
     }
 
     @Test

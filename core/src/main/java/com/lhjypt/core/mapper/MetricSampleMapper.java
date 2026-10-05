@@ -46,7 +46,16 @@ public class MetricSampleMapper {
             sample.setValue(rs.getDouble("value"));
             sample.setLabels(rs.getString("labels"));
             return sample;
-        }, metric, Timestamp.valueOf(from), Timestamp.valueOf(to));
+        }, metric, formatBound(from), formatBound(to));
+    }
+
+    /**
+     * ClickHouse JDBC 会把 LocalDateTime/Timestamp 参数渲染成未加引号的
+     * {@code yyyy-MM-dd HH:mm:ss.S}（如 {@code 2026-10-05 00:00:00.0}），导致
+     * {@code DateTime} 列比较报语法错误；统一按字符串边界传入。
+     */
+    private static String formatBound(LocalDateTime value) {
+        return value.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
     
     /**
@@ -72,8 +81,8 @@ public class MetricSampleMapper {
     public Double queryWindowAvg(String metric, LocalDateTime from, LocalDateTime to) {
         String sql = "SELECT avg(value) as avg_value FROM lhjypt.metric_sample " +
                 "WHERE metric = ? AND ts >= ? AND ts <= ?";
-        Double result = clickHouseJdbcTemplate.queryForObject(sql, Double.class, 
-                metric, Timestamp.valueOf(from), Timestamp.valueOf(to));
+        Double result = clickHouseJdbcTemplate.queryForObject(sql, Double.class,
+                metric, formatBound(from), formatBound(to));
         return result;
     }
 }

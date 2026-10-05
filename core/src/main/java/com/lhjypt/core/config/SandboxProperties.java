@@ -29,4 +29,29 @@ public class SandboxProperties {
 
     /** 状态接口返回的输出尾部字节数。 */
     private int outputTailBytes = 4096;
+
+    /** 执行器实现：process（本地受限子进程，默认）| docker（容器沙箱，生产）。 */
+    private String executor = "process";
+
+    /** Docker 镜像（容器执行器）。 */
+    private String dockerImage = "python:3.11-alpine";
+
+    /** docker 可执行文件。 */
+    private String dockerBin = "docker";
+
+    /** 容器 CPU 限额。 */
+    private double dockerCpus = 1.0;
+
+    /** 容器 PID 上限。 */
+    private int dockerPidsLimit = 128;
+
+    /** 容器网络模式（默认 none，禁网络）。 */
+    private String dockerNetwork = "none";
+
+    /**
+     * 容器沙箱临时工作目录基路径（bind mount 源）。
+     * 空=系统临时目录（Linux 推荐；Docker Desktop(macOS/Windows) 下 {@code /var/folders} 不会被共享，
+     * 需指向共享路径下的目录，如 {@code /Users/<user>/...}）。
+     */
+    private String dockerWorkDir = "";
 }

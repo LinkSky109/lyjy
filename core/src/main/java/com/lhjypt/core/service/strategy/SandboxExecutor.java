@@ -16,4 +16,12 @@ public interface SandboxExecutor {
 
     /** 查询运行句柄；未运行时返回 null。 */
     SandboxHandle status(String strategyId);
+
+    /**
+     * 读取沙箱输出尾部（stdout+stderr），供状态查询展示；不执行任何内容。
+     * 默认无输出，由具体执行器覆盖。
+     */
+    default String outputTail(String strategyId) {
+        return "";
+    }
 }

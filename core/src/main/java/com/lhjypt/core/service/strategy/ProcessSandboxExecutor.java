@@ -4,6 +4,7 @@ import com.lhjypt.core.config.SandboxProperties;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
@@ -31,6 +32,8 @@ import java.util.concurrent.TimeUnit;
  */
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "lhjypt.strategy.sandbox.executor",
+        havingValue = "process", matchIfMissing = true)
 public class ProcessSandboxExecutor implements SandboxExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(ProcessSandboxExecutor.class);
@@ -136,6 +139,7 @@ public class ProcessSandboxExecutor implements SandboxExecutor {
     }
 
     /** 读取沙箱输出尾部（stdout+stderr），不执行任何内容。 */
+    @Override
     public String outputTail(String strategyId) {
         SandboxHandle handle = handles.get(strategyId);
         if (handle == null) {

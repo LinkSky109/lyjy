@@ -24,15 +24,18 @@ public class AlertEvaluator {
     private final MetricSampleMapper metricSampleMapper;
     private final AlertEventMapper alertEventMapper;
     private final AlertNotificationService notificationService;
+    private final AlertNotifier alertNotifier;
     
     public AlertEvaluator(AlertRuleMapper alertRuleMapper,
                           MetricSampleMapper metricSampleMapper,
                           AlertEventMapper alertEventMapper,
-                          AlertNotificationService notificationService) {
+                          AlertNotificationService notificationService,
+                          AlertNotifier alertNotifier) {
         this.alertRuleMapper = alertRuleMapper;
         this.metricSampleMapper = metricSampleMapper;
         this.alertEventMapper = alertEventMapper;
         this.notificationService = notificationService;
+        this.alertNotifier = alertNotifier;
     }
     
     /**
@@ -95,6 +98,13 @@ public class AlertEvaluator {
         
         // 发送通知
         notificationService.send(event, rule);
+
+        // 外部渠道通知（钉钉/企业微信/webhook）；仅对新生成并落库的事件通知一次
+        try {
+            alertNotifier.notify(event);
+        } catch (Exception e) {
+            // 通知失败不影响告警落库与主流程
+        }
     }
     
     /**

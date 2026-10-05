@@ -266,3 +266,7 @@ operation_logs:
     operator: "codex/agent-continuous-workflow"
     action: "P1 二期全量回归与交付完成（milestone 10）：全量 mvn verify 158/158（0跳过，JaCoCo通过）+ Testcontainers schema 通过 + Python 23/23 覆盖率85.27%；服务8081启动，12个模块代表接口跨模块冒烟全部 code=0；四维一致性巡检通过（代码：117端点与PRD对齐无敏感信息；环境：5容器健康+双数据源UP；数据：PG34表+CH4表结构对齐、清算批次差异闭环、var_calculation 8条；文档：接口/设计/变更/README对齐）。生成交付报告 delivery-report-p1.md 与一致性巡检报告 consistency-report-p1.md。P1 九项机构化能力全部交付，全局状态流转 GLOBAL_DONE，可进入 P2 三期规划。"
     result: "success"
+  - time: "2026-10-05 22:55:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "P1 生产化加固完成：①密钥 CryptoKeyProvider 可切换（local/env，EnvCryptoKeyProvider 从环境变量读取 Base64 密钥）；②容器化沙箱 SandboxExecutor 可切换（process/docker，DockerSandboxExecutor 网络隔离+资源限制+超时强杀+输出回读，SDK 挂载 /sdk:ro）；③分布式调度锁 DistributedLock（Redis SET NX PX，fail-open）接入 MetricSampler/IntradayRiskService/TradeRecoveryService；④告警通知渠道 AlertNotifier（WebhookAlertNotifier 钉钉/企业微信/generic，失败仅日志）。修复监控链路缺陷：MetricSampleMapper 的 LocalDateTime 参数被 ClickHouse JDBC 渲染为未加引号时间致 metrics/history 500 与规则评估静默失败，改为字符串边界。运行时 E2E 全部通过：env 密钥上传下载往返、docker 沙箱 RUNNING→输出→停止回收、Redis MONITOR 捕获 lhjypt:lock SET NX、webhook 捕获告警 EVT。mvn verify 176/176（0跳过，JaCoCo通过）。"
+    result: "success"

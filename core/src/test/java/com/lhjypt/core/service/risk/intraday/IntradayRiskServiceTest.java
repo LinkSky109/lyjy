@@ -38,6 +38,7 @@ class IntradayRiskServiceTest {
     private OpenBlockRegistry openBlockRegistry;
     private com.lhjypt.core.common.auth.ConfirmTokenService confirmTokenService;
     private com.lhjypt.core.service.var.VarService varService;
+    private com.lhjypt.core.config.DistributedLock distributedLock;
     private IntradayRiskService service;
 
     @BeforeEach
@@ -50,9 +51,10 @@ class IntradayRiskServiceTest {
         openBlockRegistry = new OpenBlockRegistry(); // 真实实例，验证联动
         confirmTokenService = new com.lhjypt.core.common.auth.ConfirmTokenService(); // 真实实例
         varService = mock(com.lhjypt.core.service.var.VarService.class);
+        distributedLock = mock(com.lhjypt.core.config.DistributedLock.class);
         service = new IntradayRiskService(ruleMapper, dispositionLogMapper,
                 tradeExecutionService, fundAccountMapper, preTradeRiskService,
-                openBlockRegistry, confirmTokenService, varService);
+                openBlockRegistry, confirmTokenService, varService, distributedLock);
 
         when(tradeExecutionService.isAuthenticated()).thenReturn(true);
         when(fundAccountMapper.selectList(any())).thenReturn(List.of());
@@ -233,5 +235,21 @@ class IntradayRiskServiceTest {
         // 令牌一次性：重放同一令牌仍被拒绝
         assertThatThrownBy(() -> service.confirmForceClose("DSP-X1", "risk-boss", token))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("定时评估经分布式锁执行：抢到锁才评估")
+    void scheduledEvaluateRunsThroughDistributedLock() {
+        when(ruleMapper.selectEnabledRules()).thenReturn(List.of());
+        when(distributedLock.execute(eq("risk.intraday.evaluate"), any(Runnable.class)))
+                .thenAnswer(invocation -> {
+                    invocation.getArgument(1, Runnable.class).run();
+                    return true;
+                });
+
+        service.scheduledEvaluate();
+
+        verify(distributedLock).execute(eq("risk.intraday.evaluate"), any(Runnable.class));
+        verify(ruleMapper).selectEnabledRules();
     }
 }

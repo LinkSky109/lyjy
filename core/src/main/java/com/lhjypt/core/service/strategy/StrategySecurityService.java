@@ -209,8 +209,7 @@ public class StrategySecurityService {
         result.put("startedAt", handle.getStartedAt());
         result.put("finishedAt", handle.getFinishedAt());
         result.put("exitCode", handle.getExitCode());
-        result.put("outputTail", sandboxExecutor instanceof ProcessSandboxExecutor process
-                ? process.outputTail(strategyId) : "");
+        result.put("outputTail", sandboxExecutor.outputTail(strategyId));
         return result;
     }
 

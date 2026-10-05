@@ -20,6 +20,14 @@ spring:
       password: ${CLICKHOUSE_PASSWORD:}
       driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
 
+  # Redis：分布式锁/限流/降级开关
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
+      timeout: 2000ms
+
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
@@ -67,24 +75,45 @@ lhjypt:
   fund:
     overdraft-allowed: false
     margin-ratio: 0.1
+  # 分布式调度锁（多实例下定时任务仅一个实例执行；PRD §10.1）
+  schedule:
+    lock:
+      enabled: ${LHJYPT_SCHEDULE_LOCK_ENABLED:true}
+      ttl-seconds: 120
   # P1 监控告警配置
   monitoring:
     enabled: true
     sample-interval: 10000      # 指标采样间隔(ms)
     evaluate-interval: 15000    # 告警评估间隔(ms)
+    # 告警通知渠道（生产可接钉钉/企业微信/通用 webhook；本地默认关闭仅落库）
+    notify:
+      enabled: ${LHJYPT_NOTIFY_ENABLED:false}
+      type: ${LHJYPT_NOTIFY_TYPE:generic}          # dingtalk | wecom | generic
+      webhook-url: ${LHJYPT_NOTIFY_WEBHOOK:}
+      timeout-ms: 3000
   # P1 策略加密与沙箱配置
   strategy:
     crypto:
+      provider: ${LHJYPT_CRYPTO_PROVIDER:local}    # local | env（生产可扩展 kms/hsm，SPI 预留）
       key-store-path: ${LHJYPT_KEYSTORE_PATH:config/key-store.properties}
       active-key-id: ${LHJYPT_ACTIVE_KEY_ID:local-dev-1}
       allow-dev-fallback: ${LHJYPT_ALLOW_DEV_KEY:true}
+      env-key-prefix: ${LHJYPT_CRYPTO_ENV_PREFIX:LHJYPT_STRATEGY_KEY_}
     sandbox:
+      executor: ${LHJYPT_SANDBOX_EXECUTOR:process} # process | docker（生产容器沙箱）
       python: ${LHJYPT_SANDBOX_PYTHON:python3}
       sdk-path: ${LHJYPT_SDK_PATH:strategy-sdk}
       timeout-seconds: 30
       max-memory-mb: 256
       max-cpu-seconds: 30
       output-tail-bytes: 4096
+      docker-image: ${LHJYPT_SANDBOX_IMAGE:python:3.11-alpine}
+      docker-bin: ${LHJYPT_DOCKER_BIN:docker}
+      docker-cpus: 1.0
+      docker-pids-limit: 128
+      docker-network: none
+      # Docker Desktop(macOS) 需指向共享目录；Linux 留空用系统临时目录
+      docker-work-dir: ${LHJYPT_SANDBOX_DOCKER_WORK_DIR:}
 
 logging:
   level:

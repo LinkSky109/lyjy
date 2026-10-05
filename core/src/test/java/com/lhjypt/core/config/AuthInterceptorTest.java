@@ -107,6 +107,21 @@ class AuthInterceptorTest {
     }
 
     @Test
+    void portfolioWriteRequiresTraderRole() throws Exception {
+        MockHttpServletRequest viewerRequest = request("POST", "/api/portfolio");
+        viewerRequest.addHeader("X-User-Role", UserContext.ROLE_VIEWER);
+        MockHttpServletResponse viewerResponse = new MockHttpServletResponse();
+        assertFalse(interceptor.preHandle(viewerRequest, viewerResponse, new Object()));
+        assertEquals(403, viewerResponse.getStatus());
+
+        UserContextHolder.clear();
+        MockHttpServletRequest traderRequest = request("POST", "/api/portfolio");
+        traderRequest.addHeader("X-User-Role", UserContext.ROLE_TRADER);
+        assertTrue(interceptor.preHandle(
+                traderRequest, new MockHttpServletResponse(), new Object()));
+    }
+
+    @Test
     void viewerCanRead() throws Exception {
         MockHttpServletRequest request = request("GET", "/api/monitor/alerts");
         request.addHeader("X-User-Role", UserContext.ROLE_VIEWER);

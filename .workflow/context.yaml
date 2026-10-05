@@ -64,8 +64,8 @@ p1_context:
   sql_link: "scripts/init-p1.sql"
   plan_status: "IN_DEV"
   task_count: 9
-  task_done: 6
-  current_task: "TASK-P1-007"
+  task_done: 7
+  current_task: "TASK-P1-008"
   current_task_status: "PENDING_DEV"
   java_test_baseline: "P1.5 交付后基线：97/97 Java 测试通过，Python 23/23，Python 覆盖率 85.27%"
   build_note: "JDK27默认关闭classpath注解处理致Lombok不生效；已在pom显式配annotationProcessorPaths，编译测试统一用JDK17"
@@ -76,25 +76,25 @@ p1_context:
     - "延续 P0 技术栈（Java17/SpringBoot3.2.5/MyBatis-Plus/PG/CH/Kafka/Redis），不拆微服务"
     - "PG 类型规约对齐 P0 init-db.sql（DECIMAL(20,8)/TIMESTAMP/SMALLINT deleted）"
   p1_deadline: "2026-12-31 18:00:00"
-  next_action: "执行 TASK-P1-007 组合管理"
+  next_action: "执行 TASK-P1-008 VaR 风险价值"
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
   workflow_id: "dev-test-consistency-p1-006"
   task_id: "TASK-P1-006"
-  task_name: "日终清算对账"
+  task_name: "组合管理"
   create_time: "2026-10-05 20:05:00"
   current_phase: "P1-第二批"
   current_global_state: "GLOBAL_IN_DEV"
-  current_node: "P1-006_COMPLETE"
+  current_node: "P1-007_COMPLETE"
   current_node_status: "DONE"
-  feature_branch: "feature/p1-006-daily-settlement"
-  baseline_commit: "e603f3b"
+  feature_branch: "feature/p1-007-portfolio"
+  baseline_commit: "7b0a707"
   requirement_doc: "docs/p1-prd.md"
   tasks_doc: ".workflow/tasks-p1.md"
-  workflow_plan_doc: ".workflow/p1-task-006-test-report.md"
+  workflow_plan_doc: ".workflow/p1-task-007-test-report.md"
   blocking_reason: ""
-  next_action: "进入 TASK-P1-007 组合管理"
+  next_action: "进入 TASK-P1-008 VaR 风险价值"
 
 p15_context:
   plan_status: "PLANNED"
@@ -247,4 +247,8 @@ operation_logs:
   - time: "2026-10-05 20:52:07"
     operator: "codex/agent-continuous-workflow"
     action: "TASK-P1-006 日终清算对账完成：实现批次状态机、当日成交/费用/盈亏汇总、资金/持仓/成交对账、差异工单、调账、确认关闭、重跑保护和四类报表，提供7个清算接口。真实E2E批次 STL-20261005-C9E47C 初始REVIEWING，汇总手续费45.3，生成7个差异，调账后关闭为CLOSED，已关闭批次重跑被拒绝。修复成交手续费未回填和历史费用依赖成交记录两个缺陷，清算改为优先汇总fund_flow。Java 120/120、Python 23/23通过。下一任务 TASK-P1-007 组合管理。"
+    result: "success"
+  - time: "2026-10-05 21:01:10"
+    operator: "codex/agent-continuous-workflow"
+    action: "TASK-P1-007 组合管理完成：实现组合定义、目标持仓、再平衡预览、单标的/杠杆/weightLimit约束、组合级互斥、确认执行、逐单失败隔离和cur_qty回写，提供7个API。真实E2E组合 PF-3FD194B9 设置 rb2410=2、au2410=1，任务 RB-41015EF8 生成2条指令并全部成交，状态COMPLETED，偏差归零。Java 128/128、Python 23/23通过。下一任务 TASK-P1-008 VaR风险价值。"
     result: "success"

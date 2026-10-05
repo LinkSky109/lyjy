@@ -73,6 +73,40 @@ class AuthInterceptorTest {
     }
 
     @Test
+    void onlyFundManagerCanWriteSettlement() throws Exception {
+        MockHttpServletRequest traderRequest =
+                request("POST", "/api/settlement/run");
+        traderRequest.addHeader("X-User-Role", UserContext.ROLE_TRADER);
+        MockHttpServletResponse traderResponse = new MockHttpServletResponse();
+        assertFalse(interceptor.preHandle(traderRequest, traderResponse, new Object()));
+        assertEquals(403, traderResponse.getStatus());
+
+        UserContextHolder.clear();
+        MockHttpServletRequest fundRequest =
+                request("POST", "/api/settlement/run");
+        fundRequest.addHeader("X-User-Role", UserContext.ROLE_FUND_MANAGER);
+        assertTrue(interceptor.preHandle(
+                fundRequest, new MockHttpServletResponse(), new Object()));
+    }
+
+    @Test
+    void settlementReadRequiresFundOrComplianceRole() throws Exception {
+        MockHttpServletRequest traderRequest =
+                request("GET", "/api/settlement/batches");
+        traderRequest.addHeader("X-User-Role", UserContext.ROLE_TRADER);
+        MockHttpServletResponse traderResponse = new MockHttpServletResponse();
+        assertFalse(interceptor.preHandle(traderRequest, traderResponse, new Object()));
+        assertEquals(403, traderResponse.getStatus());
+
+        UserContextHolder.clear();
+        MockHttpServletRequest complianceRequest =
+                request("GET", "/api/settlement/batches");
+        complianceRequest.addHeader("X-User-Role", UserContext.ROLE_COMPLIANCE);
+        assertTrue(interceptor.preHandle(
+                complianceRequest, new MockHttpServletResponse(), new Object()));
+    }
+
+    @Test
     void viewerCanRead() throws Exception {
         MockHttpServletRequest request = request("GET", "/api/monitor/alerts");
         request.addHeader("X-User-Role", UserContext.ROLE_VIEWER);

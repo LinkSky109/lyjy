@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 @Mapper
 public interface TradeRecordMapper extends BaseMapper<TradeRecord> {
@@ -20,4 +21,9 @@ public interface TradeRecordMapper extends BaseMapper<TradeRecord> {
 
     @Select("SELECT * FROM trade_record WHERE order_id = #{orderId} ORDER BY trade_time")
     List<TradeRecord> selectByOrderId(@Param("orderId") String orderId);
+
+    @Select("SELECT * FROM trade_record WHERE trade_time >= #{start} "
+            + "AND trade_time < #{end} ORDER BY trade_time")
+    List<TradeRecord> selectByTradeTimeRange(@Param("start") LocalDateTime start,
+                                             @Param("end") LocalDateTime end);
 }

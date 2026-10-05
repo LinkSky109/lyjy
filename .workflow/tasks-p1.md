@@ -15,7 +15,7 @@
 | 3 | TASK-P1-003 | 异常交易监控（AbnormalTradeMonitor 流式评分） | 第一批 | 已完成 | TASK-P1-002 |
 | 4 | TASK-P1-004 | 性能降级预案（DegradeController + 轻量熔断/令牌桶） | 第一批 | 已完成（自研实现） | TASK-P1-001 |
 | 5 | TASK-P1-005 | 多柜台多通道（GatewayRouter 路由 + 故障切换 + 熔断） | 第二批 | 已完成 | TASK-P1-004 |
-| 6 | TASK-P1-006 | 日终清算对账（DailySettlementService + 差异工单） | 第二批 | 待开始 | TASK-P1-005 |
+| 6 | TASK-P1-006 | 日终清算对账（DailySettlementService + 差异工单） | 第二批 | 已完成 | TASK-P1-005 |
 | 7 | TASK-P1-007 | 组合管理（组合定义/约束/再平衡） | 第三批 | 待开始 | TASK-P1-006 |
 | 8 | TASK-P1-008 | VaR 风险价值（历史模拟/方差协方差） | 第三批 | 待开始 | TASK-P1-007 |
 | 9 | TASK-P1-009 | 策略加密与沙箱（AES-256-GCM + 子进程沙箱 + 审计） | 第三批 | 待开始 | TASK-P1-008 |

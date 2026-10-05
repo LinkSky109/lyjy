@@ -17,4 +17,9 @@ public interface FundFlowMapper extends BaseMapper<FundFlow> {
     List<FundFlow> selectByAccountAndTime(@Param("accountId") String accountId,
                                           @Param("start") LocalDateTime start,
                                           @Param("end") LocalDateTime end);
+
+    @Select("SELECT * FROM fund_flow WHERE create_time >= #{start} "
+            + "AND create_time < #{end} ORDER BY create_time")
+    List<FundFlow> selectByTimeRange(@Param("start") LocalDateTime start,
+                                     @Param("end") LocalDateTime end);
 }

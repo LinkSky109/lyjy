@@ -191,6 +191,22 @@ public class GatewayRouter {
         return requireManaged(gatewayId).gateway().queryTrades();
     }
 
+    public List<TradeReport> queryTradesAll() {
+        List<TradeReport> result = new ArrayList<>();
+        for (ManagedGateway managed : registry.list()) {
+            if (!managed.canRoute()) {
+                continue;
+            }
+            try {
+                result.addAll(managed.gateway().queryTrades());
+            } catch (Exception error) {
+                log.warn("查询网关成交失败: {} {}", managed.info().getGatewayId(),
+                        error.getMessage());
+            }
+        }
+        return result;
+    }
+
     public AccountInfo queryAccount(String gatewayId) {
         ManagedGateway managed = gatewayId == null || gatewayId.isBlank()
                 ? firstReady()

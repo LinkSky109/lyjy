@@ -45,6 +45,7 @@ public class TradeProcessingService {
         BigDecimal realizedPnl = positionService.applyFill(order, trade);
         TradeCostCalculator.TradeCost cost = costCalculator.calculate(
                 trade.getOffsetFlag(), trade.getPrice(), trade.getQuantity());
+        trade.setCommission(cost.commission());
         fundReservationService.consumeFill(
                 order.getOrderId(), cost.margin(), cost.commission());
         fundManagementService.applyRealizedPnl(

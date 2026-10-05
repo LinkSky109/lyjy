@@ -39,7 +39,16 @@ public class AuthInterceptor implements HandlerInterceptor {
         UserContextHolder.set(context);
 
         String path = request.getRequestURI();
-        if (!isProtected(path) || !WRITE_METHODS.contains(request.getMethod())) {
+        if (!isProtected(path)) {
+            return true;
+        }
+        if (!WRITE_METHODS.contains(request.getMethod())) {
+            if (path.startsWith("/api/settlement/")
+                    && !context.hasAnyRole(
+                    UserContext.ROLE_FUND_MANAGER,
+                    UserContext.ROLE_COMPLIANCE)) {
+                return reject(response, "当前角色无权查看清算数据");
+            }
             return true;
         }
         if (context.isViewer()) {
@@ -77,6 +86,9 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
         if (path.startsWith("/api/gateway/")) {
             return false;
+        }
+        if (path.startsWith("/api/settlement/")) {
+            return context.hasAnyRole(UserContext.ROLE_FUND_MANAGER);
         }
         if (path.startsWith("/api/data-governance/")) {
             return false;

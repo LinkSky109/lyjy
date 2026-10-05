@@ -18,9 +18,11 @@ class TradeClosureSchemaTest {
         String sql = readProjectFile("scripts/init-db.sql");
 
         assertTrue(sql.contains("offset_flag VARCHAR(16)"));
+        assertTrue(sql.contains("broker_order_ref VARCHAR(64)"));
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS trade_record"));
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS order_fund_reservation"));
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS gateway_report_log"));
+        assertTrue(sql.contains("consumed_margin DECIMAL(20,8)"));
         assertTrue(sql.contains("deleted SMALLINT DEFAULT 0"));
     }
 

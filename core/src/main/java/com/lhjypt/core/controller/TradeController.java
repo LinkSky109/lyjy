@@ -1,7 +1,9 @@
 package com.lhjypt.core.controller;
 
 import com.lhjypt.core.common.Result;
+import com.lhjypt.core.model.Order;
 import com.lhjypt.core.model.trade.*;
+import com.lhjypt.core.service.trade.TradeApplicationService;
 import com.lhjypt.core.service.trade.TradeExecutionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +19,7 @@ import java.util.List;
 public class TradeController {
 
     private final TradeExecutionService tradeService;
+    private final TradeApplicationService tradeApplicationService;
 
     /**
      * 连接并登录CTP柜台
@@ -49,11 +52,28 @@ public class TradeController {
     }
 
     /**
-     * 下单
+     * 统一下单入口。
      */
+    @PostMapping("/orders")
+    public Result<TradeSubmissionResult> submitOrder(@RequestBody TradeRequest request) {
+        return Result.success(tradeApplicationService.submit(request));
+    }
+
+    /**
+     * 兼容旧下单入口，内部仍走统一编排链路。
+     */
+    @Deprecated
     @PostMapping("/order")
     public Result<String> placeOrder(@RequestBody TradeRequest request) {
-        return Result.success(tradeService.placeOrder(request));
+        return Result.success(tradeApplicationService.submit(request).orderId());
+    }
+
+    /**
+     * 按平台订单号查询。
+     */
+    @GetMapping("/orders/{orderId}")
+    public Result<Order> queryPlatformOrder(@PathVariable String orderId) {
+        return Result.success(tradeApplicationService.getOrder(orderId));
     }
 
     /**

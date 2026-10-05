@@ -15,6 +15,9 @@ public class TradeReport {
     /** 订单引用 */
     private String orderRef;
 
+    /** 平台订单号 */
+    private String clientOrderId;
+
     /** 交易所订单编号 */
     private String exchangeOrderId;
 
@@ -51,6 +54,10 @@ public class TradeReport {
 
     public String getOrderRef() {
         return orderRef;
+    }
+
+    public String getClientOrderId() {
+        return clientOrderId;
     }
 
     public String getExchangeOrderId() {
@@ -101,6 +108,10 @@ public class TradeReport {
         this.orderRef = orderRef;
     }
 
+    public void setClientOrderId(String clientOrderId) {
+        this.clientOrderId = clientOrderId;
+    }
+
     public void setExchangeOrderId(String exchangeOrderId) {
         this.exchangeOrderId = exchangeOrderId;
     }
@@ -143,7 +154,7 @@ public class TradeReport {
 
     @Override
     public String toString() {
-        return "TradeReport{tradeId=" + tradeId + ", orderRef=" + orderRef + ", exchangeOrderId=" + exchangeOrderId + ", symbol=" + symbol + ", exchange=" + exchange + ", direction=" + direction + ", offsetFlag=" + offsetFlag + ", price=" + price + ", volume=" + volume + ", turnover=" + turnover + ", tradeTime=" + tradeTime + ", tradingDay=" + tradingDay + "}";
+        return "TradeReport{tradeId=" + tradeId + ", orderRef=" + orderRef + ", clientOrderId=" + clientOrderId + ", exchangeOrderId=" + exchangeOrderId + ", symbol=" + symbol + ", exchange=" + exchange + ", direction=" + direction + ", offsetFlag=" + offsetFlag + ", price=" + price + ", volume=" + volume + ", turnover=" + turnover + ", tradeTime=" + tradeTime + ", tradingDay=" + tradingDay + "}";
     }
 
     @Override
@@ -153,6 +164,7 @@ public class TradeReport {
         TradeReport that = (TradeReport) o;
         return Objects.equals(tradeId, that.tradeId)
                 && Objects.equals(orderRef, that.orderRef)
+                && Objects.equals(clientOrderId, that.clientOrderId)
                 && Objects.equals(exchangeOrderId, that.exchangeOrderId)
                 && Objects.equals(symbol, that.symbol)
                 && Objects.equals(exchange, that.exchange)
@@ -167,6 +179,6 @@ public class TradeReport {
 
     @Override
     public int hashCode() {
-        return Objects.hash(tradeId, orderRef, exchangeOrderId, symbol, exchange, direction, offsetFlag, price, volume, turnover, tradeTime, tradingDay);
+        return Objects.hash(tradeId, orderRef, clientOrderId, exchangeOrderId, symbol, exchange, direction, offsetFlag, price, volume, turnover, tradeTime, tradingDay);
     }
 }

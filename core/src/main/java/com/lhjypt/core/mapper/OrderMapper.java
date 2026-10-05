@@ -36,6 +36,12 @@ public interface OrderMapper extends BaseMapper<Order> {
     Order selectByOrderId(@Param("orderId") String orderId);
 
     /**
+     * 根据柜台订单引用查询
+     */
+    @Select("SELECT * FROM orders WHERE broker_order_ref = #{brokerOrderRef} AND deleted = 0 LIMIT 1")
+    Order selectByBrokerOrderRef(@Param("brokerOrderRef") String brokerOrderRef);
+
+    /**
      * 滑动窗口内的订单（异常交易监控评分取数，P1）
      */
     @Select("SELECT * FROM orders WHERE create_time >= #{since} AND deleted = 0 " +

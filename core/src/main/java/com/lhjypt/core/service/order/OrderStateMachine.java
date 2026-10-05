@@ -26,13 +26,16 @@ public class OrderStateMachine {
 
     static {
         TRANSITIONS.put(OrderStatus.PENDING, EnumSet.of(
-                OrderStatus.SUBMITTED, OrderStatus.REJECTED));
+                OrderStatus.SUBMITTED, OrderStatus.REJECTED, OrderStatus.CANCELED));
 
         TRANSITIONS.put(OrderStatus.SUBMITTED, EnumSet.of(
-                OrderStatus.ACCEPTED, OrderStatus.REJECTED, OrderStatus.TIMEOUT));
+                OrderStatus.ACCEPTED, OrderStatus.PARTIAL_FILLED,
+                OrderStatus.FILLED, OrderStatus.CANCELED,
+                OrderStatus.REJECTED, OrderStatus.TIMEOUT));
 
         TRANSITIONS.put(OrderStatus.ACCEPTED, EnumSet.of(
-                OrderStatus.PARTIAL_FILLED, OrderStatus.FILLED, OrderStatus.CANCELED));
+                OrderStatus.PARTIAL_FILLED, OrderStatus.FILLED,
+                OrderStatus.CANCELED, OrderStatus.REJECTED));
 
         TRANSITIONS.put(OrderStatus.PARTIAL_FILLED, EnumSet.of(
                 OrderStatus.PARTIAL_FILLED, OrderStatus.FILLED, OrderStatus.CANCELED));

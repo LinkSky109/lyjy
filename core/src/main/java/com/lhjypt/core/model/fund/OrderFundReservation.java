@@ -28,6 +28,10 @@ public class OrderFundReservation {
 
     private BigDecimal reservedCommission;
 
+    private BigDecimal consumedMargin;
+
+    private BigDecimal consumedCommission;
+
     private BigDecimal releasedAmount;
 
     private BigDecimal consumedAmount;

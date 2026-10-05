@@ -12,6 +12,9 @@ public class OrderReport {
     /** 柜台订单引用 */
     private String orderRef;
 
+    /** 平台订单号 */
+    private String clientOrderId;
+
     /** 交易所订单编号 */
     private String exchangeOrderId;
 
@@ -56,6 +59,10 @@ public class OrderReport {
 
     public String getOrderRef() {
         return orderRef;
+    }
+
+    public String getClientOrderId() {
+        return clientOrderId;
     }
 
     public String getExchangeOrderId() {
@@ -114,6 +121,10 @@ public class OrderReport {
         this.orderRef = orderRef;
     }
 
+    public void setClientOrderId(String clientOrderId) {
+        this.clientOrderId = clientOrderId;
+    }
+
     public void setExchangeOrderId(String exchangeOrderId) {
         this.exchangeOrderId = exchangeOrderId;
     }
@@ -168,7 +179,7 @@ public class OrderReport {
 
     @Override
     public String toString() {
-        return "OrderReport{orderRef=" + orderRef + ", exchangeOrderId=" + exchangeOrderId + ", symbol=" + symbol + ", direction=" + direction + ", offsetFlag=" + offsetFlag + ", limitPrice=" + limitPrice + ", volumeTotalOriginal=" + volumeTotalOriginal + ", volumeTraded=" + volumeTraded + ", orderStatus=" + orderStatus + ", statusMsg=" + statusMsg + ", insertTime=" + insertTime + ", updateTime=" + updateTime + ", frontId=" + frontId + ", sessionId=" + sessionId + "}";
+        return "OrderReport{orderRef=" + orderRef + ", clientOrderId=" + clientOrderId + ", exchangeOrderId=" + exchangeOrderId + ", symbol=" + symbol + ", direction=" + direction + ", offsetFlag=" + offsetFlag + ", limitPrice=" + limitPrice + ", volumeTotalOriginal=" + volumeTotalOriginal + ", volumeTraded=" + volumeTraded + ", orderStatus=" + orderStatus + ", statusMsg=" + statusMsg + ", insertTime=" + insertTime + ", updateTime=" + updateTime + ", frontId=" + frontId + ", sessionId=" + sessionId + "}";
     }
 
     @Override
@@ -177,6 +188,7 @@ public class OrderReport {
         if (o == null || getClass() != o.getClass()) return false;
         OrderReport that = (OrderReport) o;
         return Objects.equals(orderRef, that.orderRef)
+                && Objects.equals(clientOrderId, that.clientOrderId)
                 && Objects.equals(exchangeOrderId, that.exchangeOrderId)
                 && Objects.equals(symbol, that.symbol)
                 && Objects.equals(direction, that.direction)
@@ -194,6 +206,6 @@ public class OrderReport {
 
     @Override
     public int hashCode() {
-        return Objects.hash(orderRef, exchangeOrderId, symbol, direction, offsetFlag, limitPrice, volumeTotalOriginal, volumeTraded, orderStatus, statusMsg, insertTime, updateTime, frontId, sessionId);
+        return Objects.hash(orderRef, clientOrderId, exchangeOrderId, symbol, direction, offsetFlag, limitPrice, volumeTotalOriginal, volumeTraded, orderStatus, statusMsg, insertTime, updateTime, frontId, sessionId);
     }
 }

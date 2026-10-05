@@ -63,6 +63,7 @@ public class OrderManagementService {
         order.setAccountId(command.getAccountId());
         order.setSymbol(command.getSymbol());
         order.setDirection(command.getDirection());
+        order.setOffsetFlag(command.getOffsetFlag());
         order.setOrderType(command.getOrderType());
         order.setPrice(command.getPrice());
         order.setQuantity(command.getQuantity());
@@ -82,6 +83,51 @@ public class OrderManagementService {
                 order.getOrderId(), order.getSymbol(),
                 order.getDirection(), order.getQuantity());
 
+        return order;
+    }
+
+    /**
+     * 标记订单已提交柜台。
+     *
+     * 回报可能早于 submitOrder 返回，因此这里必须对已进入后续状态的订单保持幂等。
+     */
+    @Transactional
+    public Order markSubmitted(String orderId, String brokerOrderRef) {
+        Order order = getOrderByOrderId(orderId);
+        OrderStatus current = OrderStatus.fromCode(order.getStatus());
+
+        if (current == OrderStatus.PENDING) {
+            stateMachine.validateTransit(current, OrderStatus.SUBMITTED);
+            order.setStatus(OrderStatus.SUBMITTED.getCode());
+        }
+
+        if (brokerOrderRef != null && !brokerOrderRef.isBlank()) {
+            order.setBrokerOrderRef(brokerOrderRef);
+        }
+        if (order.getSubmittedAt() == null) {
+            order.setSubmittedAt(LocalDateTime.now());
+        }
+        order.setUpdateTime(LocalDateTime.now());
+        orderMapper.updateById(order);
+        return order;
+    }
+
+    /**
+     * 标记订单被拒绝。
+     */
+    @Transactional
+    public Order reject(String orderId, String errorCode, String errorMessage) {
+        Order order = getOrderByOrderId(orderId);
+        OrderStatus current = OrderStatus.fromCode(order.getStatus());
+        if (current.isTerminal()) {
+            return order;
+        }
+        stateMachine.validateTransit(current, OrderStatus.REJECTED);
+        order.setStatus(OrderStatus.REJECTED.getCode());
+        order.setErrorCode(errorCode);
+        order.setErrorMessage(errorMessage);
+        order.setUpdateTime(LocalDateTime.now());
+        orderMapper.updateById(order);
         return order;
     }
 

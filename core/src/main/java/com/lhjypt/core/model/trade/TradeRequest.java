@@ -35,6 +35,12 @@ public class TradeRequest {
     /** 账户ID */
     private String accountId;
 
+    /** 平台订单号，用于回报关联 */
+    private String clientOrderId;
+
+    /** 客户端幂等键 */
+    private String idempotencyKey;
+
     /** 最小成交量 */
     private BigDecimal minVolume;
 
@@ -75,6 +81,14 @@ public class TradeRequest {
 
     public String getAccountId() {
         return accountId;
+    }
+
+    public String getClientOrderId() {
+        return clientOrderId;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
     }
 
     public BigDecimal getMinVolume() {
@@ -121,6 +135,14 @@ public class TradeRequest {
         this.accountId = accountId;
     }
 
+    public void setClientOrderId(String clientOrderId) {
+        this.clientOrderId = clientOrderId;
+    }
+
+    public void setIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
+    }
+
     public void setMinVolume(BigDecimal minVolume) {
         this.minVolume = minVolume;
     }
@@ -131,7 +153,7 @@ public class TradeRequest {
 
     @Override
     public String toString() {
-        return "TradeRequest{symbol=" + symbol + ", exchange=" + exchange + ", direction=" + direction + ", offsetFlag=" + offsetFlag + ", orderType=" + orderType + ", price=" + price + ", quantity=" + quantity + ", strategyId=" + strategyId + ", accountId=" + accountId + ", minVolume=" + minVolume + ", remark=" + remark + "}";
+        return "TradeRequest{symbol=" + symbol + ", exchange=" + exchange + ", direction=" + direction + ", offsetFlag=" + offsetFlag + ", orderType=" + orderType + ", price=" + price + ", quantity=" + quantity + ", strategyId=" + strategyId + ", accountId=" + accountId + ", clientOrderId=" + clientOrderId + ", idempotencyKey=" + idempotencyKey + ", minVolume=" + minVolume + ", remark=" + remark + "}";
     }
 
     @Override
@@ -148,12 +170,14 @@ public class TradeRequest {
                 && Objects.equals(quantity, that.quantity)
                 && Objects.equals(strategyId, that.strategyId)
                 && Objects.equals(accountId, that.accountId)
+                && Objects.equals(clientOrderId, that.clientOrderId)
+                && Objects.equals(idempotencyKey, that.idempotencyKey)
                 && Objects.equals(minVolume, that.minVolume)
                 && Objects.equals(remark, that.remark);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(symbol, exchange, direction, offsetFlag, orderType, price, quantity, strategyId, accountId, minVolume, remark);
+        return Objects.hash(symbol, exchange, direction, offsetFlag, orderType, price, quantity, strategyId, accountId, clientOrderId, idempotencyKey, minVolume, remark);
     }
 }

@@ -7,6 +7,7 @@ BEGIN;
 -- 1. 扩展订单表
 ALTER TABLE orders
     ADD COLUMN IF NOT EXISTS offset_flag VARCHAR(16) NOT NULL DEFAULT 'OPEN',
+    ADD COLUMN IF NOT EXISTS broker_order_ref VARCHAR(64),
     ADD COLUMN IF NOT EXISTS error_code VARCHAR(64),
     ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP,
     ADD COLUMN IF NOT EXISTS filled_at TIMESTAMP,
@@ -14,6 +15,9 @@ ALTER TABLE orders
 
 CREATE INDEX IF NOT EXISTS idx_orders_account_status
     ON orders(account_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_orders_broker_ref
+    ON orders(broker_order_ref);
 
 -- 2. 扩展幂等表
 ALTER TABLE order_idempotent
@@ -58,6 +62,8 @@ CREATE TABLE IF NOT EXISTS order_fund_reservation (
     account_id VARCHAR(64) NOT NULL,
     reserved_margin DECIMAL(20,8) NOT NULL DEFAULT 0,
     reserved_commission DECIMAL(20,8) NOT NULL DEFAULT 0,
+    consumed_margin DECIMAL(20,8) NOT NULL DEFAULT 0,
+    consumed_commission DECIMAL(20,8) NOT NULL DEFAULT 0,
     released_amount DECIMAL(20,8) NOT NULL DEFAULT 0,
     consumed_amount DECIMAL(20,8) NOT NULL DEFAULT 0,
     status VARCHAR(32) NOT NULL DEFAULT 'RESERVED',

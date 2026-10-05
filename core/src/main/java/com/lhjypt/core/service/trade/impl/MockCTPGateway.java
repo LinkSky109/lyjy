@@ -130,6 +130,7 @@ public class MockCTPGateway implements TradingGateway {
         // 创建订单回报（未成交状态）
         OrderReport report = new OrderReport();
         report.setOrderRef(orderRef);
+        report.setClientOrderId(request.getClientOrderId());
         report.setExchangeOrderId(exchangeOrderId);
         report.setSymbol(request.getSymbol());
         report.setDirection(request.getDirection());
@@ -167,6 +168,7 @@ public class MockCTPGateway implements TradingGateway {
         TradeReport trade = new TradeReport();
         trade.setTradeId(tradeId);
         trade.setOrderRef(report.getOrderRef());
+        trade.setClientOrderId(report.getClientOrderId());
         trade.setExchangeOrderId(report.getExchangeOrderId());
         trade.setSymbol(request.getSymbol());
         trade.setExchange(request.getExchange());

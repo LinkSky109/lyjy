@@ -53,6 +53,9 @@ public class Order {
     /** 柜台回报编号 */
     private String exchangeOrderId;
 
+    /** 柜台订单引用 */
+    private String brokerOrderRef;
+
     /** 错误码 */
     private String errorCode;
 
@@ -131,6 +134,10 @@ public class Order {
 
     public String getExchangeOrderId() {
         return exchangeOrderId;
+    }
+
+    public String getBrokerOrderRef() {
+        return brokerOrderRef;
     }
 
     public String getErrorCode() {
@@ -221,6 +228,10 @@ public class Order {
         this.exchangeOrderId = exchangeOrderId;
     }
 
+    public void setBrokerOrderRef(String brokerOrderRef) {
+        this.brokerOrderRef = brokerOrderRef;
+    }
+
     public void setErrorCode(String errorCode) {
         this.errorCode = errorCode;
     }
@@ -255,7 +266,7 @@ public class Order {
 
     @Override
     public String toString() {
-        return "Order{id=" + id + ", orderId=" + orderId + ", strategyId=" + strategyId + ", accountId=" + accountId + ", symbol=" + symbol + ", direction=" + direction + ", offsetFlag=" + offsetFlag + ", orderType=" + orderType + ", price=" + price + ", quantity=" + quantity + ", filledQuantity=" + filledQuantity + ", avgFillPrice=" + avgFillPrice + ", status=" + status + ", exchangeOrderId=" + exchangeOrderId + ", errorCode=" + errorCode + ", errorMessage=" + errorMessage + ", submittedAt=" + submittedAt + ", filledAt=" + filledAt + ", canceledAt=" + canceledAt + ", createTime=" + createTime + ", updateTime=" + updateTime + ", deleted=" + deleted + "}";
+        return "Order{id=" + id + ", orderId=" + orderId + ", strategyId=" + strategyId + ", accountId=" + accountId + ", symbol=" + symbol + ", direction=" + direction + ", offsetFlag=" + offsetFlag + ", orderType=" + orderType + ", price=" + price + ", quantity=" + quantity + ", filledQuantity=" + filledQuantity + ", avgFillPrice=" + avgFillPrice + ", status=" + status + ", brokerOrderRef=" + brokerOrderRef + ", exchangeOrderId=" + exchangeOrderId + ", errorCode=" + errorCode + ", errorMessage=" + errorMessage + ", submittedAt=" + submittedAt + ", filledAt=" + filledAt + ", canceledAt=" + canceledAt + ", createTime=" + createTime + ", updateTime=" + updateTime + ", deleted=" + deleted + "}";
     }
 
     @Override
@@ -276,6 +287,7 @@ public class Order {
                 && Objects.equals(filledQuantity, that.filledQuantity)
                 && Objects.equals(avgFillPrice, that.avgFillPrice)
                 && Objects.equals(status, that.status)
+                && Objects.equals(brokerOrderRef, that.brokerOrderRef)
                 && Objects.equals(exchangeOrderId, that.exchangeOrderId)
                 && Objects.equals(errorCode, that.errorCode)
                 && Objects.equals(errorMessage, that.errorMessage)
@@ -289,6 +301,6 @@ public class Order {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, orderId, strategyId, accountId, symbol, direction, offsetFlag, orderType, price, quantity, filledQuantity, avgFillPrice, status, exchangeOrderId, errorCode, errorMessage, submittedAt, filledAt, canceledAt, createTime, updateTime, deleted);
+        return Objects.hash(id, orderId, strategyId, accountId, symbol, direction, offsetFlag, orderType, price, quantity, filledQuantity, avgFillPrice, status, brokerOrderRef, exchangeOrderId, errorCode, errorMessage, submittedAt, filledAt, canceledAt, createTime, updateTime, deleted);
     }
 }

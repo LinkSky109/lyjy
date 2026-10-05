@@ -106,6 +106,12 @@ public class FundManagementService {
     @Transactional
     public void freezeCash(String accountId, BigDecimal amount, String bizNo, String symbol) {
         FundAccount account = fundAccountMapper.selectByAccountId(accountId);
+        if (account == null) {
+            throw new IllegalArgumentException("资金账户不存在: " + accountId);
+        }
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("冻结金额必须大于0");
+        }
 
         // 透支控制
         if (account.getAvailableCash().compareTo(amount) < 0) {
@@ -128,6 +134,16 @@ public class FundManagementService {
     @Transactional
     public void releaseCash(String accountId, BigDecimal amount, String bizNo, String symbol) {
         FundAccount account = fundAccountMapper.selectByAccountId(accountId);
+        if (account == null) {
+            throw new IllegalArgumentException("资金账户不存在: " + accountId);
+        }
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("释放金额必须大于0");
+        }
+        if (account.getFrozenCash().compareTo(amount) < 0) {
+            throw new IllegalStateException(
+                    "释放金额超过冻结资金，需 " + amount + " 实际 " + account.getFrozenCash());
+        }
         BigDecimal before = account.getAvailableCash();
 
         account.setFrozenCash(account.getFrozenCash().subtract(amount));
@@ -145,11 +161,87 @@ public class FundManagementService {
     public void chargeCommission(String accountId, BigDecimal commission,
                                  String bizNo, String symbol) {
         FundAccount account = fundAccountMapper.selectByAccountId(accountId);
+        if (account == null) {
+            throw new IllegalArgumentException("资金账户不存在: " + accountId);
+        }
+        if (commission == null || commission.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
         BigDecimal before = account.getAvailableCash();
         account.setAvailableCash(before.subtract(commission));
         fundAccountMapper.updateById(account);
 
         recordFlow(accountId, "COMMISSION", bizNo, commission.negate(),
+                before, account.getAvailableCash(), symbol);
+    }
+
+    /**
+     * 成交后把冻结保证金转为已占用保证金，并扣收手续费。
+     */
+    @Transactional
+    public void settleMarginAndCommission(String accountId, BigDecimal margin,
+                                          BigDecimal commission, String bizNo, String symbol) {
+        FundAccount account = fundAccountMapper.selectByAccountId(accountId);
+        if (account == null) {
+            throw new IllegalArgumentException("资金账户不存在: " + accountId);
+        }
+
+        BigDecimal settleMargin = margin == null ? BigDecimal.ZERO : margin;
+        BigDecimal settleCommission = commission == null ? BigDecimal.ZERO : commission;
+        if (settleMargin.compareTo(BigDecimal.ZERO) < 0
+                || settleCommission.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("保证金和手续费不能为负数");
+        }
+        if (account.getFrozenCash().compareTo(settleMargin) < 0) {
+            throw new IllegalStateException(
+                    "冻结资金不足以结算保证金，需 " + settleMargin
+                            + " 实际 " + account.getFrozenCash());
+        }
+        if (account.getAvailableCash().compareTo(settleCommission) < 0) {
+            throw new IllegalStateException(
+                    "可用资金不足以支付手续费，需 " + settleCommission
+                            + " 实际 " + account.getAvailableCash());
+        }
+
+        BigDecimal frozenBefore = account.getFrozenCash();
+        BigDecimal availableBefore = account.getAvailableCash();
+
+        account.setFrozenCash(frozenBefore.subtract(settleMargin));
+        account.setMargin(account.getMargin().add(settleMargin));
+        account.setAvailableCash(availableBefore.subtract(settleCommission));
+        fundAccountMapper.updateById(account);
+
+        if (settleMargin.compareTo(BigDecimal.ZERO) > 0) {
+            recordFlow(accountId, "MARGIN_SETTLE", bizNo, settleMargin.negate(),
+                    frozenBefore, account.getFrozenCash(), symbol);
+        }
+        if (settleCommission.compareTo(BigDecimal.ZERO) > 0) {
+            recordFlow(accountId, "COMMISSION", bizNo, settleCommission.negate(),
+                    availableBefore, account.getAvailableCash(), symbol);
+        }
+    }
+
+    /**
+     * 记录平仓已实现盈亏并更新账户资产。
+     */
+    @Transactional
+    public void applyRealizedPnl(String accountId, BigDecimal realizedPnl,
+                                 String bizNo, String symbol) {
+        if (realizedPnl == null || realizedPnl.compareTo(BigDecimal.ZERO) == 0) {
+            return;
+        }
+        FundAccount account = fundAccountMapper.selectByAccountId(accountId);
+        if (account == null) {
+            throw new IllegalArgumentException("资金账户不存在: " + accountId);
+        }
+
+        BigDecimal before = account.getAvailableCash();
+        account.setAvailableCash(before.add(realizedPnl));
+        account.setTotalAsset(account.getTotalAsset().add(realizedPnl));
+        account.setRealizedPnl(account.getRealizedPnl().add(realizedPnl));
+        fundAccountMapper.updateById(account);
+
+        recordFlow(accountId, "REALIZED_PNL", bizNo, realizedPnl,
                 before, account.getAvailableCash(), symbol);
     }
 

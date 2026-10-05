@@ -23,7 +23,7 @@ import java.time.LocalDateTime;
 public class GatewayReportHandlingService {
 
     private static final Logger log = LoggerFactory.getLogger(GatewayReportHandlingService.class);
-    private static final String GATEWAY_ID = "ACTIVE";
+    private static final String DEFAULT_GATEWAY_ID = "ACTIVE";
 
     private final GatewayReportLogMapper reportLogMapper;
     private final OrderManagementService orderManagementService;
@@ -32,7 +32,9 @@ public class GatewayReportHandlingService {
     @Transactional
     public void handleOrderReport(OrderReport report) {
         String key = orderReportKey(report);
-        GatewayReportLog logEntry = claim("ORDER", key, report.toString());
+        GatewayReportLog logEntry = claim(
+                gatewayId(report.getGatewayId()), sessionId(report.getGatewaySessionId()),
+                "ORDER", key, report.toString());
         if (logEntry == null) {
             return;
         }
@@ -42,7 +44,10 @@ public class GatewayReportHandlingService {
 
     @Transactional
     public void handleTradeReport(TradeReport report) {
-        GatewayReportLog logEntry = claim("TRADE", report.getTradeId(), report.toString());
+        GatewayReportLog logEntry = claim(
+                gatewayId(report.getGatewayId()), sessionId(report.getGatewaySessionId()),
+                "TRADE",
+                report.getTradeId(), report.toString());
         if (logEntry == null) {
             return;
         }
@@ -56,15 +61,18 @@ public class GatewayReportHandlingService {
         markProcessed(logEntry);
     }
 
-    private GatewayReportLog claim(String type, String key, String payload) {
-        GatewayReportLog existing = reportLogMapper.selectByReportKey(GATEWAY_ID, type, key);
+    private GatewayReportLog claim(String gatewayId, String sessionId, String type,
+                                   String key, String payload) {
+        String scopedKey = sessionId + "|" + key;
+        GatewayReportLog existing = reportLogMapper.selectByReportKey(
+                gatewayId, type, scopedKey);
         if (existing != null) {
             return null;
         }
         GatewayReportLog entry = new GatewayReportLog();
-        entry.setGatewayId(GATEWAY_ID);
+        entry.setGatewayId(gatewayId);
         entry.setReportType(type);
-        entry.setReportKey(key);
+        entry.setReportKey(scopedKey);
         entry.setPayloadHash(Integer.toHexString(payload.hashCode()));
         entry.setProcessStatus("RECEIVED");
         entry.setRetryCount(0);
@@ -95,5 +103,13 @@ public class GatewayReportHandlingService {
 
     private static String safe(String value) {
         return value == null ? "" : value;
+    }
+
+    private static String gatewayId(String value) {
+        return value == null || value.isBlank() ? DEFAULT_GATEWAY_ID : value;
+    }
+
+    private static String sessionId(String value) {
+        return value == null || value.isBlank() ? "NO-SESSION" : value;
     }
 }

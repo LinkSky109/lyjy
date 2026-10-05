@@ -328,6 +328,14 @@ public class MockCTPGateway implements TradingGateway {
         return "MOCK_CTP";
     }
 
+    public int orderListenerCount() {
+        return orderListeners.size();
+    }
+
+    public int tradeListenerCount() {
+        return tradeListeners.size();
+    }
+
     private void notifyOrderReport(OrderReport report) {
         for (OrderReportListener l : orderListeners) {
             l.onOrderReport(report);

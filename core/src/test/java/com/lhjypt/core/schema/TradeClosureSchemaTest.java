@@ -19,7 +19,9 @@ class TradeClosureSchemaTest {
 
         assertTrue(sql.contains("offset_flag VARCHAR(16)"));
         assertTrue(sql.contains("broker_order_ref VARCHAR(64)"));
+        assertTrue(sql.contains("gateway_id VARCHAR(64)"));
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS trade_record"));
+        assertTrue(sql.contains("UNIQUE(gateway_id, gateway_session_id, trade_id)"));
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS order_fund_reservation"));
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS gateway_report_log"));
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS position_reconciliation"));
@@ -43,6 +45,17 @@ class TradeClosureSchemaTest {
             assertTrue(sql.contains(fragment), "missing migration fragment: " + fragment);
         }
 
+        String upper = sql.toUpperCase();
+        assertFalse(upper.contains("DROP TABLE"));
+        assertFalse(upper.contains("TRUNCATE"));
+    }
+
+    @Test
+    void gatewayRoutingMigrationIsAdditive() throws IOException {
+        String sql = readProjectFile("scripts/migration/p1_005_gateway_routing.sql");
+
+        assertTrue(sql.contains("ADD COLUMN IF NOT EXISTS gateway_id"));
+        assertTrue(sql.contains("CREATE INDEX IF NOT EXISTS idx_orders_gateway"));
         String upper = sql.toUpperCase();
         assertFalse(upper.contains("DROP TABLE"));
         assertFalse(upper.contains("TRUNCATE"));

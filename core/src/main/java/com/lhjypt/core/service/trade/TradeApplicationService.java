@@ -2,6 +2,7 @@ package com.lhjypt.core.service.trade;
 
 import com.lhjypt.core.common.exception.TradeRejectedException;
 import com.lhjypt.core.model.Order;
+import com.lhjypt.core.model.gateway.GatewaySubmission;
 import com.lhjypt.core.model.order.CreateOrderCommand;
 import com.lhjypt.core.model.risk.RiskCheckResult;
 import com.lhjypt.core.model.trade.TradeRequest;
@@ -58,7 +59,7 @@ public class TradeApplicationService {
 
         Order order = orderManagementService.createOrder(toCommand(request));
         if (!OrderStatus.PENDING.getCode().equals(order.getStatus())) {
-            return toResult(order, true);
+            return toResult(order, true, null);
         }
 
         TradeCostCalculator.TradeCost cost;
@@ -73,11 +74,13 @@ public class TradeApplicationService {
 
         request.setClientOrderId(order.getOrderId());
         try {
-            String brokerOrderRef = tradeExecutionService.placeOrder(request);
-            order = orderManagementService.markSubmitted(order.getOrderId(), brokerOrderRef);
-            log.info("订单已提交: orderId={} brokerRef={} symbol={}",
-                    order.getOrderId(), brokerOrderRef, order.getSymbol());
-            return toResult(order, false);
+            GatewaySubmission submission = tradeExecutionService.placeOrderRouted(request);
+            order = orderManagementService.markSubmitted(
+                    order.getOrderId(), submission.orderRef(), submission.gatewayId());
+            log.info("订单已提交: orderId={} brokerRef={} gateway={} fallback={} symbol={}",
+                    order.getOrderId(), submission.orderRef(), submission.gatewayId(),
+                    submission.fallbackUsed(), order.getSymbol());
+            return toResult(order, false, submission);
         } catch (Exception error) {
             fundReservationService.releaseRemaining(order.getOrderId());
             orderManagementService.reject(order.getOrderId(), "GATEWAY_UNAVAILABLE", error.getMessage());
@@ -98,8 +101,11 @@ public class TradeApplicationService {
         if (order.getExchangeOrderId() == null || order.getExchangeOrderId().isBlank()) {
             throw new IllegalStateException("订单尚未收到柜台确认，暂不能撤单: " + orderId);
         }
+        String gatewayId = order.getGatewayId() == null || order.getGatewayId().isBlank()
+                ? tradeExecutionService.getDefaultGatewayId()
+                : order.getGatewayId();
         boolean canceled = tradeExecutionService.cancelOrder(
-                order.getExchangeOrderId(), order.getSymbol());
+                gatewayId, order.getExchangeOrderId(), order.getSymbol());
         if (!canceled) {
             throw new IllegalStateException("柜台撤单失败: " + orderId);
         }
@@ -160,11 +166,15 @@ public class TradeApplicationService {
         return command;
     }
 
-    private TradeSubmissionResult toResult(Order order, boolean replay) {
+    private TradeSubmissionResult toResult(Order order, boolean replay,
+                                           GatewaySubmission submission) {
         return new TradeSubmissionResult(
                 order.getOrderId(),
                 order.getStatus(),
                 order.getBrokerOrderRef(),
+                order.getGatewayId(),
+                submission != null && submission.fallbackUsed(),
+                submission == null ? null : submission.switchedFrom(),
                 tradeExecutionService.getMode(),
                 replay);
     }

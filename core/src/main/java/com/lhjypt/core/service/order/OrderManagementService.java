@@ -95,6 +95,11 @@ public class OrderManagementService {
      */
     @Transactional
     public Order markSubmitted(String orderId, String brokerOrderRef) {
+        return markSubmitted(orderId, brokerOrderRef, null);
+    }
+
+    @Transactional
+    public Order markSubmitted(String orderId, String brokerOrderRef, String gatewayId) {
         Order order = getOrderByOrderId(orderId);
         OrderStatus current = OrderStatus.fromCode(order.getStatus());
 
@@ -105,6 +110,9 @@ public class OrderManagementService {
 
         if (brokerOrderRef != null && !brokerOrderRef.isBlank()) {
             order.setBrokerOrderRef(brokerOrderRef);
+        }
+        if (gatewayId != null && !gatewayId.isBlank()) {
+            order.setGatewayId(gatewayId);
         }
         if (order.getSubmittedAt() == null) {
             order.setSubmittedAt(LocalDateTime.now());

@@ -56,6 +56,23 @@ class AuthInterceptorTest {
     }
 
     @Test
+    void onlyAdminCanManageGateways() throws Exception {
+        MockHttpServletRequest traderRequest =
+                request("POST", "/api/gateway/register");
+        traderRequest.addHeader("X-User-Role", UserContext.ROLE_TRADER);
+        MockHttpServletResponse traderResponse = new MockHttpServletResponse();
+        assertFalse(interceptor.preHandle(traderRequest, traderResponse, new Object()));
+        assertEquals(403, traderResponse.getStatus());
+
+        UserContextHolder.clear();
+        MockHttpServletRequest adminRequest =
+                request("POST", "/api/gateway/register");
+        adminRequest.addHeader("X-User-Role", UserContext.ROLE_ADMIN);
+        assertTrue(interceptor.preHandle(
+                adminRequest, new MockHttpServletResponse(), new Object()));
+    }
+
+    @Test
     void viewerCanRead() throws Exception {
         MockHttpServletRequest request = request("GET", "/api/monitor/alerts");
         request.addHeader("X-User-Role", UserContext.ROLE_VIEWER);

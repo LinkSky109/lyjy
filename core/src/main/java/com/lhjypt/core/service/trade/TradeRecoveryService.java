@@ -36,7 +36,12 @@ public class TradeRecoveryService {
                 continue;
             }
             try {
-                OrderReport report = tradeExecutionService.queryOrder(exchangeOrderId);
+                String gatewayId = order.getGatewayId() == null
+                        || order.getGatewayId().isBlank()
+                        ? tradeExecutionService.getDefaultGatewayId()
+                        : order.getGatewayId();
+                OrderReport report = tradeExecutionService.queryOrder(
+                        gatewayId, exchangeOrderId);
                 if (report != null) {
                     orderManagementService.applyOrderReport(report);
                     recovered++;

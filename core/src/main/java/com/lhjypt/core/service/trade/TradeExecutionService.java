@@ -1,40 +1,61 @@
 package com.lhjypt.core.service.trade;
 
-import com.lhjypt.core.model.trade.*;
+import com.lhjypt.core.model.gateway.GatewayInfo;
+import com.lhjypt.core.model.gateway.GatewayStatus;
+import com.lhjypt.core.model.gateway.GatewaySubmission;
+import com.lhjypt.core.model.trade.AccountInfo;
+import com.lhjypt.core.model.trade.CTPConfig;
+import com.lhjypt.core.model.trade.GatewayMode;
+import com.lhjypt.core.model.trade.OrderReport;
+import com.lhjypt.core.model.trade.PositionDetail;
+import com.lhjypt.core.model.trade.TradeReport;
+import com.lhjypt.core.model.trade.TradeRequest;
+import com.lhjypt.core.service.trade.gateway.GatewayRegistry;
+import com.lhjypt.core.service.trade.gateway.GatewayRouter;
+import com.lhjypt.core.service.trade.gateway.ManagedGateway;
 import com.lhjypt.core.service.trade.impl.CTPGatewayAdapter;
 import com.lhjypt.core.service.trade.impl.MockCTPGateway;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
- * 交易执行服务（EMS）
- * 统一管理交易网关，提供报单、撤单、查询的业务入口
- * 协调风控校验与订单执行
+ * 交易执行服务（EMS）。
+ *
+ * 业务层统一通过 GatewayRouter 访问一个或多个交易网关。
  */
 @Service
 @RequiredArgsConstructor
 public class TradeExecutionService {
-    private static final Logger log = LoggerFactory.getLogger(TradeExecutionService.class);
 
+    private static final Logger log = LoggerFactory.getLogger(TradeExecutionService.class);
+    public static final String DEFAULT_MOCK_GATEWAY = "mock-default";
+    public static final String LIVE_CTP_GATEWAY = "ctp-live";
 
     private final MockCTPGateway mockGateway;
     private final CTPGatewayAdapter ctpGateway;
+    private final GatewayRouter gatewayRouter;
 
-    /** 当前使用的网关 */
     private TradingGateway currentGateway;
     private GatewayMode currentMode;
+    private String defaultGatewayId;
 
     @Value("${lhjypt.trade.mode:MOCK}")
     private String configuredMode;
 
-    /**
-     * 连接柜台
-     */
+    @PostConstruct
+    public void initializeDefaultGateway() {
+        GatewayInfo mockInfo = gatewayInfo(
+                DEFAULT_MOCK_GATEWAY, "MOCK", "默认 Mock CTP", 100);
+        gatewayRouter.register(mockInfo, mockGateway);
+        defaultGatewayId = DEFAULT_MOCK_GATEWAY;
+    }
+
     public void connect(CTPConfig config) {
         GatewayMode requestedMode = GatewayMode.from(
                 config.getMode() == null || config.getMode().isBlank()
@@ -46,87 +67,84 @@ public class TradeExecutionService {
                 throw new IllegalStateException(
                         "LIVE 模式不可用：真实 CTP 适配器尚未实现，禁止回退到 Mock 网关");
             }
+            gatewayRouter.register(gatewayInfo(
+                    LIVE_CTP_GATEWAY, "CTP", "真实 CTP 网关", 10), ctpGateway);
+            defaultGatewayId = LIVE_CTP_GATEWAY;
             currentGateway = ctpGateway;
         } else {
+            defaultGatewayId = DEFAULT_MOCK_GATEWAY;
             currentGateway = mockGateway;
         }
 
-        currentGateway.connect(config);
+        gatewayRouter.registry().connect(defaultGatewayId, config);
         currentMode = requestedMode;
         log.info("交易网关已连接: mode={} gateway={}",
-                requestedMode, currentGateway.getName());
+                requestedMode, gatewayRouter.registry().get(defaultGatewayId).info().getGatewayId());
     }
 
-    /**
-     * 断开连接
-     */
+    public void connectGateway(String gatewayId, CTPConfig config) {
+        gatewayRouter.registry().connect(gatewayId, config);
+        defaultGatewayId = gatewayId;
+    }
+
     public void disconnect() {
-        if (currentGateway != null) {
-            currentGateway.disconnect();
+        if (defaultGatewayId != null) {
+            gatewayRouter.registry().disconnect(defaultGatewayId);
         }
+        currentGateway = null;
         currentMode = null;
     }
 
-    /**
-     * 下单
-     */
+    /** 兼容旧入口，返回柜台订单引用。 */
     public String placeOrder(TradeRequest request) {
-        checkReady();
-        return currentGateway.submitOrder(request);
+        return placeOrderRouted(request).orderRef();
     }
 
-    /**
-     * 撤单
-     */
+    public GatewaySubmission placeOrderRouted(TradeRequest request) {
+        return gatewayRouter.submitOrder(request);
+    }
+
     public boolean cancelOrder(String exchangeOrderId, String symbol) {
         checkReady();
-        return currentGateway.cancelOrder(exchangeOrderId, symbol);
+        return gatewayRouter.cancelOrder(defaultGatewayId, exchangeOrderId, symbol);
     }
 
-    /**
-     * 查询账户
-     */
+    public boolean cancelOrder(String gatewayId, String exchangeOrderId, String symbol) {
+        return gatewayRouter.cancelOrder(gatewayId, exchangeOrderId, symbol);
+    }
+
     public AccountInfo queryAccount() {
         checkReady();
-        return currentGateway.queryAccount();
+        return gatewayRouter.queryAccount(defaultGatewayId);
     }
 
-    /**
-     * 查询持仓
-     */
+    public AccountInfo queryAccount(String gatewayId) {
+        return gatewayRouter.queryAccount(gatewayId);
+    }
+
     public List<PositionDetail> queryPositions() {
-        checkReady();
-        return currentGateway.queryPositions();
+        return gatewayRouter.queryPositionsAll();
     }
 
-    /**
-     * 查询成交
-     */
     public List<TradeReport> queryTrades() {
         checkReady();
-        return currentGateway.queryTrades();
+        return gatewayRouter.queryTrades(defaultGatewayId);
     }
 
-    /**
-     * 查询订单
-     */
     public OrderReport queryOrder(String exchangeOrderId) {
-        checkReady();
-        return currentGateway.queryOrder(exchangeOrderId);
+        return queryOrder(defaultGatewayId, exchangeOrderId);
     }
 
-    /**
-     * 连接状态
-     */
+    public OrderReport queryOrder(String gatewayId, String exchangeOrderId) {
+        return gatewayRouter.queryOrder(gatewayId, exchangeOrderId);
+    }
+
     public boolean isConnected() {
-        return currentGateway != null && currentGateway.isConnected();
+        return gatewayRouter.isAnyConnected();
     }
 
-    /**
-     * 登录状态
-     */
     public boolean isAuthenticated() {
-        return currentGateway != null && currentGateway.isAuthenticated();
+        return gatewayRouter.isAnyAuthenticated();
     }
 
     public String getMode() {
@@ -136,20 +154,30 @@ public class TradeExecutionService {
         return GatewayMode.from(configuredMode).name();
     }
 
-    /**
-     * 向当前可用的网关实现注册回报监听器。
-     */
+    public String getDefaultGatewayId() {
+        return defaultGatewayId;
+    }
+
     public void registerReportListeners(TradingGateway.OrderReportListener orderListener,
                                         TradingGateway.TradeReportListener tradeListener) {
-        mockGateway.addOrderReportListener(orderListener);
-        mockGateway.addTradeReportListener(tradeListener);
-        ctpGateway.addOrderReportListener(orderListener);
-        ctpGateway.addTradeReportListener(tradeListener);
+        gatewayRouter.registerReportListeners(orderListener, tradeListener);
     }
 
     private void checkReady() {
         if (currentGateway == null || !currentGateway.isAuthenticated()) {
             throw new IllegalStateException("交易网关未连接或未登录，请先连接柜台");
         }
+    }
+
+    private static GatewayInfo gatewayInfo(String id, String type,
+                                           String name, int priority) {
+        GatewayInfo info = new GatewayInfo();
+        info.setGatewayId(id);
+        info.setGatewayType(type);
+        info.setName(name);
+        info.setStatus(GatewayStatus.DOWN.name());
+        info.setParamConfig("{}");
+        info.setPriority(priority);
+        return info;
     }
 }

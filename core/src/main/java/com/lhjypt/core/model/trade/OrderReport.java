@@ -15,6 +15,12 @@ public class OrderReport {
     /** 平台订单号 */
     private String clientOrderId;
 
+    /** 来源网关 */
+    private String gatewayId;
+
+    /** 网关连接会话 */
+    private String gatewaySessionId;
+
     /** 交易所订单编号 */
     private String exchangeOrderId;
 
@@ -63,6 +69,14 @@ public class OrderReport {
 
     public String getClientOrderId() {
         return clientOrderId;
+    }
+
+    public String getGatewayId() {
+        return gatewayId;
+    }
+
+    public String getGatewaySessionId() {
+        return gatewaySessionId;
     }
 
     public String getExchangeOrderId() {
@@ -125,6 +139,14 @@ public class OrderReport {
         this.clientOrderId = clientOrderId;
     }
 
+    public void setGatewayId(String gatewayId) {
+        this.gatewayId = gatewayId;
+    }
+
+    public void setGatewaySessionId(String gatewaySessionId) {
+        this.gatewaySessionId = gatewaySessionId;
+    }
+
     public void setExchangeOrderId(String exchangeOrderId) {
         this.exchangeOrderId = exchangeOrderId;
     }
@@ -179,7 +201,7 @@ public class OrderReport {
 
     @Override
     public String toString() {
-        return "OrderReport{orderRef=" + orderRef + ", clientOrderId=" + clientOrderId + ", exchangeOrderId=" + exchangeOrderId + ", symbol=" + symbol + ", direction=" + direction + ", offsetFlag=" + offsetFlag + ", limitPrice=" + limitPrice + ", volumeTotalOriginal=" + volumeTotalOriginal + ", volumeTraded=" + volumeTraded + ", orderStatus=" + orderStatus + ", statusMsg=" + statusMsg + ", insertTime=" + insertTime + ", updateTime=" + updateTime + ", frontId=" + frontId + ", sessionId=" + sessionId + "}";
+        return "OrderReport{orderRef=" + orderRef + ", clientOrderId=" + clientOrderId + ", gatewayId=" + gatewayId + ", exchangeOrderId=" + exchangeOrderId + ", symbol=" + symbol + ", direction=" + direction + ", offsetFlag=" + offsetFlag + ", limitPrice=" + limitPrice + ", volumeTotalOriginal=" + volumeTotalOriginal + ", volumeTraded=" + volumeTraded + ", orderStatus=" + orderStatus + ", statusMsg=" + statusMsg + ", insertTime=" + insertTime + ", updateTime=" + updateTime + ", frontId=" + frontId + ", sessionId=" + sessionId + "}";
     }
 
     @Override
@@ -189,6 +211,7 @@ public class OrderReport {
         OrderReport that = (OrderReport) o;
         return Objects.equals(orderRef, that.orderRef)
                 && Objects.equals(clientOrderId, that.clientOrderId)
+                && Objects.equals(gatewayId, that.gatewayId)
                 && Objects.equals(exchangeOrderId, that.exchangeOrderId)
                 && Objects.equals(symbol, that.symbol)
                 && Objects.equals(direction, that.direction)
@@ -206,6 +229,6 @@ public class OrderReport {
 
     @Override
     public int hashCode() {
-        return Objects.hash(orderRef, clientOrderId, exchangeOrderId, symbol, direction, offsetFlag, limitPrice, volumeTotalOriginal, volumeTraded, orderStatus, statusMsg, insertTime, updateTime, frontId, sessionId);
+        return Objects.hash(orderRef, clientOrderId, gatewayId, exchangeOrderId, symbol, direction, offsetFlag, limitPrice, volumeTotalOriginal, volumeTraded, orderStatus, statusMsg, insertTime, updateTime, frontId, sessionId);
     }
 }

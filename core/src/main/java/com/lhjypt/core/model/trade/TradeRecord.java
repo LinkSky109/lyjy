@@ -20,6 +20,10 @@ public class TradeRecord {
 
     private String tradeId;
 
+    private String gatewayId;
+
+    private String gatewaySessionId;
+
     private String orderId;
 
     private String exchangeOrderId;

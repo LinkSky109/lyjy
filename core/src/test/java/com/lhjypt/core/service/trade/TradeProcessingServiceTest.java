@@ -34,7 +34,7 @@ class TradeProcessingServiceTest {
 
         Order order = order();
         TradeReport report = report();
-        when(tradeMapper.selectByTradeId("T-001")).thenReturn(null);
+        when(tradeMapper.selectByTradeId("GW", "SESSION", "T-001")).thenReturn(null);
         when(positionService.applyFill(any(), any())).thenReturn(new BigDecimal("12.5"));
         when(calculator.calculate("OPEN", new BigDecimal("3500"), new BigDecimal("2")))
                 .thenReturn(new TradeCostCalculator.TradeCost(
@@ -64,7 +64,7 @@ class TradeProcessingServiceTest {
 
         TradeRecord existing = new TradeRecord();
         existing.setTradeId("T-001");
-        when(tradeMapper.selectByTradeId("T-001")).thenReturn(existing);
+        when(tradeMapper.selectByTradeId("GW", "SESSION", "T-001")).thenReturn(existing);
 
         TradeRecord result = service.process(order(), report());
 
@@ -85,6 +85,8 @@ class TradeProcessingServiceTest {
     private TradeReport report() {
         TradeReport report = new TradeReport();
         report.setTradeId("T-001");
+        report.setGatewayId("GW");
+        report.setGatewaySessionId("SESSION");
         report.setOrderRef("000001");
         report.setClientOrderId("ORD-001");
         report.setExchangeOrderId("EX000001");

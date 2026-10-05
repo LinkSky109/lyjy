@@ -30,7 +30,8 @@ public class TradeProcessingService {
 
     @Transactional
     public TradeRecord process(Order order, TradeReport report) {
-        TradeRecord existing = tradeRecordMapper.selectByTradeId(report.getTradeId());
+        TradeRecord existing = tradeRecordMapper.selectByTradeId(
+                report.getGatewayId(), report.getGatewaySessionId(), report.getTradeId());
         if (existing != null) {
             return existing;
         }
@@ -56,6 +57,8 @@ public class TradeProcessingService {
     private TradeRecord toTradeRecord(Order order, TradeReport report) {
         TradeRecord trade = new TradeRecord();
         trade.setTradeId(report.getTradeId());
+        trade.setGatewayId(report.getGatewayId());
+        trade.setGatewaySessionId(report.getGatewaySessionId());
         trade.setOrderId(order.getOrderId());
         trade.setExchangeOrderId(report.getExchangeOrderId());
         trade.setAccountId(order.getAccountId());

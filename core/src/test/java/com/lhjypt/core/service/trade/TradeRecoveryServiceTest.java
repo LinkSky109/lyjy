@@ -25,9 +25,11 @@ class TradeRecoveryServiceTest {
         Order order = new Order();
         order.setOrderId("ORD-001");
         order.setExchangeOrderId("EX000001");
+        order.setGatewayId("mock-default");
         when(executionService.isAuthenticated()).thenReturn(true);
         when(orderService.getActiveOrders()).thenReturn(List.of(order));
-        when(executionService.queryOrder("EX000001")).thenReturn(new OrderReport());
+        when(executionService.queryOrder("mock-default", "EX000001"))
+                .thenReturn(new OrderReport());
 
         int recovered = service.recoverActiveOrders();
 
@@ -47,6 +49,6 @@ class TradeRecoveryServiceTest {
         when(orderService.getActiveOrders()).thenReturn(List.of(order));
 
         assertEquals(0, service.recoverActiveOrders());
-        verify(executionService, never()).queryOrder(any());
+        verify(executionService, never()).queryOrder(any(), any());
     }
 }

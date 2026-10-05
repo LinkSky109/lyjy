@@ -42,7 +42,9 @@ class GatewayReportHandlingServiceTest {
         TradeProcessingService tradeService = mock(TradeProcessingService.class);
         GatewayReportHandlingService service = new GatewayReportHandlingService(
                 logMapper, orderService, tradeService);
-        when(logMapper.selectByReportKey("ACTIVE", "ORDER", "000001|EX000001|NOT_TRADED|0"))
+        when(logMapper.selectByReportKey(
+                "ACTIVE", "ORDER",
+                "NO-SESSION|000001|EX000001|NOT_TRADED|0"))
                 .thenReturn(null);
 
         service.handleOrderReport(orderReport());
@@ -58,7 +60,8 @@ class GatewayReportHandlingServiceTest {
         TradeProcessingService tradeService = mock(TradeProcessingService.class);
         GatewayReportHandlingService service = new GatewayReportHandlingService(
                 logMapper, orderService, tradeService);
-        when(logMapper.selectByReportKey("ACTIVE", "TRADE", "T-001")).thenReturn(null);
+        when(logMapper.selectByReportKey(
+                "ACTIVE", "TRADE", "NO-SESSION|T-001")).thenReturn(null);
         Order order = new Order();
         order.setOrderId("ORD-001");
         when(orderService.findByClientOrderIdOrBrokerRef("ORD-001", "000001"))
@@ -76,13 +79,41 @@ class GatewayReportHandlingServiceTest {
         TradeProcessingService tradeService = mock(TradeProcessingService.class);
         GatewayReportHandlingService service = new GatewayReportHandlingService(
                 logMapper, orderService, tradeService);
-        when(logMapper.selectByReportKey("ACTIVE", "TRADE", "T-001")).thenReturn(null);
+        when(logMapper.selectByReportKey(
+                "ACTIVE", "TRADE", "NO-SESSION|T-001")).thenReturn(null);
         when(orderService.findByClientOrderIdOrBrokerRef("ORD-001", "000001"))
                 .thenReturn(null);
 
         assertThrows(IllegalStateException.class,
                 () -> service.handleTradeReport(tradeReport()));
         verify(tradeService, never()).process(any(), any());
+    }
+
+    @Test
+    void sameReportKeyFromDifferentGatewaysIsProcessedIndependently() {
+        GatewayReportLogMapper logMapper = mock(GatewayReportLogMapper.class);
+        OrderManagementService orderService = mock(OrderManagementService.class);
+        TradeProcessingService tradeService = mock(TradeProcessingService.class);
+        GatewayReportHandlingService service = new GatewayReportHandlingService(
+                logMapper, orderService, tradeService);
+        when(logMapper.selectByReportKey(
+                "GW-A", "TRADE", "NO-SESSION|T-001")).thenReturn(null);
+        when(logMapper.selectByReportKey(
+                "GW-B", "TRADE", "NO-SESSION|T-001")).thenReturn(null);
+        Order order = new Order();
+        order.setOrderId("ORD-001");
+        when(orderService.findByClientOrderIdOrBrokerRef("ORD-001", "000001"))
+                .thenReturn(order);
+
+        TradeReport first = tradeReport();
+        first.setGatewayId("GW-A");
+        TradeReport second = tradeReport();
+        second.setGatewayId("GW-B");
+        service.handleTradeReport(first);
+        service.handleTradeReport(second);
+
+        verify(tradeService, org.mockito.Mockito.times(2))
+                .process(any(Order.class), any(TradeReport.class));
     }
 
     private OrderReport orderReport() {

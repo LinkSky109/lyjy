@@ -75,6 +75,9 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (path.startsWith("/api/degrade/")) {
             return false;
         }
+        if (path.startsWith("/api/gateway/")) {
+            return false;
+        }
         if (path.startsWith("/api/data-governance/")) {
             return false;
         }

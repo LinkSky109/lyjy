@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS orders (
     status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
     broker_order_ref VARCHAR(64),
     exchange_order_id VARCHAR(64),
+    gateway_id VARCHAR(64),
     error_code VARCHAR(64),
     error_message TEXT,
     submitted_at TIMESTAMP,
@@ -177,7 +178,9 @@ CREATE TABLE IF NOT EXISTS fund_reconciliation (
 -- 成交记录表
 CREATE TABLE IF NOT EXISTS trade_record (
     id BIGSERIAL PRIMARY KEY,
-    trade_id VARCHAR(64) NOT NULL UNIQUE,
+    trade_id VARCHAR(64) NOT NULL,
+    gateway_id VARCHAR(64),
+    gateway_session_id VARCHAR(64),
     order_id VARCHAR(64) NOT NULL,
     exchange_order_id VARCHAR(64),
     account_id VARCHAR(64) NOT NULL,
@@ -193,7 +196,9 @@ CREATE TABLE IF NOT EXISTS trade_record (
     realized_pnl DECIMAL(20,8) DEFAULT 0,
     trade_time TIMESTAMP NOT NULL,
     trading_day VARCHAR(16),
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_trade_gateway_session_trade
+        UNIQUE(gateway_id, gateway_session_id, trade_id)
 );
 CREATE INDEX idx_trade_order ON trade_record(order_id);
 CREATE INDEX idx_trade_account_time ON trade_record(account_id, trade_time);

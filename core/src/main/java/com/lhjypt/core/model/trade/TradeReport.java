@@ -18,6 +18,12 @@ public class TradeReport {
     /** 平台订单号 */
     private String clientOrderId;
 
+    /** 来源网关 */
+    private String gatewayId;
+
+    /** 网关连接会话 */
+    private String gatewaySessionId;
+
     /** 交易所订单编号 */
     private String exchangeOrderId;
 
@@ -58,6 +64,14 @@ public class TradeReport {
 
     public String getClientOrderId() {
         return clientOrderId;
+    }
+
+    public String getGatewayId() {
+        return gatewayId;
+    }
+
+    public String getGatewaySessionId() {
+        return gatewaySessionId;
     }
 
     public String getExchangeOrderId() {
@@ -112,6 +126,14 @@ public class TradeReport {
         this.clientOrderId = clientOrderId;
     }
 
+    public void setGatewayId(String gatewayId) {
+        this.gatewayId = gatewayId;
+    }
+
+    public void setGatewaySessionId(String gatewaySessionId) {
+        this.gatewaySessionId = gatewaySessionId;
+    }
+
     public void setExchangeOrderId(String exchangeOrderId) {
         this.exchangeOrderId = exchangeOrderId;
     }
@@ -154,7 +176,7 @@ public class TradeReport {
 
     @Override
     public String toString() {
-        return "TradeReport{tradeId=" + tradeId + ", orderRef=" + orderRef + ", clientOrderId=" + clientOrderId + ", exchangeOrderId=" + exchangeOrderId + ", symbol=" + symbol + ", exchange=" + exchange + ", direction=" + direction + ", offsetFlag=" + offsetFlag + ", price=" + price + ", volume=" + volume + ", turnover=" + turnover + ", tradeTime=" + tradeTime + ", tradingDay=" + tradingDay + "}";
+        return "TradeReport{tradeId=" + tradeId + ", orderRef=" + orderRef + ", clientOrderId=" + clientOrderId + ", gatewayId=" + gatewayId + ", exchangeOrderId=" + exchangeOrderId + ", symbol=" + symbol + ", exchange=" + exchange + ", direction=" + direction + ", offsetFlag=" + offsetFlag + ", price=" + price + ", volume=" + volume + ", turnover=" + turnover + ", tradeTime=" + tradeTime + ", tradingDay=" + tradingDay + "}";
     }
 
     @Override
@@ -165,6 +187,7 @@ public class TradeReport {
         return Objects.equals(tradeId, that.tradeId)
                 && Objects.equals(orderRef, that.orderRef)
                 && Objects.equals(clientOrderId, that.clientOrderId)
+                && Objects.equals(gatewayId, that.gatewayId)
                 && Objects.equals(exchangeOrderId, that.exchangeOrderId)
                 && Objects.equals(symbol, that.symbol)
                 && Objects.equals(exchange, that.exchange)
@@ -179,6 +202,6 @@ public class TradeReport {
 
     @Override
     public int hashCode() {
-        return Objects.hash(tradeId, orderRef, clientOrderId, exchangeOrderId, symbol, exchange, direction, offsetFlag, price, volume, turnover, tradeTime, tradingDay);
+        return Objects.hash(tradeId, orderRef, clientOrderId, gatewayId, exchangeOrderId, symbol, exchange, direction, offsetFlag, price, volume, turnover, tradeTime, tradingDay);
     }
 }

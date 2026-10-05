@@ -2,6 +2,7 @@ package com.lhjypt.core.service.trade;
 
 import com.lhjypt.core.common.exception.TradeRejectedException;
 import com.lhjypt.core.model.Order;
+import com.lhjypt.core.model.gateway.GatewaySubmission;
 import com.lhjypt.core.model.order.CreateOrderCommand;
 import com.lhjypt.core.model.risk.RiskCheckResult;
 import com.lhjypt.core.model.trade.TradeRequest;
@@ -60,11 +61,15 @@ class TradeApplicationServiceTest {
         when(orderService.createOrder(any(CreateOrderCommand.class))).thenReturn(order);
         when(costCalculator.estimate(request)).thenReturn(new TradeCostCalculator.TradeCost(
                 new BigDecimal("7000"), new BigDecimal("700"), new BigDecimal("2.1")));
-        when(executionService.placeOrder(any(TradeRequest.class))).thenReturn("000001");
+        when(executionService.placeOrderRouted(any(TradeRequest.class)))
+                .thenReturn(new GatewaySubmission(
+                        "mock-default", "000001", false, null));
         when(executionService.getMode()).thenReturn("MOCK");
-        when(orderService.markSubmitted("ORD-001", "000001")).thenAnswer(invocation -> {
+        when(orderService.markSubmitted("ORD-001", "000001", "mock-default"))
+                .thenAnswer(invocation -> {
             order.setStatus(OrderStatus.SUBMITTED.getCode());
             order.setBrokerOrderRef("000001");
+            order.setGatewayId("mock-default");
             return order;
         });
 
@@ -91,7 +96,7 @@ class TradeApplicationServiceTest {
         assertEquals("RISK_REJECTED", error.getCode());
         assertTrue(error.getViolations().get(0).contains("超限"));
         verify(orderService, never()).createOrder(any());
-        verify(executionService, never()).placeOrder(any());
+        verify(executionService, never()).placeOrderRouted(any());
     }
 
     @Test
@@ -107,7 +112,7 @@ class TradeApplicationServiceTest {
 
         assertTrue(result.replay());
         verify(reservationService, never()).reserve(any(), any(), any());
-        verify(executionService, never()).placeOrder(any());
+        verify(executionService, never()).placeOrderRouted(any());
     }
 
     @Test
@@ -118,7 +123,7 @@ class TradeApplicationServiceTest {
         when(orderService.createOrder(any(CreateOrderCommand.class))).thenReturn(order);
         when(costCalculator.estimate(request)).thenReturn(new TradeCostCalculator.TradeCost(
                 new BigDecimal("7000"), new BigDecimal("700"), new BigDecimal("2.1")));
-        when(executionService.placeOrder(any(TradeRequest.class)))
+        when(executionService.placeOrderRouted(any(TradeRequest.class)))
                 .thenThrow(new IllegalStateException("gateway down"));
 
         TradeRejectedException error = assertThrows(
@@ -146,8 +151,10 @@ class TradeApplicationServiceTest {
         Order order = pendingOrder();
         order.setStatus(OrderStatus.ACCEPTED.getCode());
         order.setExchangeOrderId("EX000001");
+        order.setGatewayId("mock-default");
         when(orderService.getOrderByOrderId("ORD-001")).thenReturn(order);
-        when(executionService.cancelOrder("EX000001", "rb2410")).thenReturn(true);
+        when(executionService.cancelOrder("mock-default", "EX000001", "rb2410"))
+                .thenReturn(true);
         when(orderService.cancel("ORD-001", "用户撤单")).thenReturn(order);
 
         Order result = service.cancel("ORD-001", "用户撤单");
@@ -164,7 +171,7 @@ class TradeApplicationServiceTest {
 
         assertThrows(IllegalStateException.class,
                 () -> service.cancel("ORD-001", "用户撤单"));
-        verify(executionService, never()).cancelOrder(any(), any());
+        verify(executionService, never()).cancelOrder(any(), any(), any());
     }
 
     private TradeRequest request() {

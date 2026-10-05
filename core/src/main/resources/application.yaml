@@ -77,6 +77,8 @@ logging:
   level:
     com.lhjypt: DEBUG
     org.springframework.kafka: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{traceId:-}] %logger{36} - %msg%n"
 
 # ==================== P1 监控告警配置 ====================
 management:

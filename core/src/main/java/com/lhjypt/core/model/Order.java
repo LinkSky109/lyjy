@@ -29,6 +29,9 @@ public class Order {
     /** 买卖方向：BUY/SELL */
     private String direction;
 
+    /** 开平标志：OPEN/CLOSE/CLOSE_TODAY/CLOSE_YESTERDAY */
+    private String offsetFlag;
+
     /** 订单类型：LIMIT/MARKET/STOP */
     private String orderType;
 
@@ -50,8 +53,20 @@ public class Order {
     /** 柜台回报编号 */
     private String exchangeOrderId;
 
+    /** 错误码 */
+    private String errorCode;
+
     /** 错误信息（拒单时） */
     private String errorMessage;
+
+    /** 提交柜台时间 */
+    private LocalDateTime submittedAt;
+
+    /** 全部成交时间 */
+    private LocalDateTime filledAt;
+
+    /** 撤销时间 */
+    private LocalDateTime canceledAt;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
@@ -86,6 +101,10 @@ public class Order {
         return direction;
     }
 
+    public String getOffsetFlag() {
+        return offsetFlag;
+    }
+
     public String getOrderType() {
         return orderType;
     }
@@ -114,12 +133,28 @@ public class Order {
         return exchangeOrderId;
     }
 
+    public String getErrorCode() {
+        return errorCode;
+    }
+
     public String getErrorMessage() {
         return errorMessage;
     }
 
     public LocalDateTime getCreateTime() {
         return createTime;
+    }
+
+    public LocalDateTime getSubmittedAt() {
+        return submittedAt;
+    }
+
+    public LocalDateTime getFilledAt() {
+        return filledAt;
+    }
+
+    public LocalDateTime getCanceledAt() {
+        return canceledAt;
     }
 
     public LocalDateTime getUpdateTime() {
@@ -154,6 +189,10 @@ public class Order {
         this.direction = direction;
     }
 
+    public void setOffsetFlag(String offsetFlag) {
+        this.offsetFlag = offsetFlag;
+    }
+
     public void setOrderType(String orderType) {
         this.orderType = orderType;
     }
@@ -182,12 +221,28 @@ public class Order {
         this.exchangeOrderId = exchangeOrderId;
     }
 
+    public void setErrorCode(String errorCode) {
+        this.errorCode = errorCode;
+    }
+
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
     }
 
     public void setCreateTime(LocalDateTime createTime) {
         this.createTime = createTime;
+    }
+
+    public void setSubmittedAt(LocalDateTime submittedAt) {
+        this.submittedAt = submittedAt;
+    }
+
+    public void setFilledAt(LocalDateTime filledAt) {
+        this.filledAt = filledAt;
+    }
+
+    public void setCanceledAt(LocalDateTime canceledAt) {
+        this.canceledAt = canceledAt;
     }
 
     public void setUpdateTime(LocalDateTime updateTime) {
@@ -200,7 +255,7 @@ public class Order {
 
     @Override
     public String toString() {
-        return "Order{id=" + id + ", orderId=" + orderId + ", strategyId=" + strategyId + ", accountId=" + accountId + ", symbol=" + symbol + ", direction=" + direction + ", orderType=" + orderType + ", price=" + price + ", quantity=" + quantity + ", filledQuantity=" + filledQuantity + ", avgFillPrice=" + avgFillPrice + ", status=" + status + ", exchangeOrderId=" + exchangeOrderId + ", errorMessage=" + errorMessage + ", createTime=" + createTime + ", updateTime=" + updateTime + ", deleted=" + deleted + "}";
+        return "Order{id=" + id + ", orderId=" + orderId + ", strategyId=" + strategyId + ", accountId=" + accountId + ", symbol=" + symbol + ", direction=" + direction + ", offsetFlag=" + offsetFlag + ", orderType=" + orderType + ", price=" + price + ", quantity=" + quantity + ", filledQuantity=" + filledQuantity + ", avgFillPrice=" + avgFillPrice + ", status=" + status + ", exchangeOrderId=" + exchangeOrderId + ", errorCode=" + errorCode + ", errorMessage=" + errorMessage + ", submittedAt=" + submittedAt + ", filledAt=" + filledAt + ", canceledAt=" + canceledAt + ", createTime=" + createTime + ", updateTime=" + updateTime + ", deleted=" + deleted + "}";
     }
 
     @Override
@@ -214,6 +269,7 @@ public class Order {
                 && Objects.equals(accountId, that.accountId)
                 && Objects.equals(symbol, that.symbol)
                 && Objects.equals(direction, that.direction)
+                && Objects.equals(offsetFlag, that.offsetFlag)
                 && Objects.equals(orderType, that.orderType)
                 && Objects.equals(price, that.price)
                 && Objects.equals(quantity, that.quantity)
@@ -221,7 +277,11 @@ public class Order {
                 && Objects.equals(avgFillPrice, that.avgFillPrice)
                 && Objects.equals(status, that.status)
                 && Objects.equals(exchangeOrderId, that.exchangeOrderId)
+                && Objects.equals(errorCode, that.errorCode)
                 && Objects.equals(errorMessage, that.errorMessage)
+                && Objects.equals(submittedAt, that.submittedAt)
+                && Objects.equals(filledAt, that.filledAt)
+                && Objects.equals(canceledAt, that.canceledAt)
                 && Objects.equals(createTime, that.createTime)
                 && Objects.equals(updateTime, that.updateTime)
                 && Objects.equals(deleted, that.deleted);
@@ -229,6 +289,6 @@ public class Order {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, orderId, strategyId, accountId, symbol, direction, orderType, price, quantity, filledQuantity, avgFillPrice, status, exchangeOrderId, errorMessage, createTime, updateTime, deleted);
+        return Objects.hash(id, orderId, strategyId, accountId, symbol, direction, offsetFlag, orderType, price, quantity, filledQuantity, avgFillPrice, status, exchangeOrderId, errorCode, errorMessage, submittedAt, filledAt, canceledAt, createTime, updateTime, deleted);
     }
 }

@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS orders (
     account_id VARCHAR(64) NOT NULL,
     symbol VARCHAR(32) NOT NULL,
     direction VARCHAR(8) NOT NULL,
+    offset_flag VARCHAR(16) NOT NULL DEFAULT 'OPEN',
     order_type VARCHAR(16) NOT NULL,
     price DECIMAL(20,8) NOT NULL,
     quantity DECIMAL(20,8) NOT NULL,
@@ -16,7 +17,11 @@ CREATE TABLE IF NOT EXISTS orders (
     avg_fill_price DECIMAL(20,8) DEFAULT 0,
     status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
     exchange_order_id VARCHAR(64),
+    error_code VARCHAR(64),
     error_message TEXT,
+    submitted_at TIMESTAMP,
+    filled_at TIMESTAMP,
+    canceled_at TIMESTAMP,
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted SMALLINT DEFAULT 0
@@ -56,6 +61,7 @@ CREATE TABLE IF NOT EXISTS position (
     unrealized_pnl DECIMAL(20,8) DEFAULT 0,
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted SMALLINT DEFAULT 0,
     UNIQUE(account_id, strategy_id, symbol, direction)
 );
 
@@ -78,7 +84,8 @@ CREATE TABLE IF NOT EXISTS order_idempotent (
     order_id VARCHAR(64),
     request_hash VARCHAR(64) NOT NULL,
     status VARCHAR(16) DEFAULT 'PROCESSING',
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_idempotent_key ON order_idempotent(idempotent_key);
 
@@ -165,6 +172,63 @@ CREATE TABLE IF NOT EXISTS fund_reconciliation (
     difference_reason TEXT,
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 成交记录表
+CREATE TABLE IF NOT EXISTS trade_record (
+    id BIGSERIAL PRIMARY KEY,
+    trade_id VARCHAR(64) NOT NULL UNIQUE,
+    order_id VARCHAR(64) NOT NULL,
+    exchange_order_id VARCHAR(64),
+    account_id VARCHAR(64) NOT NULL,
+    strategy_id VARCHAR(64),
+    symbol VARCHAR(32) NOT NULL,
+    exchange VARCHAR(16),
+    direction VARCHAR(8) NOT NULL,
+    offset_flag VARCHAR(16) NOT NULL,
+    price DECIMAL(20,8) NOT NULL,
+    quantity DECIMAL(20,8) NOT NULL,
+    turnover DECIMAL(20,8) NOT NULL,
+    commission DECIMAL(20,8) DEFAULT 0,
+    realized_pnl DECIMAL(20,8) DEFAULT 0,
+    trade_time TIMESTAMP NOT NULL,
+    trading_day VARCHAR(16),
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_trade_order ON trade_record(order_id);
+CREATE INDEX idx_trade_account_time ON trade_record(account_id, trade_time);
+
+-- 订单资金冻结记录
+CREATE TABLE IF NOT EXISTS order_fund_reservation (
+    id BIGSERIAL PRIMARY KEY,
+    order_id VARCHAR(64) NOT NULL UNIQUE,
+    account_id VARCHAR(64) NOT NULL,
+    reserved_margin DECIMAL(20,8) NOT NULL DEFAULT 0,
+    reserved_commission DECIMAL(20,8) NOT NULL DEFAULT 0,
+    released_amount DECIMAL(20,8) NOT NULL DEFAULT 0,
+    consumed_amount DECIMAL(20,8) NOT NULL DEFAULT 0,
+    status VARCHAR(32) NOT NULL DEFAULT 'RESERVED',
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_reservation_account_status
+    ON order_fund_reservation(account_id, status);
+
+-- 网关回报处理日志
+CREATE TABLE IF NOT EXISTS gateway_report_log (
+    id BIGSERIAL PRIMARY KEY,
+    gateway_id VARCHAR(64) NOT NULL,
+    report_type VARCHAR(16) NOT NULL,
+    report_key VARCHAR(128) NOT NULL,
+    payload_hash VARCHAR(64),
+    process_status VARCHAR(16) NOT NULL DEFAULT 'RECEIVED',
+    retry_count INT NOT NULL DEFAULT 0,
+    error_message TEXT,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(gateway_id, report_type, report_key)
+);
+CREATE INDEX idx_gateway_report_status
+    ON gateway_report_log(process_status, create_time);
 
 -- 初始化默认账户
 INSERT INTO fund_account (account_id, account_name, account_type, total_asset, available_cash)

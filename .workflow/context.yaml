@@ -106,7 +106,7 @@ p15_context:
   current_task: "P15-007"
   current_task_status: "IN_DEV"
   batch_order: "A 基线准入 -> B 统一交易编排 -> C 回报与持久化 -> D 权限与SDK -> E 全链路验收"
-  java_baseline: "mvn test 通过，73/73 单元测试通过，132 个主源码文件"
+  java_baseline: "mvn verify 通过，75/75 单元测试通过，132 个主源码文件"
   python_baseline: "14/14 测试通过，覆盖率 65%"
   quality_target: "Java/Python 覆盖率均不低于 80%，新增代码不低于 85%"
   gates:
@@ -228,4 +228,8 @@ operation_logs:
   - time: "2026-10-05 19:33:00"
     operator: "codex/agent-continuous-workflow"
     action: "P15-005/P15-006 开发完成：实现网关订单/成交回报注册与幂等日志、OMS 成交累计和状态收敛、成交记录持久化、持仓加权成本和已实现盈亏、资金冻结消耗与保证金/手续费结算。73/73 Java 单元测试通过。下一步 P15-007 对账、恢复与补偿。"
+    result: "success"
+  - time: "2026-10-05 19:34:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "修复资金口径一致性缺陷：手续费同时减少可用资金和总资产，MockCTP账户同步扣减总资产，新增 FundManagementService 资金守恒单测。mvn verify 通过，75/75 测试通过。"
     result: "success"

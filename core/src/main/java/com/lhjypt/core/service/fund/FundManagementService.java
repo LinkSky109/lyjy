@@ -169,6 +169,7 @@ public class FundManagementService {
         }
         BigDecimal before = account.getAvailableCash();
         account.setAvailableCash(before.subtract(commission));
+        account.setTotalAsset(account.getTotalAsset().subtract(commission));
         fundAccountMapper.updateById(account);
 
         recordFlow(accountId, "COMMISSION", bizNo, commission.negate(),
@@ -209,6 +210,7 @@ public class FundManagementService {
         account.setFrozenCash(frozenBefore.subtract(settleMargin));
         account.setMargin(account.getMargin().add(settleMargin));
         account.setAvailableCash(availableBefore.subtract(settleCommission));
+        account.setTotalAsset(account.getTotalAsset().subtract(settleCommission));
         fundAccountMapper.updateById(account);
 
         if (settleMargin.compareTo(BigDecimal.ZERO) > 0) {

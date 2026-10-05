@@ -255,6 +255,7 @@ public class MockCTPGateway implements TradingGateway {
         BigDecimal turnover = trade.getTurnover();
         BigDecimal commission = turnover.multiply(new BigDecimal("0.0003"))
                 .setScale(2, RoundingMode.HALF_UP);
+        account.setBalance(account.getBalance().subtract(commission));
 
         if ("OPEN".equals(request.getOffsetFlag())) {
             // 开仓：冻结/扣减资金，增加保证金

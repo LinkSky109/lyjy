@@ -87,7 +87,7 @@ active_workflow:
   current_phase: "P1.5"
   current_global_state: "GLOBAL_IN_DEV"
   current_node: "NODE-P15-007"
-  current_node_status: "IN_DEV"
+  current_node_status: "PENDING_DEV"
   feature_branch: "feature/p15-trade-closure"
   baseline_commit: "1e14089"
   baseline_tag: "p1.5-baseline"

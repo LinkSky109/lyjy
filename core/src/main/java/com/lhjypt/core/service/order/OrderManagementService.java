@@ -4,11 +4,13 @@ import com.alibaba.fastjson2.JSON;
 import com.lhjypt.core.mapper.OrderMapper;
 import com.lhjypt.core.model.Order;
 import com.lhjypt.core.model.order.CreateOrderCommand;
+import com.lhjypt.core.model.trade.OrderReport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.slf4j.Logger;
@@ -129,6 +131,141 @@ public class OrderManagementService {
         order.setUpdateTime(LocalDateTime.now());
         orderMapper.updateById(order);
         return order;
+    }
+
+    /**
+     * 应用柜台订单回报。
+     */
+    @Transactional
+    public Order applyOrderReport(OrderReport report) {
+        Order order = findReportOrder(report.getClientOrderId(), report.getOrderRef());
+        if (order == null) {
+            throw new IllegalStateException("无法匹配柜台订单回报: "
+                    + report.getOrderRef() + "/" + report.getClientOrderId());
+        }
+
+        if (report.getExchangeOrderId() != null) {
+            order.setExchangeOrderId(report.getExchangeOrderId());
+        }
+        if (report.getOrderRef() != null) {
+            order.setBrokerOrderRef(report.getOrderRef());
+        }
+        applyGatewayStatus(order, report.getOrderStatus(), report.getStatusMsg());
+        order.setUpdateTime(LocalDateTime.now());
+        orderMapper.updateById(order);
+        return order;
+    }
+
+    /**
+     * 应用成交回报，累计成交数量和均价。
+     */
+    @Transactional
+    public Order applyFill(String orderId, BigDecimal fillQuantity, BigDecimal fillPrice) {
+        if (fillQuantity == null || fillQuantity.compareTo(BigDecimal.ZERO) <= 0
+                || fillPrice == null || fillPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("成交数量和价格必须大于0");
+        }
+
+        Order order = getOrderByOrderId(orderId);
+        BigDecimal previousFilled = order.getFilledQuantity() == null
+                ? BigDecimal.ZERO : order.getFilledQuantity();
+        BigDecimal previousAvg = order.getAvgFillPrice() == null
+                ? BigDecimal.ZERO : order.getAvgFillPrice();
+
+        if (previousFilled.compareTo(order.getQuantity()) >= 0) {
+            return order;
+        }
+
+        BigDecimal newFilled = previousFilled.add(fillQuantity).min(order.getQuantity());
+        BigDecimal appliedQuantity = newFilled.subtract(previousFilled);
+        BigDecimal previousAmount = previousFilled.multiply(previousAvg);
+        BigDecimal fillAmount = appliedQuantity.multiply(fillPrice);
+        BigDecimal newAvg = previousAmount.add(fillAmount)
+                .divide(newFilled, 8, RoundingMode.HALF_UP);
+
+        order.setFilledQuantity(newFilled);
+        order.setAvgFillPrice(newAvg);
+
+        OrderStatus target = newFilled.compareTo(order.getQuantity()) >= 0
+                ? OrderStatus.FILLED
+                : OrderStatus.PARTIAL_FILLED;
+        ensureStatus(order, target);
+        if (target == OrderStatus.FILLED && order.getFilledAt() == null) {
+            order.setFilledAt(LocalDateTime.now());
+        }
+        order.setUpdateTime(LocalDateTime.now());
+        orderMapper.updateById(order);
+        return order;
+    }
+
+    public Order findByClientOrderIdOrBrokerRef(String clientOrderId, String brokerOrderRef) {
+        return findReportOrder(clientOrderId, brokerOrderRef);
+    }
+
+    private Order findReportOrder(String clientOrderId, String brokerOrderRef) {
+        if (clientOrderId != null && !clientOrderId.isBlank()) {
+            Order order = orderMapper.selectByOrderId(clientOrderId);
+            if (order != null) {
+                return order;
+            }
+        }
+        if (brokerOrderRef != null && !brokerOrderRef.isBlank()) {
+            return orderMapper.selectByBrokerOrderRef(brokerOrderRef);
+        }
+        return null;
+    }
+
+    private void applyGatewayStatus(Order order, String gatewayStatus, String statusMessage) {
+        if (gatewayStatus == null) {
+            return;
+        }
+        switch (gatewayStatus) {
+            case "NOT_TRADED" -> ensureStatus(order, OrderStatus.SUBMITTED);
+            case "PART_TRADED" -> ensureStatus(order, OrderStatus.PARTIAL_FILLED);
+            case "ALL_TRADED" -> {
+                ensureStatus(order, OrderStatus.FILLED);
+                order.setFilledAt(LocalDateTime.now());
+            }
+            case "CANCELED" -> {
+                ensureStatus(order, OrderStatus.CANCELED);
+                order.setCanceledAt(LocalDateTime.now());
+            }
+            case "REJECTED" -> {
+                ensureStatus(order, OrderStatus.REJECTED);
+                order.setErrorCode("GATEWAY_REJECTED");
+                order.setErrorMessage(statusMessage);
+            }
+            default -> log.warn("未知柜台订单状态: {}", gatewayStatus);
+        }
+    }
+
+    private void ensureStatus(Order order, OrderStatus target) {
+        OrderStatus current = OrderStatus.fromCode(order.getStatus());
+        if (current == target) {
+            return;
+        }
+        if (target == OrderStatus.PARTIAL_FILLED || target == OrderStatus.FILLED) {
+            if (current == OrderStatus.PENDING) {
+                current = move(order, current, OrderStatus.SUBMITTED);
+            }
+            if (current == OrderStatus.SUBMITTED) {
+                current = move(order, current, OrderStatus.ACCEPTED);
+            }
+            if (current == OrderStatus.ACCEPTED && target == OrderStatus.PARTIAL_FILLED) {
+                move(order, current, OrderStatus.PARTIAL_FILLED);
+                return;
+            }
+        }
+        move(order, current, target);
+    }
+
+    private OrderStatus move(Order order, OrderStatus from, OrderStatus to) {
+        if (from == to) {
+            return to;
+        }
+        stateMachine.validateTransit(from, to);
+        order.setStatus(to.getCode());
+        return to;
     }
 
     /**

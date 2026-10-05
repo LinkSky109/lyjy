@@ -136,6 +136,17 @@ public class TradeExecutionService {
         return GatewayMode.from(configuredMode).name();
     }
 
+    /**
+     * 向当前可用的网关实现注册回报监听器。
+     */
+    public void registerReportListeners(TradingGateway.OrderReportListener orderListener,
+                                        TradingGateway.TradeReportListener tradeListener) {
+        mockGateway.addOrderReportListener(orderListener);
+        mockGateway.addTradeReportListener(tradeListener);
+        ctpGateway.addOrderReportListener(orderListener);
+        ctpGateway.addTradeReportListener(tradeListener);
+    }
+
     private void checkReady() {
         if (currentGateway == null || !currentGateway.isAuthenticated()) {
             throw new IllegalStateException("交易网关未连接或未登录，请先连接柜台");

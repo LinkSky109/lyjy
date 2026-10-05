@@ -64,10 +64,10 @@ p1_context:
   sql_link: "scripts/init-p1.sql"
   plan_status: "IN_DEV"
   task_count: 9
-  task_done: 7
-  current_task: "TASK-P1-008"
+  task_done: 8
+  current_task: "TASK-P1-009"
   current_task_status: "PENDING_DEV"
-  java_test_baseline: "P1.5 交付后基线：97/97 Java 测试通过，Python 23/23，Python 覆盖率 85.27%"
+  java_test_baseline: "P1-008 后基线：144/144 Java 测试通过（0 跳过），Python 23/23，Python 覆盖率 85.27%"
   build_note: "JDK27默认关闭classpath注解处理致Lombok不生效；已在pom显式配annotationProcessorPaths，编译测试统一用JDK17"
   batch_order: "第一批（监控→风控→异常→降级）→ 第二批（多柜台→日终对账）→ 第三批（组合→VaR→策略安全）"
   plan_constraints:
@@ -76,25 +76,25 @@ p1_context:
     - "延续 P0 技术栈（Java17/SpringBoot3.2.5/MyBatis-Plus/PG/CH/Kafka/Redis），不拆微服务"
     - "PG 类型规约对齐 P0 init-db.sql（DECIMAL(20,8)/TIMESTAMP/SMALLINT deleted）"
   p1_deadline: "2026-12-31 18:00:00"
-  next_action: "执行 TASK-P1-008 VaR 风险价值"
+  next_action: "执行 TASK-P1-009 策略加密与沙箱"
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "dev-test-consistency-p1-006"
-  task_id: "TASK-P1-006"
-  task_name: "组合管理"
-  create_time: "2026-10-05 20:05:00"
-  current_phase: "P1-第二批"
+  workflow_id: "dev-test-consistency-p1-008"
+  task_id: "TASK-P1-008"
+  task_name: "VaR 风险价值"
+  create_time: "2026-10-05 21:20:00"
+  current_phase: "P1-第三批"
   current_global_state: "GLOBAL_IN_DEV"
-  current_node: "P1-007_COMPLETE"
+  current_node: "P1-008_COMPLETE"
   current_node_status: "DONE"
-  feature_branch: "feature/p1-007-portfolio"
-  baseline_commit: "7b0a707"
+  feature_branch: "feature/p1-008-var"
+  baseline_commit: "c380e99"
   requirement_doc: "docs/p1-prd.md"
   tasks_doc: ".workflow/tasks-p1.md"
-  workflow_plan_doc: ".workflow/p1-task-007-test-report.md"
+  workflow_plan_doc: ".workflow/p1-task-008-test-report.md"
   blocking_reason: ""
-  next_action: "进入 TASK-P1-008 VaR 风险价值"
+  next_action: "进入 TASK-P1-009 策略加密与沙箱"
 
 p15_context:
   plan_status: "PLANNED"
@@ -251,4 +251,8 @@ operation_logs:
   - time: "2026-10-05 21:01:10"
     operator: "codex/agent-continuous-workflow"
     action: "TASK-P1-007 组合管理完成：实现组合定义、目标持仓、再平衡预览、单标的/杠杆/weightLimit约束、组合级互斥、确认执行、逐单失败隔离和cur_qty回写，提供7个API。真实E2E组合 PF-3FD194B9 设置 rb2410=2、au2410=1，任务 RB-41015EF8 生成2条指令并全部成交，状态COMPLETED，偏差归零。Java 128/128、Python 23/23通过。下一任务 TASK-P1-008 VaR风险价值。"
+    result: "success"
+  - time: "2026-10-05 21:30:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "TASK-P1-008 VaR风险价值完成：实现VarCalculator（历史模拟分位数线性插值 + 方差协方差 wᵀΣw + Acklam逆正态，持有期平方根缩放，收益样本<60抛INSUFFICIENT_DATA）、VarService（组合/账户/策略三作用域持仓、ClickHouse日线行情抽象、落库、风险预算比对、最近值/历史查询、TRADER数据隔离）、VarController三接口、AuthInterceptor接入VaR写权限；IntradayRiskService接入VAR_LIMIT规则读取最近VaR触发处置。修复P0潜伏缺陷BUG-016：ClickHouseMarketDataRepository用Lombok @RequiredArgsConstructor使字段@Qualifier丢失，Spring注入@Primary的PG JdbcTemplate，导致全部ClickHouse行情读写打到PG、/api/market/bars与VaR行情为空，改为显式构造注入保留@Qualifier。真实E2E：账户DEFAULT-001 HISTORICAL95% var=5982.13/samples=120，VAR_COV var=7290.04，99% var=6097.93，4日=11964.25（平方根缩放），组合PF-3FD194B9 var=285.22且预算=1时budgetBreached=true，无行情标的返回422 INSUFFICIENT_DATA，VIEWER/无角色POST 403、他人组合TRADER 409，VAR_LIMIT规则生成WARN处置DSP-6784FC52。Java 144/144（0跳过，JaCoCo通过）、Testcontainers schema通过、Python 23/23覆盖率85.27%。下一任务 TASK-P1-009 策略加密与沙箱。"
     result: "success"

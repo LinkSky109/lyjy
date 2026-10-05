@@ -4,7 +4,6 @@ import com.alibaba.fastjson2.JSON;
 import com.lhjypt.core.model.market.BarData;
 import com.lhjypt.core.model.market.TickData;
 import com.lhjypt.core.service.market.MarketDataRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -22,13 +21,20 @@ import org.slf4j.LoggerFactory;
  * 负责tick/bar时序数据的持久化与查询
  */
 @Repository
-@RequiredArgsConstructor
 public class ClickHouseMarketDataRepository implements MarketDataRepository {
     private static final Logger log = LoggerFactory.getLogger(ClickHouseMarketDataRepository.class);
 
-
-    @Qualifier("clickHouseJdbcTemplate")
     private final JdbcTemplate clickHouseJdbcTemplate;
+
+    /**
+     * 显式构造注入并保留 {@code @Qualifier}。
+     * 注意：Lombok {@code @RequiredArgsConstructor} 不会把字段上的 {@code @Qualifier}
+     * 复制到构造参数，会退化为按类型注入并命中 {@code @Primary} 的 PostgreSQL 模板。
+     */
+    public ClickHouseMarketDataRepository(
+            @Qualifier("clickHouseJdbcTemplate") JdbcTemplate clickHouseJdbcTemplate) {
+        this.clickHouseJdbcTemplate = clickHouseJdbcTemplate;
+    }
 
     private static final String INSERT_TICK_SQL = """
             INSERT INTO lhjypt.tick_data

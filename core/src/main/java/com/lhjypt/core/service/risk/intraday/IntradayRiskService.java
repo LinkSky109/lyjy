@@ -10,9 +10,11 @@ import com.lhjypt.core.model.risk.IntradayRiskRule;
 import com.lhjypt.core.model.risk.RiskDispositionLog;
 import com.lhjypt.core.model.trade.PositionDetail;
 import com.lhjypt.core.model.trade.TradeRequest;
+import com.lhjypt.core.model.var.VarCalculation;
 import com.lhjypt.core.service.risk.OpenBlockRegistry;
 import com.lhjypt.core.service.risk.PreTradeRiskService;
 import com.lhjypt.core.service.trade.TradeExecutionService;
+import com.lhjypt.core.service.var.VarService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +54,7 @@ public class IntradayRiskService {
     private final PreTradeRiskService preTradeRiskService;
     private final OpenBlockRegistry openBlockRegistry;
     private final com.lhjypt.core.common.auth.ConfirmTokenService confirmTokenService;
+    private final VarService varService;
 
     /** 冷却表：ruleId|scopeType|scopeId -> 最近处置时间(ms) */
     private final Map<String, Long> cooldownMap = new ConcurrentHashMap<>();
@@ -93,8 +96,10 @@ public class IntradayRiskService {
                 case "ORDER_RATE":
                     evaluateOrderRate(rule, params, dispositions);
                     break;
+                case "VAR_LIMIT":
+                    evaluateVarLimit(rule, params, dispositions);
+                    break;
                 default:
-                    // VAR_LIMIT 等依赖 VaR 计算，由 TASK-P1-008 接入
                     break;
             }
         }
@@ -208,6 +213,42 @@ public class IntradayRiskService {
             recordDispose(out, rule, "STRATEGY", strategyId,
                     String.format("策略%s每分钟下单%d笔，超过限制%d笔", strategyId, count, maxOrders));
         }
+    }
+
+    /**
+     * VaR 限额：读取最近一次 VaR（TASK-P1-008），超过阈值触发处置。
+     * 参数：{"maxVar95":100000,"scopeType":"ACCOUNT","scopeId":"DEFAULT-001"}
+     * 未显式指定作用域时按规则 accountId/strategyId 推导。
+     */
+    private void evaluateVarLimit(IntradayRiskRule rule, JSONObject params,
+                                  List<RiskDispositionLog> out) {
+        BigDecimal maxVar = params.getBigDecimal("maxVar95");
+        if (maxVar == null) {
+            maxVar = params.getBigDecimal("maxVar");
+        }
+        if (maxVar == null) return;
+
+        String scopeType = params.getString("scopeType");
+        String scopeId = params.getString("scopeId");
+        if (scopeType == null || scopeType.isEmpty() || scopeId == null || scopeId.isEmpty()) {
+            if (rule.getAccountId() != null && !rule.getAccountId().isEmpty()) {
+                scopeType = "ACCOUNT";
+                scopeId = rule.getAccountId();
+            } else if (rule.getStrategyId() != null && !rule.getStrategyId().isEmpty()) {
+                scopeType = "STRATEGY";
+                scopeId = rule.getStrategyId();
+            } else {
+                return;
+            }
+        }
+
+        VarCalculation latest = varService.latestRaw(scopeType, scopeId);
+        if (latest == null || latest.getVarValue() == null) return;
+        if (latest.getVarValue().compareTo(maxVar) <= 0) return;
+
+        recordDispose(out, rule, scopeType, scopeId,
+                String.format("%s:%s VaR=%s 超过限额%s", scopeType, scopeId,
+                        plain(latest.getVarValue()), plain(maxVar)));
     }
 
     /** 执行处置并把非空结果加入列表（冷却期内 dispose 返回 null） */

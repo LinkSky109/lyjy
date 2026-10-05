@@ -20,6 +20,10 @@ public interface PositionMapper extends BaseMapper<Position> {
     List<Position> selectByAccountAndStrategy(@Param("accountId") String accountId,
                                               @Param("strategyId") String strategyId);
 
+    @Select("SELECT * FROM position WHERE strategy_id = #{strategyId} AND deleted = 0 " +
+            "ORDER BY account_id, symbol, direction")
+    List<Position> selectByStrategy(@Param("strategyId") String strategyId);
+
     @Select("SELECT * FROM position WHERE account_id = #{accountId} " +
             "AND strategy_id = #{strategyId} AND symbol = #{symbol} " +
             "AND direction = #{direction} AND deleted = 0 LIMIT 1")

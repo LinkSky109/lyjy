@@ -36,6 +36,8 @@ class SchemaMigrationIntegrationTest {
             ScriptUtils.executeSqlScript(connection,
                     new FileSystemResource(
                             root.resolve("scripts/migration/p1_005_gateway_routing.sql")));
+            ScriptUtils.executeSqlScript(connection,
+                    new FileSystemResource(root.resolve("scripts/init-p1.sql")));
 
             assertTrue(columnExists(connection, "orders", "offset_flag"));
             assertTrue(columnExists(connection, "orders", "broker_order_ref"));
@@ -46,6 +48,9 @@ class SchemaMigrationIntegrationTest {
             assertTrue(tableExists(connection, "order_fund_reservation"));
             assertTrue(tableExists(connection, "gateway_report_log"));
             assertTrue(tableExists(connection, "position_reconciliation"));
+            assertTrue(tableExists(connection, "var_calculation"));
+            assertTrue(columnExists(connection, "var_calculation", "calc_id"));
+            assertTrue(columnExists(connection, "var_calculation", "var_value"));
         }
     }
 

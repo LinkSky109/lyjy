@@ -112,6 +112,10 @@ public class AuthInterceptor implements HandlerInterceptor {
             return context.hasAnyRole(
                     UserContext.ROLE_RISK_OFFICER, UserContext.ROLE_COMPLIANCE);
         }
+        if (path.startsWith("/api/var/")) {
+            return context.hasAnyRole(
+                    UserContext.ROLE_RISK_OFFICER, UserContext.ROLE_TRADER);
+        }
         if (path.startsWith("/api/trade/") || path.startsWith("/api/oms/")) {
             return context.hasAnyRole(
                     UserContext.ROLE_TRADER, UserContext.ROLE_RISK_OFFICER);

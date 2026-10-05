@@ -37,6 +37,7 @@ class IntradayRiskServiceTest {
     private PreTradeRiskService preTradeRiskService;
     private OpenBlockRegistry openBlockRegistry;
     private com.lhjypt.core.common.auth.ConfirmTokenService confirmTokenService;
+    private com.lhjypt.core.service.var.VarService varService;
     private IntradayRiskService service;
 
     @BeforeEach
@@ -48,9 +49,10 @@ class IntradayRiskServiceTest {
         preTradeRiskService = mock(PreTradeRiskService.class);
         openBlockRegistry = new OpenBlockRegistry(); // 真实实例，验证联动
         confirmTokenService = new com.lhjypt.core.common.auth.ConfirmTokenService(); // 真实实例
+        varService = mock(com.lhjypt.core.service.var.VarService.class);
         service = new IntradayRiskService(ruleMapper, dispositionLogMapper,
                 tradeExecutionService, fundAccountMapper, preTradeRiskService,
-                openBlockRegistry, confirmTokenService);
+                openBlockRegistry, confirmTokenService, varService);
 
         when(tradeExecutionService.isAuthenticated()).thenReturn(true);
         when(fundAccountMapper.selectList(any())).thenReturn(List.of());
@@ -149,6 +151,27 @@ class IntradayRiskServiceTest {
         assertThat(result.get(0).getScopeType()).isEqualTo("STRATEGY");
         assertThat(result.get(0).getScopeId()).isEqualTo("S1");
         assertThat(openBlockRegistry.isBlocked(null, "S1", null)).isTrue();
+    }
+
+    @Test
+    @DisplayName("VaR 超过限额时读取最近值并触发处置")
+    void varLimitOverThresholdDisposes() {
+        when(ruleMapper.selectEnabledRules())
+                .thenReturn(List.of(rule("V1", "VAR_LIMIT", "WARN",
+                        "{\"maxVar95\":100000,\"scopeType\":\"ACCOUNT\",\"scopeId\":\"DEFAULT-001\"}",
+                        null, null)));
+        com.lhjypt.core.model.var.VarCalculation latest = new com.lhjypt.core.model.var.VarCalculation();
+        latest.setScopeType("ACCOUNT");
+        latest.setScopeId("DEFAULT-001");
+        latest.setVarValue(new BigDecimal("150000"));
+        when(varService.latestRaw("ACCOUNT", "DEFAULT-001")).thenReturn(latest);
+
+        List<RiskDispositionLog> result = service.evaluateAll();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getAction()).isEqualTo("WARN");
+        assertThat(result.get(0).getScopeType()).isEqualTo("ACCOUNT");
+        assertThat(result.get(0).getScopeId()).isEqualTo("DEFAULT-001");
     }
 
     @Test

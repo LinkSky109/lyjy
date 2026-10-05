@@ -48,3 +48,26 @@
 - Docker Desktop 的挂载需 `docker-work-dir` 指向共享目录（Linux 默认系统临时目录即可）。
 - 未做：真实 KMS/HSM SDK、容器镜像治理、真实钉钉/企业微信机器人兼容性、多实例并发抢锁压测（留待生产环境）。
 - 回滚：默认开关即可回退；新增类删除、改动类 `git checkout` 可还原。
+
+## 8. 收尾增量（第二轮）
+### 8.1 通用 HTTP KMS 密钥服务
+- 新增 `HttpKmsCryptoKeyProvider`（`provider=kms`）：`GET {kms-url}/keys/{keyId}` → `{"key":"<Base64 32B>"}`（兼容 `data.key`），可选 `Authorization: Bearer`，内存缓存；未配置/非 200/长度非法快速失败。配置 `kms-url`/`kms-token`/`kms-timeout-ms`。
+- 测试：`HttpKmsCryptoKeyProviderTest` 4 例（本地 HttpServer 模拟，含缓存命中只请求一次）。
+
+### 8.2 容器镜像治理
+- 新增 `SandboxImageManager` + `CommandRunner` SPI：`dockerPullPolicy` = `NEVER`/`IF_NOT_PRESENT`（默认）/`ALWAYS`；启动沙箱前按策略确保镜像，失败抛出可执行指引。`DockerSandboxExecutor` 启动前调用。
+- 测试：`SandboxImageManagerTest` 6 例（各策略与拉取失败）。
+
+### 8.3 分布式锁可测性加固
+- 抽象 `LockStore`（`acquire`/`release`）+ `RedisLockStore`，`DistributedLock` 依赖接口；内存实现用于并发正确性验证。
+- 测试：`DistributedLockConcurrencyTest` 2 例（24 实例并发临界区互斥 `maxConcurrent==1`；TTL 到期可重获）；`DistributedLockTest` 4 例。
+
+### 8.4 运行时 E2E
+| 场景 | 结果 |
+|------|------|
+| `provider=kms` + 本地模拟 KMS | 日志 `已从 KMS 加载策略密钥: keyId=local-dev-1 bytes=32`；上传/下载逐字节往返一致 |
+| `executor=docker` + `docker-pull-policy=NEVER`（镜像已存在） | 启动容器 `lhjypt-sandbox-s-kms-1` RUNNING、输出 `kms sandbox up`；停止后容器回收 |
+| `mvn verify` | **188/188** 通过，0 跳过，JaCoCo 通过 |
+
+### 8.5 运行时发现的装配缺陷
+`SandboxImageManager` 存在两个构造器（生产用 + 测试用），Spring 无默认构造器导致启动失败；已对生产构造器显式 `@Autowired`。教训：新增多构造器 Bean 需 Spring 上下文冒烟（本次由运行时 E2E 捕获）。

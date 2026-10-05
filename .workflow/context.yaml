@@ -270,3 +270,7 @@ operation_logs:
     operator: "codex/agent-continuous-workflow"
     action: "P1 生产化加固完成：①密钥 CryptoKeyProvider 可切换（local/env，EnvCryptoKeyProvider 从环境变量读取 Base64 密钥）；②容器化沙箱 SandboxExecutor 可切换（process/docker，DockerSandboxExecutor 网络隔离+资源限制+超时强杀+输出回读，SDK 挂载 /sdk:ro）；③分布式调度锁 DistributedLock（Redis SET NX PX，fail-open）接入 MetricSampler/IntradayRiskService/TradeRecoveryService；④告警通知渠道 AlertNotifier（WebhookAlertNotifier 钉钉/企业微信/generic，失败仅日志）。修复监控链路缺陷：MetricSampleMapper 的 LocalDateTime 参数被 ClickHouse JDBC 渲染为未加引号时间致 metrics/history 500 与规则评估静默失败，改为字符串边界。运行时 E2E 全部通过：env 密钥上传下载往返、docker 沙箱 RUNNING→输出→停止回收、Redis MONITOR 捕获 lhjypt:lock SET NX、webhook 捕获告警 EVT。mvn verify 176/176（0跳过，JaCoCo通过）。"
     result: "success"
+  - time: "2026-10-05 23:45:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "P1 生产化加固收尾（第二轮）完成：①通用 HTTP KMS 密钥服务 HttpKmsCryptoKeyProvider（GET /keys/{keyId}，Bearer，内存缓存，失败快速失败）；②容器镜像治理 SandboxImageManager（NEVER/IF_NOT_PRESENT/ALWAYS 策略，启动前确保镜像）；③分布式锁抽象 LockStore+RedisLockStore 并以内存实现做并发正确性验证。运行时 E2E：provider=kms 经本地模拟 KMS 加载 32 字节密钥并完成策略上传/下载往返；executor=docker+pull-policy=NEVER 启动容器 lhjypt-sandbox-s-kms-1 RUNNING→输出→停止回收。修复运行时装配缺陷：SandboxImageManager 双构造器缺 @Autowired 致 Spring 启动失败。mvn verify 188/188（0跳过，JaCoCo通过）。"
+    result: "success"

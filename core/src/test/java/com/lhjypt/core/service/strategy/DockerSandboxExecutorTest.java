@@ -25,7 +25,9 @@ class DockerSandboxExecutorTest {
     @DisplayName("oneshot 策略在容器内执行后正常退出并捕获输出")
     void oneshotExecutesInContainer() {
         Assumptions.assumeTrue(dockerReady(), "docker 不可用或镜像拉取失败，跳过容器沙箱测试");
-        DockerSandboxExecutor executor = new DockerSandboxExecutor(properties());
+        SandboxProperties properties = properties();
+        DockerSandboxExecutor executor = new DockerSandboxExecutor(
+                properties, new SandboxImageManager(properties));
 
         SandboxHandle handle = executor.start(new SandboxRequest(
                 "S-DOCKER-ONESHOT", "print('hello-docker')\n", "{}", true));
@@ -40,7 +42,9 @@ class DockerSandboxExecutorTest {
     @DisplayName("长驻策略并发启动被拒绝，停止后容器回收")
     void concurrentStartRejectedAndStop() {
         Assumptions.assumeTrue(dockerReady(), "docker 不可用或镜像拉取失败，跳过容器沙箱测试");
-        DockerSandboxExecutor executor = new DockerSandboxExecutor(properties());
+        SandboxProperties properties = properties();
+        DockerSandboxExecutor executor = new DockerSandboxExecutor(
+                properties, new SandboxImageManager(properties));
 
         executor.start(new SandboxRequest("S-DOCKER-LONG",
                 "import time\nwhile True:\n    time.sleep(0.2)\n", "{}", false));

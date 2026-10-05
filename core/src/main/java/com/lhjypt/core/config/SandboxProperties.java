@@ -36,6 +36,15 @@ public class SandboxProperties {
     /** Docker 镜像（容器执行器）。 */
     private String dockerImage = "python:3.11-alpine";
 
+    /**
+     * 镜像拉取策略（容器执行器）：
+     * NEVER=仅用本地已存在镜像，缺失即失败；IF_NOT_PRESENT=缺失才拉取（默认）；ALWAYS=每次拉取。
+     */
+    private String dockerPullPolicy = "IF_NOT_PRESENT";
+
+    /** 镜像拉取超时（秒）。 */
+    private int dockerPullTimeoutSeconds = 300;
+
     /** docker 可执行文件。 */
     private String dockerBin = "docker";
 

@@ -99,6 +99,10 @@ lhjypt:
       active-key-id: ${LHJYPT_ACTIVE_KEY_ID:local-dev-1}
       allow-dev-fallback: ${LHJYPT_ALLOW_DEV_KEY:true}
       env-key-prefix: ${LHJYPT_CRYPTO_ENV_PREFIX:LHJYPT_STRATEGY_KEY_}
+      # kms provider：GET {kms-url}/keys/{keyId}
+      kms-url: ${LHJYPT_KMS_URL:}
+      kms-token: ${LHJYPT_KMS_TOKEN:}
+      kms-timeout-ms: ${LHJYPT_KMS_TIMEOUT_MS:3000}
     sandbox:
       executor: ${LHJYPT_SANDBOX_EXECUTOR:process} # process | docker（生产容器沙箱）
       python: ${LHJYPT_SANDBOX_PYTHON:python3}
@@ -112,6 +116,9 @@ lhjypt:
       docker-cpus: 1.0
       docker-pids-limit: 128
       docker-network: none
+      # 镜像拉取策略：NEVER | IF_NOT_PRESENT | ALWAYS
+      docker-pull-policy: ${LHJYPT_SANDBOX_PULL_POLICY:IF_NOT_PRESENT}
+      docker-pull-timeout-seconds: ${LHJYPT_SANDBOX_PULL_TIMEOUT:300}
       # Docker Desktop(macOS) 需指向共享目录；Linux 留空用系统临时目录
       docker-work-dir: ${LHJYPT_SANDBOX_DOCKER_WORK_DIR:}
 

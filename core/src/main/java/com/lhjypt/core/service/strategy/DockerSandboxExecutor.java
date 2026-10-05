@@ -48,6 +48,7 @@ public class DockerSandboxExecutor implements SandboxExecutor {
     private static final long REMOVE_TIMEOUT_SECONDS = 15;
 
     private final SandboxProperties properties;
+    private final SandboxImageManager imageManager;
     private final Map<String, SandboxHandle> handles = new ConcurrentHashMap<>();
 
     @Override
@@ -57,6 +58,8 @@ public class DockerSandboxExecutor implements SandboxExecutor {
         if (existing != null && existing.isRunning()) {
             throw new IllegalStateException("策略已在运行: " + strategyId);
         }
+        // 启动前按策略确保镜像可用（NEVER/IF_NOT_PRESENT/ALWAYS），失败快速给出可执行指引
+        imageManager.ensureImage();
         String containerName = containerName(strategyId);
         try {
             Path workDir = createWorkDir();

@@ -3,7 +3,7 @@ task_id: "TASK-20261002-001"
 task_name: "企业级量化交易平台（lhjypt）"
 create_time: "2026-10-02 13:05:00"
 # 当前活跃任务以 active_workflow 为准；P0/P1 字段保留为历史基线
-current_global_state: "GLOBAL_IN_DEV"
+current_global_state: "GLOBAL_DONE"
 
 # 需求基础信息
 requirement:
@@ -62,12 +62,12 @@ p1_context:
   plan_doc_link: "docs/p1-prd.md"
   tasks_link: ".workflow/tasks-p1.md"
   sql_link: "scripts/init-p1.sql"
-  plan_status: "IN_CONSISTENCY"
+  plan_status: "DONE"
   task_count: 9
   task_done: 9
-  current_task: "P1-REGRESSION"
-  current_task_status: "PENDING"
-  java_test_baseline: "P1-009 后基线：158/158 Java 测试通过（0 跳过），Python 23/23，Python 覆盖率 85.27%"
+  current_task: "P1_DELIVERED"
+  current_task_status: "DONE"
+  java_test_baseline: "P1 交付基线：158/158 Java 测试通过（0 跳过），Python 23/23，Python 覆盖率 85.27%"
   build_note: "JDK27默认关闭classpath注解处理致Lombok不生效；已在pom显式配annotationProcessorPaths，编译测试统一用JDK17"
   batch_order: "第一批（监控→风控→异常→降级）→ 第二批（多柜台→日终对账）→ 第三批（组合→VaR→策略安全）"
   plan_constraints:
@@ -76,25 +76,27 @@ p1_context:
     - "延续 P0 技术栈（Java17/SpringBoot3.2.5/MyBatis-Plus/PG/CH/Kafka/Redis），不拆微服务"
     - "PG 类型规约对齐 P0 init-db.sql（DECIMAL(20,8)/TIMESTAMP/SMALLINT deleted）"
   p1_deadline: "2026-12-31 18:00:00"
-  next_action: "P1 全量回归 + 四维一致性巡检 + 交付"
+  delivery_report_link: ".workflow/delivery-report-p1.md"
+  consistency_report_link: ".workflow/consistency-report-p1.md"
+  next_action: "P1 已交付，进入 P2 三期规划"
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "dev-test-consistency-p1-009"
-  task_id: "TASK-P1-009"
-  task_name: "策略加密与沙箱"
-  create_time: "2026-10-05 21:33:00"
-  current_phase: "P1-第三批"
-  current_global_state: "GLOBAL_IN_DEV"
-  current_node: "P1-009_COMPLETE"
+  workflow_id: "p1-delivery-p1-009"
+  task_id: "P1-DELIVERY"
+  task_name: "P1 二期全量回归与交付"
+  create_time: "2026-10-05 21:42:00"
+  current_phase: "P1-交付"
+  current_global_state: "GLOBAL_DONE"
+  current_node: "P1_COMPLETE"
   current_node_status: "DONE"
   feature_branch: "feature/p1-009-strategy-sandbox"
-  baseline_commit: "99eba37"
+  baseline_commit: "85d29a8"
   requirement_doc: "docs/p1-prd.md"
   tasks_doc: ".workflow/tasks-p1.md"
-  workflow_plan_doc: ".workflow/p1-task-009-test-report.md"
+  workflow_plan_doc: ".workflow/delivery-report-p1.md"
   blocking_reason: ""
-  next_action: "P1 全量回归 + 四维一致性巡检 + 交付"
+  next_action: "P1 已交付，进入 P2 三期规划"
 
 p15_context:
   plan_status: "PLANNED"
@@ -129,11 +131,11 @@ p15_context:
 
 # 一致性校验上下文
 consistency_context:
-  code_check: "PASSED（81文件编译通过、无死代码、7控制器47端点8Mapper）"
-  env_check: "PASSED（5容器健康、端口8081、服务200）"
-  data_check: "PASSED（PG10表+CH lhjypt库3表、对账MATCHED差异0）"
-  doc_check: "PASSED（修正启动横幅与SDK默认地址8080→8081）"
-  inspection_report_link: ".workflow/consistency-report.md"
+  code_check: "PASSED（p1 全量 158/158、JaCoCo 门禁通过、18控制器117端点与PRD对齐、无敏感信息入库）"
+  env_check: "PASSED（5容器健康、服务8081 UP、12模块跨模块冒烟 code=0）"
+  data_check: "PASSED（PG34表+CH4表结构对齐、清算批次 STL-20261005-C9E47C 差异闭环 CLOSED、var_calculation 8 条）"
+  doc_check: "PASSED（PRD接口/设计/变更记录/README 与实现对齐；VaR 行情表名修正 bar_data）"
+  inspection_report_link: ".workflow/consistency-report-p1.md"
 
 # SLA与风险信息
 sla_info:
@@ -259,4 +261,8 @@ operation_logs:
   - time: "2026-10-05 21:40:00"
     operator: "codex/agent-continuous-workflow"
     action: "TASK-P1-009 策略加密与沙箱完成：实现StrategyCryptoService（AES-256-GCM随机IV+SHA-256校验，密文Base64(IV||密文||Tag)）、CryptoKeyProvider SPI+LocalCryptoKeyProvider（config/key-store.properties，缺失时本地开发兜底密钥，已gitignore并给.example）、SandboxExecutor SPI+ProcessSandboxExecutor（临时目录隔离/ulimit CPU内存/30s超时强杀/PYTHONUNBUFFERED实时输出/Python审计钩子白名单禁网络子进程系统调用/同策略互斥）、StrategySecurityService+StrategySecurityController六接口（上传加密/下载需确认令牌/RUN/STOP/沙箱状态/审计）、AuthInterceptor接入/api/strategy写权限。真实E2E：上传后ciphertext无明文且checksum一致、无令牌下载409、带令牌解密逐字节还原、篡改checksum 409拒绝、沙箱RUNNING(pid42625)输出'demo strategy init/started'、并发启动409、停止后OFFLINE、socket被审计钩子拦截PermissionError、COMPLIANCE上传403/VIEWER运行403/非归属TRADER 409/ADMIN放行、审计7条无明文。修复沙箱守卫误拦stdlib shutil/socket、监控线程覆盖STOPPED的竞态、强杀丢缓冲输出三个问题。Java 158/158（0跳过，JaCoCo通过）、Testcontainers schema通过、Python 23/23覆盖率85.27%。P1九项任务全部完成，下一步 P1全量回归+四维一致性巡检+交付。"
+    result: "success"
+  - time: "2026-10-05 21:50:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "P1 二期全量回归与交付完成（milestone 10）：全量 mvn verify 158/158（0跳过，JaCoCo通过）+ Testcontainers schema 通过 + Python 23/23 覆盖率85.27%；服务8081启动，12个模块代表接口跨模块冒烟全部 code=0；四维一致性巡检通过（代码：117端点与PRD对齐无敏感信息；环境：5容器健康+双数据源UP；数据：PG34表+CH4表结构对齐、清算批次差异闭环、var_calculation 8条；文档：接口/设计/变更/README对齐）。生成交付报告 delivery-report-p1.md 与一致性巡检报告 consistency-report-p1.md。P1 九项机构化能力全部交付，全局状态流转 GLOBAL_DONE，可进入 P2 三期规划。"
     result: "success"

@@ -20,6 +20,11 @@ jobs:
       - name: Build with Maven
         run: mvn -B clean verify --file pom.xml
 
+      - name: Validate compose configuration
+        run: |
+          cp .env.example .env
+          docker compose -f config/docker-compose.yaml config --quiet
+
   test-python:
     runs-on: ubuntu-latest
     steps:
@@ -35,4 +40,4 @@ jobs:
       - name: Run tests
         run: |
           cd strategy-sdk
-          pytest tests/ --cov=lhjypt --cov-report=term
+          pytest tests/ --cov=lhjypt --cov-report=term --cov-fail-under=80

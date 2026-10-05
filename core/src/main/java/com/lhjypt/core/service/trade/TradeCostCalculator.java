@@ -20,6 +20,14 @@ public class TradeCostCalculator {
     @Value("${lhjypt.fund.commission-rate:0.0003}")
     private BigDecimal commissionRate;
 
+    public TradeCostCalculator() {
+    }
+
+    TradeCostCalculator(BigDecimal marginRatio, BigDecimal commissionRate) {
+        this.marginRatio = marginRatio;
+        this.commissionRate = commissionRate;
+    }
+
     public TradeCost estimate(TradeRequest request) {
         if (request.getPrice() == null) {
             throw new TradeRejectedException(

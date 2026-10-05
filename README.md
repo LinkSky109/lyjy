@@ -37,7 +37,7 @@ java -jar core/target/core-0.1.0-SNAPSHOT.jar
 ```bash
 cd strategy-sdk
 pip install -e ".[dev]"
-pytest tests/ --cov=lhjypt --cov-report=term
+pytest tests/ --cov=lhjypt --cov-report=term --cov-fail-under=80
 ```
 
 ## 项目结构

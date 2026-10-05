@@ -22,6 +22,7 @@ class TradeClosureSchemaTest {
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS trade_record"));
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS order_fund_reservation"));
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS gateway_report_log"));
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS position_reconciliation"));
         assertTrue(sql.contains("consumed_margin DECIMAL(20,8)"));
         assertTrue(sql.contains("deleted SMALLINT DEFAULT 0"));
     }

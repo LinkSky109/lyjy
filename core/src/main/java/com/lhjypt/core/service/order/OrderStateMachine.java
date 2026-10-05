@@ -26,12 +26,14 @@ public class OrderStateMachine {
 
     static {
         TRANSITIONS.put(OrderStatus.PENDING, EnumSet.of(
-                OrderStatus.SUBMITTED, OrderStatus.REJECTED, OrderStatus.CANCELED));
+                OrderStatus.SUBMITTED, OrderStatus.REJECTED,
+                OrderStatus.CANCELED, OrderStatus.SUBMIT_UNKNOWN));
 
         TRANSITIONS.put(OrderStatus.SUBMITTED, EnumSet.of(
                 OrderStatus.ACCEPTED, OrderStatus.PARTIAL_FILLED,
                 OrderStatus.FILLED, OrderStatus.CANCELED,
-                OrderStatus.REJECTED, OrderStatus.TIMEOUT));
+                OrderStatus.REJECTED, OrderStatus.TIMEOUT,
+                OrderStatus.SUBMIT_UNKNOWN));
 
         TRANSITIONS.put(OrderStatus.ACCEPTED, EnumSet.of(
                 OrderStatus.PARTIAL_FILLED, OrderStatus.FILLED,
@@ -39,6 +41,11 @@ public class OrderStateMachine {
 
         TRANSITIONS.put(OrderStatus.PARTIAL_FILLED, EnumSet.of(
                 OrderStatus.PARTIAL_FILLED, OrderStatus.FILLED, OrderStatus.CANCELED));
+
+        TRANSITIONS.put(OrderStatus.SUBMIT_UNKNOWN, EnumSet.of(
+                OrderStatus.ACCEPTED, OrderStatus.PARTIAL_FILLED,
+                OrderStatus.FILLED, OrderStatus.CANCELED,
+                OrderStatus.REJECTED, OrderStatus.TIMEOUT));
 
         // 终态不可流转
         TRANSITIONS.put(OrderStatus.FILLED, EnumSet.noneOf(OrderStatus.class));

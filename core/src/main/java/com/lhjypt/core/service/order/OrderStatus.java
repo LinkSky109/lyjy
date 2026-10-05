@@ -26,6 +26,9 @@ public enum OrderStatus {
     /** 已拒绝（终态） */
     REJECTED("REJECTED", "已拒绝"),
 
+    /** 提交结果未知（需查询收敛） */
+    SUBMIT_UNKNOWN("SUBMIT_UNKNOWN", "提交结果未知"),
+
     /** 提交超时（终态） */
     TIMEOUT("TIMEOUT", "提交超时");
 
@@ -51,7 +54,8 @@ public enum OrderStatus {
      * 是否活跃状态（可能成交）
      */
     public boolean isActive() {
-        return this == SUBMITTED || this == ACCEPTED || this == PARTIAL_FILLED;
+        return this == SUBMITTED || this == ACCEPTED
+                || this == PARTIAL_FILLED || this == SUBMIT_UNKNOWN;
     }
 
     public static OrderStatus fromCode(String code) {

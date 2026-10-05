@@ -92,4 +92,23 @@ CREATE TABLE IF NOT EXISTS gateway_report_log (
 CREATE INDEX IF NOT EXISTS idx_gateway_report_status
     ON gateway_report_log(process_status, create_time);
 
+-- 7. 持仓对账记录
+CREATE TABLE IF NOT EXISTS position_reconciliation (
+    id BIGSERIAL PRIMARY KEY,
+    recon_no VARCHAR(64) NOT NULL,
+    account_id VARCHAR(64) NOT NULL,
+    strategy_id VARCHAR(64),
+    symbol VARCHAR(32) NOT NULL,
+    direction VARCHAR(8) NOT NULL,
+    system_quantity DECIMAL(20,8) NOT NULL DEFAULT 0,
+    gateway_quantity DECIMAL(20,8) NOT NULL DEFAULT 0,
+    difference DECIMAL(20,8) NOT NULL DEFAULT 0,
+    status VARCHAR(16) NOT NULL,
+    reason TEXT,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_position_recon_account
+    ON position_reconciliation(account_id, create_time DESC);
+
 COMMIT;

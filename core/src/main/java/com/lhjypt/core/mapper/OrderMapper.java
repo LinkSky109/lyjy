@@ -25,7 +25,8 @@ public interface OrderMapper extends BaseMapper<Order> {
     /**
      * 根据状态查询活跃订单
      */
-    @Select("SELECT * FROM orders WHERE status IN ('PENDING','SUBMITTED','ACCEPTED','PARTIAL_FILLED') " +
+    @Select("SELECT * FROM orders WHERE status IN "
+            + "('PENDING','SUBMITTED','ACCEPTED','PARTIAL_FILLED','SUBMIT_UNKNOWN') " +
             "AND deleted = 0")
     List<Order> selectActiveOrders();
 

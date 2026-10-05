@@ -233,6 +233,24 @@ CREATE TABLE IF NOT EXISTS gateway_report_log (
 CREATE INDEX idx_gateway_report_status
     ON gateway_report_log(process_status, create_time);
 
+-- 持仓对账记录表
+CREATE TABLE IF NOT EXISTS position_reconciliation (
+    id BIGSERIAL PRIMARY KEY,
+    recon_no VARCHAR(64) NOT NULL,
+    account_id VARCHAR(64) NOT NULL,
+    strategy_id VARCHAR(64),
+    symbol VARCHAR(32) NOT NULL,
+    direction VARCHAR(8) NOT NULL,
+    system_quantity DECIMAL(20,8) NOT NULL DEFAULT 0,
+    gateway_quantity DECIMAL(20,8) NOT NULL DEFAULT 0,
+    difference DECIMAL(20,8) NOT NULL DEFAULT 0,
+    status VARCHAR(16) NOT NULL,
+    reason TEXT,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_position_recon_account
+    ON position_reconciliation(account_id, create_time DESC);
+
 -- 初始化默认账户
 INSERT INTO fund_account (account_id, account_name, account_type, total_asset, available_cash)
 VALUES ('DEFAULT-001', '默认测试账户', 'OWN', 1000000, 1000000)

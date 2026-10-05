@@ -90,6 +90,24 @@ public class TradeApplicationService {
         return orderManagementService.getOrderByOrderId(orderId);
     }
 
+    public Order cancel(String orderId, String reason) {
+        Order order = orderManagementService.getOrderByOrderId(orderId);
+        if (OrderStatus.fromCode(order.getStatus()).isTerminal()) {
+            return order;
+        }
+        if (order.getExchangeOrderId() == null || order.getExchangeOrderId().isBlank()) {
+            throw new IllegalStateException("订单尚未收到柜台确认，暂不能撤单: " + orderId);
+        }
+        boolean canceled = tradeExecutionService.cancelOrder(
+                order.getExchangeOrderId(), order.getSymbol());
+        if (!canceled) {
+            throw new IllegalStateException("柜台撤单失败: " + orderId);
+        }
+        Order updated = orderManagementService.cancel(orderId, reason);
+        fundReservationService.releaseRemaining(orderId);
+        return updated;
+    }
+
     private void validate(TradeRequest request) {
         if (request == null) {
             throw new TradeRejectedException("VALIDATION_FAILED", "下单请求不能为空");

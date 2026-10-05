@@ -134,6 +134,28 @@ public class OrderManagementService {
     }
 
     /**
+     * 标记订单已撤销。
+     */
+    @Transactional
+    public Order cancel(String orderId, String reason) {
+        Order order = getOrderByOrderId(orderId);
+        OrderStatus current = OrderStatus.fromCode(order.getStatus());
+        if (current == OrderStatus.CANCELED) {
+            return order;
+        }
+        if (current.isTerminal()) {
+            throw new IllegalStateException("订单已处于终态，无法撤销: " + current.getCode());
+        }
+        stateMachine.validateTransit(current, OrderStatus.CANCELED);
+        order.setStatus(OrderStatus.CANCELED.getCode());
+        order.setErrorMessage(reason);
+        order.setCanceledAt(LocalDateTime.now());
+        order.setUpdateTime(LocalDateTime.now());
+        orderMapper.updateById(order);
+        return order;
+    }
+
+    /**
      * 应用柜台订单回报。
      */
     @Transactional

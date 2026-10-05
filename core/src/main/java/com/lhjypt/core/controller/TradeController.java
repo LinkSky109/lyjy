@@ -5,6 +5,9 @@ import com.lhjypt.core.model.Order;
 import com.lhjypt.core.model.trade.*;
 import com.lhjypt.core.service.trade.TradeApplicationService;
 import com.lhjypt.core.service.trade.TradeExecutionService;
+import com.lhjypt.core.service.trade.TradeQueryService;
+import com.lhjypt.core.model.Position;
+import com.lhjypt.core.model.FundAccount;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,6 +23,7 @@ public class TradeController {
 
     private final TradeExecutionService tradeService;
     private final TradeApplicationService tradeApplicationService;
+    private final TradeQueryService tradeQueryService;
 
     /**
      * 连接并登录CTP柜台
@@ -74,6 +78,33 @@ public class TradeController {
     @GetMapping("/orders/{orderId}")
     public Result<Order> queryPlatformOrder(@PathVariable String orderId) {
         return Result.success(tradeApplicationService.getOrder(orderId));
+    }
+
+    /**
+     * 按平台订单号撤单。
+     */
+    @DeleteMapping("/orders/{orderId}")
+    public Result<Order> cancelPlatformOrder(@PathVariable String orderId,
+                                             @RequestParam(defaultValue = "用户撤单") String reason) {
+        return Result.success(tradeApplicationService.cancel(orderId, reason));
+    }
+
+    /**
+     * 平台账本持仓。
+     */
+    @GetMapping("/platform/positions")
+    public Result<List<Position>> platformPositions(
+            @RequestParam String accountId,
+            @RequestParam(required = false) String strategyId) {
+        return Result.success(tradeQueryService.positions(accountId, strategyId));
+    }
+
+    /**
+     * 平台账本账户。
+     */
+    @GetMapping("/platform/account")
+    public Result<FundAccount> platformAccount(@RequestParam String accountId) {
+        return Result.success(tradeQueryService.account(accountId));
     }
 
     /**

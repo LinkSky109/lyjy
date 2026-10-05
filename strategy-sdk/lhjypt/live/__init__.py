@@ -1,3 +1,3 @@
-from .live_api import RestClient, LiveDataAPI, LiveOrderAPI
+from .live_api import RestClient, LiveApiError, LiveDataAPI, LiveOrderAPI
 
-__all__ = ["RestClient", "LiveDataAPI", "LiveOrderAPI"]
+__all__ = ["RestClient", "LiveApiError", "LiveDataAPI", "LiveOrderAPI"]

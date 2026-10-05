@@ -17,7 +17,7 @@ from .engine.event import EventEngine
 from .engine.bar_generator import BarGenerator, Bar
 from .runtime.runner import StrategyRunner
 from .backtest.backtest_api import BacktestDataAPI, BacktestOrderAPI
-from .live.live_api import RestClient, LiveDataAPI, LiveOrderAPI
+from .live.live_api import RestClient, LiveApiError, LiveDataAPI, LiveOrderAPI
 
 __version__ = "0.1.0"
 __all__ = [
@@ -33,6 +33,7 @@ __all__ = [
     "BacktestDataAPI",
     "BacktestOrderAPI",
     "RestClient",
+    "LiveApiError",
     "LiveDataAPI",
     "LiveOrderAPI",
 ]

@@ -141,6 +141,32 @@ class TradeApplicationServiceTest {
         verify(contextFactory, never()).create(any());
     }
 
+    @Test
+    void cancelsSubmittedOrderAndReleasesRemainingFunds() {
+        Order order = pendingOrder();
+        order.setStatus(OrderStatus.ACCEPTED.getCode());
+        order.setExchangeOrderId("EX000001");
+        when(orderService.getOrderByOrderId("ORD-001")).thenReturn(order);
+        when(executionService.cancelOrder("EX000001", "rb2410")).thenReturn(true);
+        when(orderService.cancel("ORD-001", "用户撤单")).thenReturn(order);
+
+        Order result = service.cancel("ORD-001", "用户撤单");
+
+        assertEquals("ORD-001", result.getOrderId());
+        verify(reservationService).releaseRemaining("ORD-001");
+    }
+
+    @Test
+    void rejectsCancelBeforeGatewayConfirmation() {
+        Order order = pendingOrder();
+        order.setStatus(OrderStatus.SUBMITTED.getCode());
+        when(orderService.getOrderByOrderId("ORD-001")).thenReturn(order);
+
+        assertThrows(IllegalStateException.class,
+                () -> service.cancel("ORD-001", "用户撤单"));
+        verify(executionService, never()).cancelOrder(any(), any());
+    }
+
     private TradeRequest request() {
         TradeRequest request = new TradeRequest();
         request.setAccountId("DEFAULT-001");

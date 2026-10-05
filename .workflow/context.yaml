@@ -86,7 +86,7 @@ active_workflow:
   create_time: "2026-10-05 19:14:11"
   current_phase: "P1.5"
   current_global_state: "GLOBAL_IN_DEV"
-  current_node: "NODE-P15-001"
+  current_node: "NODE-P15-005"
   current_node_status: "IN_DEV"
   feature_branch: "feature/p15-trade-closure"
   baseline_commit: "1e14089"
@@ -96,17 +96,17 @@ active_workflow:
   workflow_plan_doc: ".workflow/workflow-plan-p15.md"
   test_plan_doc: ".workflow/test-plan-p15.md"
   blocking_reason: ""
-  next_action: "执行 P15-001 交易数据模型与迁移"
+  next_action: "执行 P15-005 网关回报流水线与幂等处理"
 
 p15_context:
   plan_status: "PLANNED"
   requirement_status: "PENDING_REVIEW"
   task_count: 13
-  task_done: 1
-  current_task: "P15-001"
+  task_done: 2
+  current_task: "P15-005"
   current_task_status: "IN_DEV"
   batch_order: "A 基线准入 -> B 统一交易编排 -> C 回报与持久化 -> D 权限与SDK -> E 全链路验收"
-  java_baseline: "mvn clean verify 通过，48/48 单元测试通过，112 个主源码文件"
+  java_baseline: "mvn test 通过，63/63 单元测试通过，128 个主源码文件"
   python_baseline: "14/14 测试通过，覆盖率 65%"
   quality_target: "Java/Python 覆盖率均不低于 80%，新增代码不低于 85%"
   gates:
@@ -220,4 +220,8 @@ operation_logs:
   - time: "2026-10-05 19:22:00"
     operator: "codex/agent-continuous-workflow"
     action: "P15-000 基线治理完成：初始化 Git，脱敏 CTPConfig 输出并补单测，数据库口令改为环境变量，Compose 自动挂载 PG/CH 初始化脚本，同步 README/P1 状态。建立基线提交 1e14089 和标签 p1.5-baseline，创建分支 feature/p15-trade-closure。下一任务 P15-001 交易数据模型与迁移。"
+    result: "success"
+  - time: "2026-10-05 19:30:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "P15-001/P15-008/P15-002/P15-003/P15-004 核心开发完成：新增成交、订单冻结、网关回报表与持仓 Mapper；扩展订单开平/柜台引用/时间字段；实现 MOCK/LIVE 显式模式和 LIVE 快速失败；新增 TradeApplicationService、真实风控上下文、资金冻结与结算服务及统一 /api/trade/orders 入口。63/63 Java 单元测试通过。数据库容器级 schema 验证留待 P15-011，成交与持仓端到端验证留待 P15-005/P15-006。"
     result: "success"

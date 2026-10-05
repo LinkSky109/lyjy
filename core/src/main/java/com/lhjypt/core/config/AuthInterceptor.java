@@ -45,12 +45,14 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (!WRITE_METHODS.contains(request.getMethod())) {
             if (path.startsWith("/api/settlement/")
                     && !context.hasAnyRole(
+                    UserContext.ROLE_ADMIN,
                     UserContext.ROLE_FUND_MANAGER,
                     UserContext.ROLE_COMPLIANCE)) {
                 return reject(response, "当前角色无权查看清算数据");
             }
             if (path.startsWith("/api/portfolio/")
                     && !context.hasAnyRole(
+                    UserContext.ROLE_ADMIN,
                     UserContext.ROLE_TRADER,
                     UserContext.ROLE_RISK_OFFICER,
                     UserContext.ROLE_COMPLIANCE)) {

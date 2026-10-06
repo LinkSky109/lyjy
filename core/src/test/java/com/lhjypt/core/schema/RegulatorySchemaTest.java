@@ -37,6 +37,18 @@ class RegulatorySchemaTest {
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS settlement_task"));
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS currency_rate"));
         assertTrue(sql.contains("expected_date"));
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS tenant"));
+        assertTrue(sql.contains("max_strategies"));
+    }
+
+    @Test
+    void tenantMigrationIsAdditiveAndScopesStrategyInfo() throws IOException {
+        String sql = readProjectFile("scripts/migration/p2_006_multi_tenant.sql");
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS tenant"));
+        assertTrue(sql.contains("ALTER TABLE strategy_info ADD COLUMN IF NOT EXISTS tenant_id"));
+        String upper = sql.toUpperCase();
+        assertTrue(!upper.contains("DROP TABLE"));
+        assertTrue(!upper.contains("TRUNCATE"));
     }
 
     @Test

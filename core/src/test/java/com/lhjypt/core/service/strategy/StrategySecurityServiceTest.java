@@ -2,6 +2,7 @@ package com.lhjypt.core.service.strategy;
 
 import com.lhjypt.core.common.auth.ConfirmTokenService;
 import com.lhjypt.core.common.auth.UserContext;
+import com.lhjypt.core.common.tenant.TenantContextHolder;
 import com.lhjypt.core.config.KeyStoreProperties;
 import com.lhjypt.core.config.StrategySecurityProperties;
 import com.lhjypt.core.mapper.StrategyAuditLogMapper;
@@ -11,6 +12,9 @@ import com.lhjypt.core.model.strategy.StrategyAuditLog;
 import com.lhjypt.core.model.strategy.StrategyCrypto;
 import com.lhjypt.core.model.strategy.StrategyInfo;
 import com.lhjypt.core.model.strategy.StrategyWatermark;
+import com.lhjypt.core.model.tenant.Tenant;
+import com.lhjypt.core.service.tenant.TenantService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,6 +46,7 @@ class StrategySecurityServiceTest {
     private com.lhjypt.core.mapper.StrategyWatermarkMapper watermarkMapper;
     private StrategyWatermarkService watermarkService;
     private StrategySecurityProperties securityProperties;
+    private TenantService tenantService;
     private StrategySecurityService service;
 
     private final UserContext trader = UserContext.of("trader-1", "TRADER", null);
@@ -60,9 +65,15 @@ class StrategySecurityServiceTest {
         watermarkService = new StrategyWatermarkService(watermarkMapper);
         securityProperties = new StrategySecurityProperties();
         securityProperties.setEnvBindingEnabled(true);
+        tenantService = mock(TenantService.class);
         service = new StrategySecurityService(strategyInfoMapper, strategyCryptoMapper,
                 auditMapper, cryptoService, sandboxExecutor, confirmTokenService,
-                watermarkService, securityProperties);
+                watermarkService, securityProperties, tenantService);
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContextHolder.clear();
     }
 
     @Test
@@ -214,6 +225,48 @@ class StrategySecurityServiceTest {
                 .hasMessageContaining("合规");
         UserContext compliance = UserContext.of("comp-1", "COMPLIANCE", null);
         assertThat(service.trace("token-1", compliance)).containsEntry("found", false);
+    }
+
+    @Test
+    @DisplayName("多租户：上传归属租户并按配额拦截")
+    void uploadAssignsTenantAndEnforcesQuota() {
+        TenantContextHolder.set("T1");
+        try {
+            when(strategyInfoMapper.selectByStrategyId("S-Q")).thenReturn(null);
+            Tenant tenantInfo = new Tenant();
+            tenantInfo.setTenantId("T1");
+            tenantInfo.setMaxStrategies(1);
+            when(tenantService.detail("T1")).thenReturn(tenantInfo);
+            when(strategyInfoMapper.countByTenant("T1")).thenReturn(0);
+
+            service.upload("S-Q", "q", "pass\n", trader, "ip");
+
+            ArgumentCaptor<StrategyInfo> captor = ArgumentCaptor.forClass(StrategyInfo.class);
+            verify(strategyInfoMapper).insert(captor.capture());
+            assertThat(captor.getValue().getTenantId()).isEqualTo("T1");
+
+            when(strategyInfoMapper.countByTenant("T1")).thenReturn(1);
+            assertThatThrownBy(() -> service.upload("S-Q", "q", "pass\n", trader, "ip"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("配额");
+        } finally {
+            TenantContextHolder.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("多租户：跨租户访问被拒绝")
+    void crossTenantAccessDenied() {
+        StrategyInfo strategy = seedStrategy("trader-1");
+        strategy.setTenantId("T1");
+        TenantContextHolder.set("DEFAULT");
+        try {
+            assertThatThrownBy(() -> service.run("S1", trader, "ip"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("跨租户");
+        } finally {
+            TenantContextHolder.clear();
+        }
     }
 
     private StrategyInfo seedStrategy(String owner) {

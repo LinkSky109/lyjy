@@ -2,6 +2,8 @@ package com.lhjypt.core.config;
 
 import com.lhjypt.core.common.auth.UserContext;
 import com.lhjypt.core.common.auth.UserContextHolder;
+import com.lhjypt.core.common.tenant.TenantContextHolder;
+import com.lhjypt.core.service.tenant.TenantService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -10,14 +12,17 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 class AuthInterceptorTest {
 
-    private final AuthInterceptor interceptor = new AuthInterceptor();
+    private final AuthInterceptor interceptor =
+            new AuthInterceptor(mock(TenantService.class));
 
     @AfterEach
     void clearContext() {
         UserContextHolder.clear();
+        TenantContextHolder.clear();
     }
 
     @Test

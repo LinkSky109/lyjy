@@ -4,6 +4,8 @@ import com.alibaba.fastjson2.JSON;
 import com.lhjypt.core.common.Result;
 import com.lhjypt.core.common.auth.UserContext;
 import com.lhjypt.core.common.auth.UserContextHolder;
+import com.lhjypt.core.common.tenant.TenantContextHolder;
+import com.lhjypt.core.service.tenant.TenantService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -15,7 +17,7 @@ import java.io.IOException;
 import java.util.Set;
 
 /**
- * 角色权限和写操作审计拦截器。
+ * 角色权限、写操作审计与租户上下文拦截器。
  */
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
@@ -23,6 +25,12 @@ public class AuthInterceptor implements HandlerInterceptor {
     private static final Logger audit = LoggerFactory.getLogger("AUDIT");
     private static final Set<String> WRITE_METHODS =
             Set.of("POST", "PUT", "DELETE", "PATCH");
+
+    private final TenantService tenantService;
+
+    public AuthInterceptor(TenantService tenantService) {
+        this.tenantService = tenantService;
+    }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response,
@@ -37,6 +45,17 @@ public class AuthInterceptor implements HandlerInterceptor {
             return reject(response, error.getMessage());
         }
         UserContextHolder.set(context);
+
+        // 租户上下文：默认 DEFAULT；非 ADMIN 校验租户启用
+        TenantContextHolder.set(request.getHeader("X-Tenant-Id"));
+        if (!context.hasAnyRole(UserContext.ROLE_ADMIN)) {
+            try {
+                tenantService.requireActive(TenantContextHolder.get());
+            } catch (IllegalStateException error) {
+                TenantContextHolder.clear();
+                return reject(response, error.getMessage());
+            }
+        }
 
         String path = request.getRequestURI();
         if (!isProtected(path)) {
@@ -77,6 +96,7 @@ public class AuthInterceptor implements HandlerInterceptor {
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response,
                                 Object handler, Exception ex) {
         UserContextHolder.clear();
+        TenantContextHolder.clear();
     }
 
     private static boolean isProtected(String path) {
@@ -115,6 +135,9 @@ public class AuthInterceptor implements HandlerInterceptor {
             return context.hasAnyRole(UserContext.ROLE_COMPLIANCE);
         }
         if (path.startsWith("/api/currency/")) {
+            return context.hasAnyRole(UserContext.ROLE_ADMIN);
+        }
+        if (path.startsWith("/api/tenant/")) {
             return context.hasAnyRole(UserContext.ROLE_ADMIN);
         }
         if (path.startsWith("/api/risk/intraday/")

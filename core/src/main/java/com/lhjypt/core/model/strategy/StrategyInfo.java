@@ -38,6 +38,9 @@ public class StrategyInfo {
 
     private String paramsJson;
 
+    /** 所属租户（P2 多租户隔离）。 */
+    private String tenantId;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

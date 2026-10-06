@@ -177,6 +177,26 @@ CREATE TABLE IF NOT EXISTS currency_rate (
 );
 CREATE INDEX IF NOT EXISTS idx_currency_pair ON currency_rate(base, quote, rate_date DESC);
 
+-- ========== 9. 多租户隔离 ==========
+CREATE TABLE IF NOT EXISTS tenant (
+    id             BIGSERIAL PRIMARY KEY,
+    tenant_id      VARCHAR(64) NOT NULL UNIQUE,
+    name           VARCHAR(128) NOT NULL,
+    status         VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+    max_strategies INT NOT NULL DEFAULT 100,
+    max_accounts   INT NOT NULL DEFAULT 100,
+    max_daily_orders INT NOT NULL DEFAULT 10000,
+    remark         VARCHAR(256),
+    create_time    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted        SMALLINT DEFAULT 0
+);
+ALTER TABLE strategy_info ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(64) NOT NULL DEFAULT 'DEFAULT';
+CREATE INDEX IF NOT EXISTS idx_strategy_tenant ON strategy_info(tenant_id, deleted);
+INSERT INTO tenant (tenant_id, name, status)
+SELECT 'DEFAULT','默认租户','ACTIVE'
+WHERE NOT EXISTS (SELECT 1 FROM tenant WHERE tenant_id='DEFAULT');
+
 INSERT INTO settlement_rule (rule_id, market, exchange_match, cycle_days, currency, remark)
 VALUES
     ('R-CN-FUT','CN',NULL,0,'CNY','境内期货 T+0'),

@@ -3,6 +3,7 @@ package com.lhjypt.core.service.strategy;
 import com.alibaba.fastjson2.JSON;
 import com.lhjypt.core.common.auth.ConfirmTokenService;
 import com.lhjypt.core.common.auth.UserContext;
+import com.lhjypt.core.common.tenant.TenantContextHolder;
 import com.lhjypt.core.config.StrategySecurityProperties;
 import com.lhjypt.core.mapper.StrategyAuditLogMapper;
 import com.lhjypt.core.mapper.StrategyCryptoMapper;
@@ -11,6 +12,8 @@ import com.lhjypt.core.model.strategy.StrategyAuditLog;
 import com.lhjypt.core.model.strategy.StrategyCrypto;
 import com.lhjypt.core.model.strategy.StrategyInfo;
 import com.lhjypt.core.model.strategy.StrategyWatermark;
+import com.lhjypt.core.model.tenant.Tenant;
+import com.lhjypt.core.service.tenant.TenantService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +47,7 @@ public class StrategySecurityService {
     private final ConfirmTokenService confirmTokenService;
     private final StrategyWatermarkService watermarkService;
     private final StrategySecurityProperties securityProperties;
+    private final TenantService tenantService;
 
     @Transactional
     public Map<String, Object> upload(String strategyId, String name, String sourceCode,
@@ -62,6 +66,17 @@ public class StrategySecurityService {
             strategy.setParamsJson("{}");
             strategy.setCreateTime(LocalDateTime.now());
             strategy.setUpdateTime(LocalDateTime.now());
+            // 多租户：记录归属租户并校验配额
+            String tenant = TenantContextHolder.get();
+            tenantService.requireActive(tenant);
+            if (!TenantContextHolder.DEFAULT_TENANT.equals(tenant)) {
+                Tenant tenantInfo = tenantService.detail(tenant);
+                if (tenantInfo != null && strategyInfoMapper.countByTenant(tenant)
+                        >= tenantInfo.getMaxStrategies()) {
+                    throw new IllegalStateException("租户策略配额已用完: " + tenant);
+                }
+            }
+            strategy.setTenantId(tenant);
             strategyInfoMapper.insert(strategy);
         } else {
             requireOwner(strategy, context);
@@ -314,6 +329,11 @@ public class StrategySecurityService {
     private void requireOwner(StrategyInfo strategy, UserContext context) {
         if (context.hasAnyRole(UserContext.ROLE_ADMIN)) {
             return;
+        }
+        // 多租户数据隔离：非 ADMIN 只能访问本租户策略
+        if (strategy.getTenantId() != null
+                && !strategy.getTenantId().equals(TenantContextHolder.get())) {
+            throw new IllegalStateException("跨租户访问被拒绝: " + strategy.getStrategyId());
         }
         if (!strategy.getOwner().equals(context.userId())) {
             throw new IllegalStateException("无权访问该策略: " + strategy.getStrategyId());

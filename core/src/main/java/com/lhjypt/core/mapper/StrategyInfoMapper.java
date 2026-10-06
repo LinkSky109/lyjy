@@ -14,6 +14,9 @@ public interface StrategyInfoMapper extends BaseMapper<StrategyInfo> {
     @Select("SELECT * FROM strategy_info WHERE strategy_id = #{strategyId} AND deleted = 0")
     StrategyInfo selectByStrategyId(@Param("strategyId") String strategyId);
 
+    @Select("SELECT COUNT(*) FROM strategy_info WHERE tenant_id = #{tenantId} AND deleted = 0")
+    int countByTenant(@Param("tenantId") String tenantId);
+
     @Select("SELECT * FROM strategy_info WHERE owner = #{owner} AND deleted = 0 "
             + "ORDER BY create_time DESC")
     List<StrategyInfo> selectByOwner(@Param("owner") String owner);

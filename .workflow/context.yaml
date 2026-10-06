@@ -82,21 +82,21 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "dev-test-consistency-p2-005"
-  task_id: "TASK-P2-005"
-  task_name: "跨境交收状态机与多币种"
-  create_time: "2026-10-06 14:36:00"
-  current_phase: "P2-第一批B"
+  workflow_id: "dev-test-consistency-p2-006"
+  task_id: "TASK-P2-006"
+  task_name: "多租户隔离（数据范围 + 租户配额）"
+  create_time: "2026-10-06 14:46:00"
+  current_phase: "P2-第三批C"
   current_global_state: "GLOBAL_IN_DEV"
-  current_node: "P2-005_COMPLETE"
+  current_node: "P2-006_COMPLETE"
   current_node_status: "DONE"
-  feature_branch: "feature/p2-005-settlement-fx"
-  baseline_commit: "5a9540d"
+  feature_branch: "feature/p2-006-multi-tenant"
+  baseline_commit: "b337c27"
   requirement_doc: ".workflow/requirements-supplement.md"
   tasks_doc: ".workflow/p2-plan.md"
-  workflow_plan_doc: ".workflow/p2-task-005-test-report.md"
+  workflow_plan_doc: ".workflow/p2-task-006-test-report.md"
   blocking_reason: ""
-  next_action: "执行 TASK-P2-006 多租户隔离（数据范围 + 配额）"
+  next_action: "执行 TASK-P2-007 容量管理与自动伸缩适配"
 
 p15_context:
   plan_status: "PLANNED"
@@ -135,11 +135,11 @@ p2_context:
   requirement_source: ".workflow/requirements-supplement.md"
   plan_status: "IN_DEV"
   task_count: 7
-  task_done: 5
-  current_task: "TASK-P2-006"
+  task_done: 6
+  current_task: "TASK-P2-007"
   current_task_status: "PENDING_DEV"
-  tests_baseline: "232/232 Java 测试通过（0 跳过），JaCoCo 通过"
-  next_action: "执行 TASK-P2-006 多租户隔离（数据范围 + 配额）"
+  tests_baseline: "239/239 Java 测试通过（0 跳过），JaCoCo 通过"
+  next_action: "执行 TASK-P2-007 容量管理与自动伸缩适配"
 
 # 一致性校验上下文
 consistency_context:
@@ -305,4 +305,8 @@ operation_logs:
   - time: "2026-10-06 14:42:00"
     operator: "codex/agent-continuous-workflow"
     action: "TASK-P2-005 跨境交收状态机与多币种完成：新增 settlement_rule（CN/HK/US T+N 与币种）、settlement_task（交收状态机 PENDING→SETTLED/FAILED、expected=交易日+T+N）、currency_rate + FxService（直接/反向汇率折算、缺汇率报错、upsert）；SettlementTaskService 每日定时生成+到期交收（DistributedLock 互斥），交易日兼容 BASIC/ISO 格式；/api/settlement/task/* 与 /api/currency/*，汇率写仅 ADMIN。真实 E2E：规则 T+0/T+1/T+2 正确、BASIC 交易日 20261005 生成交收任务、asOf 到期 SETTLED、CNY→USD 14 / CNY→HKD 108、CNY/EUR upsert 后即时折算、FUND_MANAGER 更新汇率 403。mvn verify 232/232（0跳过）。"
+    result: "success"
+  - time: "2026-10-06 14:52:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "TASK-P2-006 多租户隔离完成：新增 tenant 注册表（状态+配额）与 strategy_info.tenant_id 列（迁移 p2_006）；TenantContextHolder 从 X-Tenant-Id 注入（默认 DEFAULT），AuthInterceptor 非 ADMIN 校验租户启用；TenantService 注册/配额；策略上传归属租户并校验 max_strategies，非 ADMIN 跨租户访问拒绝；/api/tenant/* 仅 ADMIN。真实 E2E：创建 T-ALPHA(maxStrategies=1) → 首支上传 tenant=T-ALPHA，第二支 409 配额已用完，未知租户 403，DEFAULT 用户访问 T-ALPHA 策略 409 跨租户，同租户访问正常。mvn verify 239/239（0跳过）。"
     result: "success"

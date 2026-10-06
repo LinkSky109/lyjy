@@ -1,6 +1,7 @@
 package com.lhjypt.core.service.portfolio;
 
 import com.lhjypt.core.common.exception.TradeRejectedException;
+import com.lhjypt.core.common.tenant.TenantContextHolder;
 import com.lhjypt.core.mapper.PortfolioMapper;
 import com.lhjypt.core.mapper.PortfolioPositionMapper;
 import com.lhjypt.core.mapper.PortfolioRebalanceJobMapper;
@@ -9,8 +10,11 @@ import com.lhjypt.core.model.portfolio.PortfolioPosition;
 import com.lhjypt.core.model.portfolio.PortfolioRebalanceJob;
 import com.lhjypt.core.model.portfolio.RebalanceInstruction;
 import com.lhjypt.core.model.portfolio.RebalancePreview;
+import com.lhjypt.core.model.tenant.Tenant;
 import com.lhjypt.core.model.trade.TradeSubmissionResult;
+import com.lhjypt.core.service.tenant.TenantService;
 import com.lhjypt.core.service.trade.TradeApplicationService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -32,6 +36,7 @@ class PortfolioServiceTest {
     private PortfolioRebalanceJobMapper jobMapper;
     private RebalanceEngine engine;
     private TradeApplicationService tradeService;
+    private TenantService tenantService;
     private PortfolioService service;
 
     @BeforeEach
@@ -41,8 +46,15 @@ class PortfolioServiceTest {
         jobMapper = mock(PortfolioRebalanceJobMapper.class);
         engine = mock(RebalanceEngine.class);
         tradeService = mock(TradeApplicationService.class);
+        tenantService = mock(TenantService.class);
         service = new PortfolioService(
-                portfolioMapper, positionMapper, jobMapper, engine, tradeService);
+                portfolioMapper, positionMapper, jobMapper, engine, tradeService,
+                tenantService);
+    }
+
+    @AfterEach
+    void tearDown() {
+        TenantContextHolder.clear();
     }
 
     @Test
@@ -55,6 +67,50 @@ class PortfolioServiceTest {
         assertEquals("trader-1", created.getOwner());
         assertEquals("ACTIVE", created.getStatus());
         verify(portfolioMapper).insert(created);
+    }
+
+    @Test
+    void createAssignsTenantAndEnforcesPortfolioQuota() {
+        TenantContextHolder.set("T1");
+        try {
+            Tenant tenantInfo = new Tenant();
+            tenantInfo.setTenantId("T1");
+            tenantInfo.setMaxPortfolios(1);
+            when(tenantService.detail("T1")).thenReturn(tenantInfo);
+            when(portfolioMapper.countByTenant("T1")).thenReturn(0);
+
+            Portfolio portfolio = new Portfolio();
+            portfolio.setName("alpha");
+            Portfolio created = service.create(portfolio, "trader-1");
+            assertEquals("T1", created.getTenantId());
+            ArgumentCaptor<Portfolio> captor = ArgumentCaptor.forClass(Portfolio.class);
+            verify(portfolioMapper).insert(captor.capture());
+            assertEquals("T1", captor.getValue().getTenantId());
+
+            when(portfolioMapper.countByTenant("T1")).thenReturn(1);
+            Portfolio second = new Portfolio();
+            second.setName("beta");
+            IllegalStateException error = assertThrows(IllegalStateException.class,
+                    () -> service.create(second, "trader-1"));
+            assertEquals(true, error.getMessage().contains("配额"));
+        } finally {
+            TenantContextHolder.clear();
+        }
+    }
+
+    @Test
+    void crossTenantPortfolioAccessDenied() {
+        Portfolio portfolio = portfolio();
+        portfolio.setTenantId("T1");
+        when(portfolioMapper.selectByPortfolioId("PF-1")).thenReturn(portfolio);
+        TenantContextHolder.set("DEFAULT");
+        try {
+            IllegalStateException error = assertThrows(IllegalStateException.class,
+                    () -> service.detail("PF-1", "trader-1", false));
+            assertEquals(true, error.getMessage().contains("跨租户"));
+        } finally {
+            TenantContextHolder.clear();
+        }
     }
 
     @Test

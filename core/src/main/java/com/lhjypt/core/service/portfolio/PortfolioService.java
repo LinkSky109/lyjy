@@ -3,6 +3,7 @@ package com.lhjypt.core.service.portfolio;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.lhjypt.core.common.exception.TradeRejectedException;
+import com.lhjypt.core.common.tenant.TenantContextHolder;
 import com.lhjypt.core.mapper.PortfolioMapper;
 import com.lhjypt.core.mapper.PortfolioPositionMapper;
 import com.lhjypt.core.mapper.PortfolioRebalanceJobMapper;
@@ -11,7 +12,9 @@ import com.lhjypt.core.model.portfolio.PortfolioPosition;
 import com.lhjypt.core.model.portfolio.PortfolioRebalanceJob;
 import com.lhjypt.core.model.portfolio.RebalanceInstruction;
 import com.lhjypt.core.model.portfolio.RebalancePreview;
+import com.lhjypt.core.model.tenant.Tenant;
 import com.lhjypt.core.model.trade.TradeRequest;
+import com.lhjypt.core.service.tenant.TenantService;
 import com.lhjypt.core.service.trade.TradeApplicationService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -40,6 +43,7 @@ public class PortfolioService {
     private final PortfolioRebalanceJobMapper jobMapper;
     private final RebalanceEngine rebalanceEngine;
     private final TradeApplicationService tradeApplicationService;
+    private final TenantService tenantService;
 
     @Transactional
     public Portfolio create(Portfolio portfolio, String owner) {
@@ -52,6 +56,16 @@ public class PortfolioService {
                         ? "PF-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase()
                         : portfolio.getPortfolioId());
         portfolio.setOwner(owner);
+        String tenant = TenantContextHolder.get();
+        tenantService.requireActive(tenant);
+        if (!TenantContextHolder.DEFAULT_TENANT.equals(tenant)) {
+            Tenant tenantInfo = tenantService.detail(tenant);
+            if (tenantInfo != null && portfolioMapper.countByTenant(tenant)
+                    >= tenantInfo.getMaxPortfolios()) {
+                throw new IllegalStateException("租户组合配额已用完: " + tenant);
+            }
+        }
+        portfolio.setTenantId(tenant);
         portfolio.setStatus("ACTIVE");
         portfolio.setBaseCurrency(
                 portfolio.getBaseCurrency() == null ? "CNY" : portfolio.getBaseCurrency());
@@ -263,6 +277,7 @@ public class PortfolioService {
         if (portfolio == null) {
             throw new IllegalArgumentException("组合不存在: " + portfolioId);
         }
+        requireTenantScope(portfolio);
         if (!portfolio.getOwner().equals(owner)) {
             throw new IllegalStateException("无权操作该组合");
         }
@@ -274,10 +289,26 @@ public class PortfolioService {
         if (portfolio == null) {
             throw new IllegalArgumentException("组合不存在: " + portfolioId);
         }
+        requireTenantScope(portfolio, admin);
         if (!admin && !portfolio.getOwner().equals(requester)) {
             throw new IllegalStateException("无权查看该组合");
         }
         return portfolio;
+    }
+
+    /** 多租户数据隔离：非 ADMIN 只能访问本租户组合（DEFAULT 视为共享租户）。 */
+    private void requireTenantScope(Portfolio portfolio) {
+        requireTenantScope(portfolio, false);
+    }
+
+    private void requireTenantScope(Portfolio portfolio, boolean admin) {
+        if (admin) {
+            return;
+        }
+        if (portfolio.getTenantId() != null
+                && !portfolio.getTenantId().equals(TenantContextHolder.get())) {
+            throw new IllegalStateException("跨租户访问被拒绝: " + portfolio.getPortfolioId());
+        }
     }
 
     private PortfolioRebalanceJob requireJob(String jobId) {

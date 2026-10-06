@@ -53,6 +53,19 @@ class RegulatorySchemaTest {
     }
 
     @Test
+    void tenantPortfolioMigrationScopesPortfolioAndAddsQuota() throws IOException {
+        String init = readProjectFile("scripts/init-p2.sql");
+        assertTrue(init.contains("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS tenant_id"));
+        assertTrue(init.contains("max_portfolios"));
+        String sql = readProjectFile("scripts/migration/p2_008_tenant_portfolio.sql");
+        assertTrue(sql.contains("ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS tenant_id"));
+        assertTrue(sql.contains("ALTER TABLE tenant ADD COLUMN IF NOT EXISTS max_portfolios"));
+        String upper = sql.toUpperCase();
+        assertTrue(!upper.contains("DROP TABLE"));
+        assertTrue(!upper.contains("TRUNCATE"));
+    }
+
+    @Test
     void tenantMigrationIsAdditiveAndScopesStrategyInfo() throws IOException {
         String sql = readProjectFile("scripts/migration/p2_006_multi_tenant.sql");
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS tenant"));

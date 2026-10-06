@@ -31,6 +31,8 @@ public class Tenant {
 
     private Integer maxStrategies;
 
+    private Integer maxPortfolios;
+
     private Integer maxAccounts;
 
     private Integer maxDailyOrders;

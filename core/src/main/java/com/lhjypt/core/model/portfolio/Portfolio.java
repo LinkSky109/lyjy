@@ -29,6 +29,9 @@ public class Portfolio {
 
     private String configJson;
 
+    /** 所属租户（P2 多租户横切）。 */
+    private String tenantId;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

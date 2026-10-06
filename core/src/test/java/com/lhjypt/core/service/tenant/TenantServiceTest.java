@@ -36,6 +36,7 @@ class TenantServiceTest {
 
         assertThat(created.getStatus()).isEqualTo(Tenant.ACTIVE);
         assertThat(created.getMaxStrategies()).isEqualTo(100);
+        assertThat(created.getMaxPortfolios()).isEqualTo(100);
         assertThat(created.getMaxAccounts()).isEqualTo(100);
         ArgumentCaptor<Tenant> captor = ArgumentCaptor.forClass(Tenant.class);
         verify(tenantMapper).insert(captor.capture());
@@ -51,18 +52,20 @@ class TenantServiceTest {
     }
 
     @Test
-    @DisplayName("更新配额生效")
+    @DisplayName("更新配额生效（含组合配额）")
     void updateQuotaPersists() {
         Tenant existing = new Tenant();
         existing.setTenantId("T1");
         existing.setMaxStrategies(100);
+        existing.setMaxPortfolios(100);
         existing.setMaxAccounts(100);
         existing.setMaxDailyOrders(10000);
         when(tenantMapper.selectByTenantId("T1")).thenReturn(existing);
 
-        Tenant updated = service.updateQuota("T1", 5, null, null);
+        Tenant updated = service.updateQuota("T1", 5, 3, null, null);
 
         assertThat(updated.getMaxStrategies()).isEqualTo(5);
+        assertThat(updated.getMaxPortfolios()).isEqualTo(3);
         assertThat(updated.getMaxAccounts()).isEqualTo(100);
         verify(tenantMapper).updateById(existing);
     }

@@ -43,9 +43,10 @@ public class TenantController {
     @PostMapping("/{tenantId}/quota")
     public Result<Tenant> updateQuota(@PathVariable String tenantId,
                                       @RequestParam(required = false) Integer maxStrategies,
+                                      @RequestParam(required = false) Integer maxPortfolios,
                                       @RequestParam(required = false) Integer maxAccounts,
                                       @RequestParam(required = false) Integer maxDailyOrders) {
         return Result.success(tenantService.updateQuota(
-                tenantId, maxStrategies, maxAccounts, maxDailyOrders));
+                tenantId, maxStrategies, maxPortfolios, maxAccounts, maxDailyOrders));
     }
 }

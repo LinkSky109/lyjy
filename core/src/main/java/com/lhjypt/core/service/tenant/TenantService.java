@@ -37,6 +37,7 @@ public class TenantService {
         }
         tenant.setStatus(tenant.getStatus() == null ? Tenant.ACTIVE : tenant.getStatus());
         tenant.setMaxStrategies(tenant.getMaxStrategies() == null ? 100 : tenant.getMaxStrategies());
+        tenant.setMaxPortfolios(tenant.getMaxPortfolios() == null ? 100 : tenant.getMaxPortfolios());
         tenant.setMaxAccounts(tenant.getMaxAccounts() == null ? 100 : tenant.getMaxAccounts());
         tenant.setMaxDailyOrders(tenant.getMaxDailyOrders() == null ? 10000 : tenant.getMaxDailyOrders());
         tenant.setRemark(tenant.getRemark());
@@ -48,10 +49,14 @@ public class TenantService {
 
     @Transactional
     public Tenant updateQuota(String tenantId, Integer maxStrategies,
+                              Integer maxPortfolios,
                               Integer maxAccounts, Integer maxDailyOrders) {
         Tenant tenant = require(tenantId);
         if (maxStrategies != null) {
             tenant.setMaxStrategies(maxStrategies);
+        }
+        if (maxPortfolios != null) {
+            tenant.setMaxPortfolios(maxPortfolios);
         }
         if (maxAccounts != null) {
             tenant.setMaxAccounts(maxAccounts);

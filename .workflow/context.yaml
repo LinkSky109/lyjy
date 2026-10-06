@@ -82,21 +82,21 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "dev-test-consistency-p2-final"
-  task_id: "TASK-P2-FULL"
-  task_name: "P2 全量回归 + 一致性巡检 + 交付（7/7 完成）"
-  create_time: "2026-10-06 15:30:00"
-  current_phase: "P2-DELIVERY"
+  workflow_id: "dev-test-consistency-p2-008"
+  task_id: "TASK-P2-008"
+  task_name: "多租户横切扩展·组合（观察期补强）"
+  create_time: "2026-10-06 18:20:00"
+  current_phase: "P2-OBSERVATION"
   current_global_state: "GLOBAL_DONE"
-  current_node: "P2_DELIVERY_COMPLETE"
+  current_node: "P2-008_COMPLETE"
   current_node_status: "DONE"
-  feature_branch: "feature/p2-007-capacity"
-  baseline_commit: "c88e9fc"
+  feature_branch: "feature/p2-008-tenant-scope"
+  baseline_commit: "ae1bd45"
   requirement_doc: ".workflow/requirements-supplement.md"
   tasks_doc: ".workflow/p2-plan.md"
-  workflow_plan_doc: ".workflow/delivery-report-p2.md"
+  workflow_plan_doc: ".workflow/p2-task-008-test-report.md"
   blocking_reason: ""
-  next_action: "P2 交付完成，进入观察期；可启动 P3 规划（生产化/多活/灾备）"
+  next_action: "P2 观察期继续：可做多租户横切扩展（预算/账户）或 P3 规划"
 
 p15_context:
   plan_status: "PLANNED"
@@ -136,10 +136,10 @@ p2_context:
   plan_status: "DONE"
   task_count: 7
   task_done: 7
-  current_task: "P2 交付完成（全量回归 + 一致性巡检 + 交付报告）"
+  current_task: "P2 观察期补强（多租户横切扩展）"
   current_task_status: "DONE"
-  tests_baseline: "244/244 Java 测试通过（0 跳过），JaCoCo 通过"
-  next_action: "P2 交付完成，进入观察期；可启动 P3 规划（生产化/多活/灾备）"
+  tests_baseline: "247/247 Java 测试通过（0 跳过），JaCoCo 通过"
+  next_action: "P2 观察期继续：可做多租户横切扩展（预算/账户）或 P3 规划"
 
 # 一致性校验上下文
 consistency_context:
@@ -317,4 +317,8 @@ operation_logs:
   - time: "2026-10-06 15:40:00"
     operator: "codex/agent-continuous-workflow"
     action: "P2 三期交付收尾完成（milestone 全量回归 + 一致性巡检 + 交付报告）：全量 mvn verify 244/244（0跳过，JaCoCo通过）+ Python 基线 23/23@85.27%；真实 PG 12 张 P2 表全部核对存在，init-p2 + p2_001~007 幂等迁移通过 Testcontainers；七模块真实 E2E 全量回归：P2-001 大额成交→报送批次 READY(1项/999900)→确认令牌提交 SUBMITTED、P2-002 上传水印=True、P2-003 VAR 预算保存/刷新/list、P2-004 Brinson 报告生成+留档、P2-005 汇率 upsert + USD→CNY 1000→7200 + 无网关对账 409 优雅降级、P2-006 租户 DEFAULT ACTIVE、P2-007 手动+定时采样/latest/history/autoscale。请求形状误用 3 处（ruleId/budgetType/reportType）与 AutoScaler 条件装配缺陷均在巡检期修复闭环。E2E 数据全部清理（批次0、trade_record 0、租户仅 DEFAULT、aml_rule 保留 2 条种子）。生成 delivery-report-p2.md 与 consistency-report-p2.md（五维通过 CONSISTENCY_PASS）。P2 七项任务与交付全闭环，全局状态流转 GLOBAL_DONE。"
+    result: "success"
+  - time: "2026-10-06 18:20:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "TASK-P2-008 多租户横切扩展·组合完成（P2 观察期补强）：迁移 p2_008 为 portfolio 增加 tenant_id（存量默认 DEFAULT）+ 索引、tenant 增加 max_portfolios 组合配额；PortfolioService 创建归属租户并校验组合配额，requireOwned/requireReadable 统一 requireTenantScope 非 ADMIN 跨租户拒绝；/api/tenant/{id}/quota 支持 maxPortfolios。真实 E2E：创建 TP-ALPHA(maxPortfolios=1) → 首组合 tenant=TP-ALPHA，第二个 409 组合配额已用完，DEFAULT 用户访问 409 跨租户，同租户 detail 正常，配额上调 3 后同租户可再建。存量组合归 DEFAULT 不受影响。mvn verify 247/247（0跳过，JaCoCo通过）。多租户隔离现覆盖策略+组合两处用户资产。"
     result: "success"

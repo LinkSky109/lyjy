@@ -17,4 +17,7 @@ public interface PortfolioMapper extends BaseMapper<Portfolio> {
     @Select("SELECT * FROM portfolio WHERE owner = #{owner} AND deleted = 0 "
             + "ORDER BY create_time DESC")
     List<Portfolio> selectByOwner(@Param("owner") String owner);
+
+    @Select("SELECT COUNT(*) FROM portfolio WHERE tenant_id = #{tenantId} AND deleted = 0")
+    int countByTenant(@Param("tenantId") String tenantId);
 }

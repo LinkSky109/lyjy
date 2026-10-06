@@ -214,6 +214,11 @@ CREATE TABLE IF NOT EXISTS capacity_snapshot (
 );
 CREATE INDEX IF NOT EXISTS idx_capacity_time ON capacity_snapshot(sample_time DESC);
 
+-- ========== 11. 多租户横切扩展：组合隔离与组合配额 ==========
+ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(64) NOT NULL DEFAULT 'DEFAULT';
+CREATE INDEX IF NOT EXISTS idx_portfolio_tenant ON portfolio(tenant_id, deleted);
+ALTER TABLE tenant ADD COLUMN IF NOT EXISTS max_portfolios INT NOT NULL DEFAULT 100;
+
 INSERT INTO settlement_rule (rule_id, market, exchange_match, cycle_days, currency, remark)
 VALUES
     ('R-CN-FUT','CN',NULL,0,'CNY','境内期货 T+0'),

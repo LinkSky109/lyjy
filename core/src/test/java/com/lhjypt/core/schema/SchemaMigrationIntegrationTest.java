@@ -56,6 +56,9 @@ class SchemaMigrationIntegrationTest {
             ScriptUtils.executeSqlScript(connection,
                     new FileSystemResource(
                             root.resolve("scripts/migration/p2_006_multi_tenant.sql")));
+            ScriptUtils.executeSqlScript(connection,
+                    new FileSystemResource(
+                            root.resolve("scripts/migration/p2_007_capacity.sql")));
 
             assertTrue(columnExists(connection, "orders", "offset_flag"));
             assertTrue(columnExists(connection, "orders", "broker_order_ref"));
@@ -95,6 +98,9 @@ class SchemaMigrationIntegrationTest {
             assertTrue(tableExists(connection, "tenant"));
             assertTrue(columnExists(connection, "tenant", "max_strategies"));
             assertTrue(columnExists(connection, "strategy_info", "tenant_id"));
+            assertTrue(tableExists(connection, "capacity_snapshot"));
+            assertTrue(columnExists(connection, "capacity_snapshot", "load_pct"));
+            assertTrue(columnExists(connection, "capacity_snapshot", "desired_replicas"));
         }
     }
 

@@ -3,7 +3,7 @@ task_id: "TASK-20261002-001"
 task_name: "企业级量化交易平台（lhjypt）"
 create_time: "2026-10-02 13:05:00"
 # 当前活跃任务以 active_workflow 为准；P0/P1 字段保留为历史基线
-current_global_state: "GLOBAL_IN_DEV"
+current_global_state: "GLOBAL_P2_COMPLETE"
 
 # 需求基础信息
 requirement:
@@ -82,21 +82,21 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "dev-test-consistency-p2-006"
-  task_id: "TASK-P2-006"
-  task_name: "多租户隔离（数据范围 + 租户配额）"
-  create_time: "2026-10-06 14:46:00"
+  workflow_id: "dev-test-consistency-p2-007"
+  task_id: "TASK-P2-007"
+  task_name: "容量管理与自动伸缩适配"
+  create_time: "2026-10-06 15:03:00"
   current_phase: "P2-第三批C"
-  current_global_state: "GLOBAL_IN_DEV"
-  current_node: "P2-006_COMPLETE"
+  current_global_state: "GLOBAL_P2_COMPLETE"
+  current_node: "P2-007_COMPLETE"
   current_node_status: "DONE"
-  feature_branch: "feature/p2-006-multi-tenant"
-  baseline_commit: "b337c27"
+  feature_branch: "feature/p2-007-capacity"
+  baseline_commit: "fcd2f9e"
   requirement_doc: ".workflow/requirements-supplement.md"
   tasks_doc: ".workflow/p2-plan.md"
-  workflow_plan_doc: ".workflow/p2-task-006-test-report.md"
+  workflow_plan_doc: ".workflow/p2-task-007-test-report.md"
   blocking_reason: ""
-  next_action: "执行 TASK-P2-007 容量管理与自动伸缩适配"
+  next_action: "执行 P2 全量回归 + 一致性巡检 + 交付报告"
 
 p15_context:
   plan_status: "PLANNED"
@@ -135,11 +135,11 @@ p2_context:
   requirement_source: ".workflow/requirements-supplement.md"
   plan_status: "IN_DEV"
   task_count: 7
-  task_done: 6
-  current_task: "TASK-P2-007"
-  current_task_status: "PENDING_DEV"
-  tests_baseline: "239/239 Java 测试通过（0 跳过），JaCoCo 通过"
-  next_action: "执行 TASK-P2-007 容量管理与自动伸缩适配"
+  task_done: 7
+  current_task: "P2 收尾（全量回归 + 一致性巡检 + 交付报告）"
+  current_task_status: "PENDING_REGRESSION"
+  tests_baseline: "244/244 Java 测试通过（0 跳过），JaCoCo 通过"
+  next_action: "执行 P2 全量回归 + 一致性巡检 + 交付报告"
 
 # 一致性校验上下文
 consistency_context:
@@ -309,4 +309,8 @@ operation_logs:
   - time: "2026-10-06 14:52:00"
     operator: "codex/agent-continuous-workflow"
     action: "TASK-P2-006 多租户隔离完成：新增 tenant 注册表（状态+配额）与 strategy_info.tenant_id 列（迁移 p2_006）；TenantContextHolder 从 X-Tenant-Id 注入（默认 DEFAULT），AuthInterceptor 非 ADMIN 校验租户启用；TenantService 注册/配额；策略上传归属租户并校验 max_strategies，非 ADMIN 跨租户访问拒绝；/api/tenant/* 仅 ADMIN。真实 E2E：创建 T-ALPHA(maxStrategies=1) → 首支上传 tenant=T-ALPHA，第二支 409 配额已用完，未知租户 403，DEFAULT 用户访问 T-ALPHA 策略 409 跨租户，同租户访问正常。mvn verify 239/239（0跳过）。"
+    result: "success"
+  - time: "2026-10-06 15:12:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "TASK-P2-007 容量管理与自动伸缩适配完成：新增 capacity_snapshot 水位快照表（迁移 p2_007）与 CapacityService 定时采集（30s，DistributedLock 防重）：JVM CPU/内存/磁盘 + 运行中策略数 → 综合水位 → NORMAL/WARN(≥8成)/SCALE(≥9成)；AutoScaler SPI（NoopAutoScaler 默认 / K8sHpaAdapter 以 lhjypt.capacity.autoscale-provider=k8s 激活，互斥装配，K8s HPA 预留扩容零中断）；/api/capacity/refresh|latest|history|autoscale（写仅 ADMIN），阈值/开关可配。真实 E2E：手动采集 NORMAL 水位 70.06%，非 ADMIN 403，latest/history 正常，autoscale 状态正确，定时采集 3 条自动落库（48.62~78.91%）。mvn verify 244/244（0跳过）。P2 七项任务全部完成（7/7）。"
     result: "success"

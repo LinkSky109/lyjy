@@ -80,6 +80,15 @@ lhjypt:
   # 跨境交收
   settlement:
     daily-cron: ${LHJYPT_SETTLEMENT_DAILY_CRON:0 5 0 * * *}  # 每日生成成交交收任务并处理到期
+  # 容量管理与自动伸缩（P2 模块五）
+  capacity:
+    warn-pct: ${LHJYPT_CAPACITY_WARN:0.8}
+    scale-pct: ${LHJYPT_CAPACITY_SCALE:0.9}
+    autoscale-enabled: ${LHJYPT_CAPACITY_AUTOSCALE:true}
+    autoscale-provider: ${LHJYPT_CAPACITY_PROVIDER:noop}   # noop | k8s（生产预留）
+    desired-min: ${LHJYPT_CAPACITY_MIN_REPLICAS:1}
+    desired-max: ${LHJYPT_CAPACITY_MAX_REPLICAS:10}
+    sample-interval-ms: ${LHJYPT_CAPACITY_INTERVAL_MS:30000}
   # 分布式调度锁（多实例下定时任务仅一个实例执行；PRD §10.1）
   schedule:
     lock:

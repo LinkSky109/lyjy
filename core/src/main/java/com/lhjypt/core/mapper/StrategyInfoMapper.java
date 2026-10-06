@@ -20,4 +20,7 @@ public interface StrategyInfoMapper extends BaseMapper<StrategyInfo> {
     @Select("SELECT * FROM strategy_info WHERE owner = #{owner} AND deleted = 0 "
             + "ORDER BY create_time DESC")
     List<StrategyInfo> selectByOwner(@Param("owner") String owner);
+
+    @Select("SELECT COUNT(*) FROM strategy_info WHERE status = #{status} AND deleted = 0")
+    int countByStatus(@Param("status") String status);
 }

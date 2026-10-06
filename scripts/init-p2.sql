@@ -197,6 +197,23 @@ INSERT INTO tenant (tenant_id, name, status)
 SELECT 'DEFAULT','默认租户','ACTIVE'
 WHERE NOT EXISTS (SELECT 1 FROM tenant WHERE tenant_id='DEFAULT');
 
+-- ========== 10. 容量管理与自动伸缩 ==========
+CREATE TABLE IF NOT EXISTS capacity_snapshot (
+    id               BIGSERIAL PRIMARY KEY,
+    sample_time      TIMESTAMP NOT NULL,
+    cpu_pct          DECIMAL(6,2),
+    mem_pct          DECIMAL(6,2),
+    disk_pct         DECIMAL(6,2),
+    active_strategies INT NOT NULL DEFAULT 0,
+    queue_depth      INT NOT NULL DEFAULT 0,
+    inbound_tps      INT NOT NULL DEFAULT 0,
+    load_pct         DECIMAL(6,2) NOT NULL,
+    status           VARCHAR(16) NOT NULL DEFAULT 'NORMAL',
+    desired_replicas INT NOT NULL DEFAULT 1,
+    detail           TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_capacity_time ON capacity_snapshot(sample_time DESC);
+
 INSERT INTO settlement_rule (rule_id, market, exchange_match, cycle_days, currency, remark)
 VALUES
     ('R-CN-FUT','CN',NULL,0,'CNY','境内期货 T+0'),

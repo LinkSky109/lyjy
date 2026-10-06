@@ -39,6 +39,17 @@ class RegulatorySchemaTest {
         assertTrue(sql.contains("expected_date"));
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS tenant"));
         assertTrue(sql.contains("max_strategies"));
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS capacity_snapshot"));
+        assertTrue(sql.contains("load_pct"));
+    }
+
+    @Test
+    void capacityMigrationIsAdditive() throws IOException {
+        String sql = readProjectFile("scripts/migration/p2_007_capacity.sql");
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS capacity_snapshot"));
+        String upper = sql.toUpperCase();
+        assertTrue(!upper.contains("DROP TABLE"));
+        assertTrue(!upper.contains("TRUNCATE"));
     }
 
     @Test

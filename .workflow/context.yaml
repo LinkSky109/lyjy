@@ -3,7 +3,7 @@ task_id: "TASK-20261002-001"
 task_name: "企业级量化交易平台（lhjypt）"
 create_time: "2026-10-02 13:05:00"
 # 当前活跃任务以 active_workflow 为准；P0/P1 字段保留为历史基线
-current_global_state: "GLOBAL_P2_COMPLETE"
+current_global_state: "GLOBAL_DONE"
 
 # 需求基础信息
 requirement:
@@ -82,21 +82,21 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "dev-test-consistency-p2-007"
-  task_id: "TASK-P2-007"
-  task_name: "容量管理与自动伸缩适配"
-  create_time: "2026-10-06 15:03:00"
-  current_phase: "P2-第三批C"
-  current_global_state: "GLOBAL_P2_COMPLETE"
-  current_node: "P2-007_COMPLETE"
+  workflow_id: "dev-test-consistency-p2-final"
+  task_id: "TASK-P2-FULL"
+  task_name: "P2 全量回归 + 一致性巡检 + 交付（7/7 完成）"
+  create_time: "2026-10-06 15:30:00"
+  current_phase: "P2-DELIVERY"
+  current_global_state: "GLOBAL_DONE"
+  current_node: "P2_DELIVERY_COMPLETE"
   current_node_status: "DONE"
   feature_branch: "feature/p2-007-capacity"
-  baseline_commit: "fcd2f9e"
+  baseline_commit: "c88e9fc"
   requirement_doc: ".workflow/requirements-supplement.md"
   tasks_doc: ".workflow/p2-plan.md"
-  workflow_plan_doc: ".workflow/p2-task-007-test-report.md"
+  workflow_plan_doc: ".workflow/delivery-report-p2.md"
   blocking_reason: ""
-  next_action: "执行 P2 全量回归 + 一致性巡检 + 交付报告"
+  next_action: "P2 交付完成，进入观察期；可启动 P3 规划（生产化/多活/灾备）"
 
 p15_context:
   plan_status: "PLANNED"
@@ -133,13 +133,13 @@ p15_context:
 p2_context:
   plan_doc_link: ".workflow/p2-plan.md"
   requirement_source: ".workflow/requirements-supplement.md"
-  plan_status: "IN_DEV"
+  plan_status: "DONE"
   task_count: 7
   task_done: 7
-  current_task: "P2 收尾（全量回归 + 一致性巡检 + 交付报告）"
-  current_task_status: "PENDING_REGRESSION"
+  current_task: "P2 交付完成（全量回归 + 一致性巡检 + 交付报告）"
+  current_task_status: "DONE"
   tests_baseline: "244/244 Java 测试通过（0 跳过），JaCoCo 通过"
-  next_action: "执行 P2 全量回归 + 一致性巡检 + 交付报告"
+  next_action: "P2 交付完成，进入观察期；可启动 P3 规划（生产化/多活/灾备）"
 
 # 一致性校验上下文
 consistency_context:
@@ -313,4 +313,8 @@ operation_logs:
   - time: "2026-10-06 15:12:00"
     operator: "codex/agent-continuous-workflow"
     action: "TASK-P2-007 容量管理与自动伸缩适配完成：新增 capacity_snapshot 水位快照表（迁移 p2_007）与 CapacityService 定时采集（30s，DistributedLock 防重）：JVM CPU/内存/磁盘 + 运行中策略数 → 综合水位 → NORMAL/WARN(≥8成)/SCALE(≥9成)；AutoScaler SPI（NoopAutoScaler 默认 / K8sHpaAdapter 以 lhjypt.capacity.autoscale-provider=k8s 激活，互斥装配，K8s HPA 预留扩容零中断）；/api/capacity/refresh|latest|history|autoscale（写仅 ADMIN），阈值/开关可配。真实 E2E：手动采集 NORMAL 水位 70.06%，非 ADMIN 403，latest/history 正常，autoscale 状态正确，定时采集 3 条自动落库（48.62~78.91%）。mvn verify 244/244（0跳过）。P2 七项任务全部完成（7/7）。"
+    result: "success"
+  - time: "2026-10-06 15:40:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "P2 三期交付收尾完成（milestone 全量回归 + 一致性巡检 + 交付报告）：全量 mvn verify 244/244（0跳过，JaCoCo通过）+ Python 基线 23/23@85.27%；真实 PG 12 张 P2 表全部核对存在，init-p2 + p2_001~007 幂等迁移通过 Testcontainers；七模块真实 E2E 全量回归：P2-001 大额成交→报送批次 READY(1项/999900)→确认令牌提交 SUBMITTED、P2-002 上传水印=True、P2-003 VAR 预算保存/刷新/list、P2-004 Brinson 报告生成+留档、P2-005 汇率 upsert + USD→CNY 1000→7200 + 无网关对账 409 优雅降级、P2-006 租户 DEFAULT ACTIVE、P2-007 手动+定时采样/latest/history/autoscale。请求形状误用 3 处（ruleId/budgetType/reportType）与 AutoScaler 条件装配缺陷均在巡检期修复闭环。E2E 数据全部清理（批次0、trade_record 0、租户仅 DEFAULT、aml_rule 保留 2 条种子）。生成 delivery-report-p2.md 与 consistency-report-p2.md（五维通过 CONSISTENCY_PASS）。P2 七项任务与交付全闭环，全局状态流转 GLOBAL_DONE。"
     result: "success"

@@ -113,3 +113,19 @@ CREATE TABLE IF NOT EXISTS risk_budget (
     UNIQUE(scope_type, scope_id, budget_type)
 );
 CREATE INDEX IF NOT EXISTS idx_risk_budget_scope ON risk_budget(scope_type, scope_id);
+
+-- ========== 7. 绩效归因报告 ==========
+CREATE TABLE IF NOT EXISTS attribution_report (
+    id             BIGSERIAL PRIMARY KEY,
+    report_id      VARCHAR(64) NOT NULL UNIQUE,
+    attr_type      VARCHAR(16) NOT NULL,
+    scope_type     VARCHAR(16),
+    scope_id       VARCHAR(64),
+    period_start   DATE,
+    period_end     DATE,
+    result_json    TEXT NOT NULL DEFAULT '{}',
+    operator       VARCHAR(64),
+    create_time    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted        SMALLINT DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_attr_scope ON attribution_report(attr_type, scope_id, create_time DESC);

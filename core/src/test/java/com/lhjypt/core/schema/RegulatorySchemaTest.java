@@ -31,6 +31,17 @@ class RegulatorySchemaTest {
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS risk_budget"));
         assertTrue(sql.contains("UNIQUE(scope_type, scope_id, budget_type)"));
         assertTrue(sql.contains("usage_rate"));
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS attribution_report"));
+        assertTrue(sql.contains("result_json"));
+    }
+
+    @Test
+    void attributionMigrationIsAdditive() throws IOException {
+        String sql = readProjectFile("scripts/migration/p2_004_attribution.sql");
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS attribution_report"));
+        String upper = sql.toUpperCase();
+        assertTrue(!upper.contains("DROP TABLE"));
+        assertTrue(!upper.contains("TRUNCATE"));
     }
 
     @Test

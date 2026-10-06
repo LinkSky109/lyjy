@@ -82,21 +82,21 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "dev-test-consistency-p2-003"
-  task_id: "TASK-P2-003"
-  task_name: "风险预算分配与占用监控"
-  create_time: "2026-10-06 13:20:00"
+  workflow_id: "dev-test-consistency-p2-004"
+  task_id: "TASK-P2-004"
+  task_name: "绩效归因（Brinson + 因子暴露 + 执行IS）"
+  create_time: "2026-10-06 14:28:00"
   current_phase: "P2-第一批B"
   current_global_state: "GLOBAL_IN_DEV"
-  current_node: "P2-003_COMPLETE"
+  current_node: "P2-004_COMPLETE"
   current_node_status: "DONE"
-  feature_branch: "feature/p2-003-risk-budget"
-  baseline_commit: "800921c"
+  feature_branch: "feature/p2-004-attribution"
+  baseline_commit: "d386660"
   requirement_doc: ".workflow/requirements-supplement.md"
   tasks_doc: ".workflow/p2-plan.md"
-  workflow_plan_doc: ".workflow/p2-task-003-test-report.md"
+  workflow_plan_doc: ".workflow/p2-task-004-test-report.md"
   blocking_reason: ""
-  next_action: "执行 TASK-P2-004 绩效归因（Brinson + 因子暴露）"
+  next_action: "执行 TASK-P2-005 跨境交收状态机与多币种"
 
 p15_context:
   plan_status: "PLANNED"
@@ -135,11 +135,11 @@ p2_context:
   requirement_source: ".workflow/requirements-supplement.md"
   plan_status: "IN_DEV"
   task_count: 7
-  task_done: 3
-  current_task: "TASK-P2-004"
+  task_done: 4
+  current_task: "TASK-P2-005"
   current_task_status: "PENDING_DEV"
-  tests_baseline: "216/216 Java 测试通过（0 跳过），JaCoCo 通过"
-  next_action: "执行 TASK-P2-004 绩效归因（Brinson + 因子暴露）"
+  tests_baseline: "221/221 Java 测试通过（0 跳过），JaCoCo 通过"
+  next_action: "执行 TASK-P2-005 跨境交收状态机与多币种"
 
 # 一致性校验上下文
 consistency_context:
@@ -297,4 +297,8 @@ operation_logs:
   - time: "2026-10-06 13:28:00"
     operator: "codex/agent-continuous-workflow"
     action: "TASK-P2-003 风险预算分配与占用监控完成：新增 risk_budget 表（scope×VAR 口径，limit/current/usage_rate/status，UNIQUE(scope,type)）与 RiskBudgetService（保存/列表/刷新；占用≥100% BLOCK 联动 OpenBlockRegistry 限制开仓、≥80% WARN、回落解禁；30s 定时刷新经 DistributedLock 互斥）；/api/risk/budget/** 写权限 RISK_OFFICER/ADMIN。真实 E2E：账户 DEFAULT-001 VaR 5982 预算 100 → usage 59.8 BLOCK 且 block/list 出现 ACCOUNT:DEFAULT-001；TRADER 保存 403；limit 调 100000 刷新 → OK 并解除限制。mvn verify 216/216（0跳过）。"
+    result: "success"
+  - time: "2026-10-06 14:32:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "TASK-P2-004 绩效归因完成：新增 attribution_report 表与 AttributionService（Brinson 分配/选股/交互效应 + excess=rP-rB=Σ效应 恒等式校验；因子暴露 Σ权重×暴露度 聚合；执行归因 IS/滑点/手续费 bps + 收盘价机会成本）；/api/attribution/* 计算并落库，报告列表/详情可查，写权限 COMPLIANCE/ADMIN。真实 E2E：Brinson excess=0.008(alloc0.004+interact0.004) identity=true、size=0.4+momentum=0.41、IS=200bps 滑点=99.01bps 均落库，TRADER 计算 403。mvn verify 221/221（0跳过）。"
     result: "success"

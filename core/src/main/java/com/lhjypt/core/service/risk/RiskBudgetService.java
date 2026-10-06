@@ -1,5 +1,8 @@
 package com.lhjypt.core.service.risk;
 
+import com.lhjypt.core.common.auth.UserContext;
+import com.lhjypt.core.common.auth.UserContextHolder;
+import com.lhjypt.core.common.tenant.TenantContextHolder;
 import com.lhjypt.core.config.DistributedLock;
 import com.lhjypt.core.mapper.RiskBudgetMapper;
 import com.lhjypt.core.mapper.VarCalculationMapper;
@@ -60,6 +63,9 @@ public class RiskBudgetService {
         }
 
         RiskBudget existing = budgetMapper.selectByScope(scopeType, budget.getScopeId(), budgetType);
+        if (existing != null) {
+            requireTenantScope(existing);
+        }
         RiskBudget target = existing == null ? new RiskBudget() : existing;
         target.setBudgetId(existing == null
                 ? "BUD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase()
@@ -73,6 +79,7 @@ public class RiskBudgetService {
         target.setUpdatedBy(operator);
         target.setUpdateTime(LocalDateTime.now());
         if (existing == null) {
+            target.setTenantId(TenantContextHolder.get());
             target.setStatus(RiskBudget.STATUS_OK);
             target.setCreateTime(LocalDateTime.now());
             budgetMapper.insert(target);
@@ -83,7 +90,15 @@ public class RiskBudgetService {
     }
 
     public List<RiskBudget> list(String scopeType, String scopeId) {
-        return budgetMapper.selectFiltered(blankToNull(scopeType), blankToNull(scopeId));
+        List<RiskBudget> budgets = budgetMapper.selectFiltered(
+                blankToNull(scopeType), blankToNull(scopeId));
+        if (isAdmin()) {
+            return budgets;
+        }
+        String tenant = TenantContextHolder.get();
+        return budgets.stream()
+                .filter(budget -> inTenant(budget, tenant))
+                .toList();
     }
 
     public RiskBudget detail(String budgetId) {
@@ -91,6 +106,7 @@ public class RiskBudgetService {
         if (budget == null) {
             throw new IllegalArgumentException("风险预算不存在: " + budgetId);
         }
+        requireTenantScope(budget);
         return budget;
     }
 
@@ -146,5 +162,26 @@ public class RiskBudgetService {
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    /** 多租户隔离：非 ADMIN 只能访问本租户预算；tenantId 为空视为 DEFAULT 兼容存量。 */
+    private void requireTenantScope(RiskBudget budget) {
+        if (isAdmin()) {
+            return;
+        }
+        String tenant = TenantContextHolder.get();
+        if (!inTenant(budget, tenant)) {
+            throw new IllegalStateException("跨租户访问被拒绝: "
+                    + (budget.getBudgetId() == null ? budget.getScopeId() : budget.getBudgetId()));
+        }
+    }
+
+    private static boolean inTenant(RiskBudget budget, String tenant) {
+        return budget.getTenantId() == null || budget.getTenantId().equals(tenant);
+    }
+
+    private static boolean isAdmin() {
+        UserContext context = UserContextHolder.get();
+        return context != null && context.hasAnyRole(UserContext.ROLE_ADMIN);
     }
 }

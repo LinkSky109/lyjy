@@ -50,6 +50,9 @@ public class RiskBudget {
 
     private String remark;
 
+    /** 所属租户（P2 多租户横切）。 */
+    private String tenantId;
+
     private String updatedBy;
 
     @TableField(fill = FieldFill.INSERT)

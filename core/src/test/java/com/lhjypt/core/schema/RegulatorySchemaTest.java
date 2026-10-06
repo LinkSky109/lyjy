@@ -66,6 +66,17 @@ class RegulatorySchemaTest {
     }
 
     @Test
+    void tenantRiskBudgetMigrationScopesRiskBudget() throws IOException {
+        String init = readProjectFile("scripts/init-p2.sql");
+        assertTrue(init.contains("ALTER TABLE risk_budget ADD COLUMN IF NOT EXISTS tenant_id"));
+        String sql = readProjectFile("scripts/migration/p2_009_tenant_risk_budget.sql");
+        assertTrue(sql.contains("ALTER TABLE risk_budget ADD COLUMN IF NOT EXISTS tenant_id"));
+        String upper = sql.toUpperCase();
+        assertTrue(!upper.contains("DROP TABLE"));
+        assertTrue(!upper.contains("TRUNCATE"));
+    }
+
+    @Test
     void tenantMigrationIsAdditiveAndScopesStrategyInfo() throws IOException {
         String sql = readProjectFile("scripts/migration/p2_006_multi_tenant.sql");
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS tenant"));

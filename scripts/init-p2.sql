@@ -219,6 +219,10 @@ ALTER TABLE portfolio ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(64) NOT NULL DE
 CREATE INDEX IF NOT EXISTS idx_portfolio_tenant ON portfolio(tenant_id, deleted);
 ALTER TABLE tenant ADD COLUMN IF NOT EXISTS max_portfolios INT NOT NULL DEFAULT 100;
 
+-- ========== 12. 多租户横切扩展：风险预算按租户隔离 ==========
+ALTER TABLE risk_budget ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(64) NOT NULL DEFAULT 'DEFAULT';
+CREATE INDEX IF NOT EXISTS idx_risk_budget_tenant ON risk_budget(tenant_id, deleted);
+
 INSERT INTO settlement_rule (rule_id, market, exchange_match, cycle_days, currency, remark)
 VALUES
     ('R-CN-FUT','CN',NULL,0,'CNY','境内期货 T+0'),

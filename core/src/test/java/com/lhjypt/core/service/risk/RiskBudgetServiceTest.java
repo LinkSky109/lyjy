@@ -1,10 +1,14 @@
 package com.lhjypt.core.service.risk;
 
+import com.lhjypt.core.common.auth.UserContext;
+import com.lhjypt.core.common.auth.UserContextHolder;
+import com.lhjypt.core.common.tenant.TenantContextHolder;
 import com.lhjypt.core.config.DistributedLock;
 import com.lhjypt.core.mapper.RiskBudgetMapper;
 import com.lhjypt.core.mapper.VarCalculationMapper;
 import com.lhjypt.core.model.risk.RiskBudget;
 import com.lhjypt.core.model.var.VarCalculation;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,6 +38,12 @@ class RiskBudgetServiceTest {
         openBlockRegistry = new OpenBlockRegistry();
         service = new RiskBudgetService(budgetMapper, varMapper, openBlockRegistry,
                 mock(DistributedLock.class));
+    }
+
+    @AfterEach
+    void tearDown() {
+        UserContextHolder.clear();
+        TenantContextHolder.clear();
     }
 
     @Test
@@ -130,6 +140,99 @@ class RiskBudgetServiceTest {
         service.refreshAll();
 
         verify(varMapper, never()).selectLatest(any(), any());
+    }
+
+    @Test
+    @DisplayName("多租户：新建预算归属租户")
+    void saveAssignsTenant() {
+        UserContextHolder.set(UserContext.of("risk-1", "RISK_OFFICER", null));
+        TenantContextHolder.set("T1");
+        try {
+            when(budgetMapper.selectByScope("ACCOUNT", "ACC-1", "VAR")).thenReturn(null);
+            RiskBudget budget = new RiskBudget();
+            budget.setScopeType("ACCOUNT");
+            budget.setScopeId("ACC-1");
+            budget.setLimitValue(new BigDecimal("100"));
+
+            service.save(budget, "risk-1");
+
+            ArgumentCaptor<RiskBudget> captor = ArgumentCaptor.forClass(RiskBudget.class);
+            verify(budgetMapper).insert(captor.capture());
+            assertThat(captor.getValue().getTenantId()).isEqualTo("T1");
+        } finally {
+            UserContextHolder.clear();
+            TenantContextHolder.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("多租户：跨租户覆盖他人预算被拒绝")
+    void crossTenantSaveRejected() {
+        UserContextHolder.set(UserContext.of("risk-1", "RISK_OFFICER", null));
+        TenantContextHolder.set("DEFAULT");
+        try {
+            RiskBudget existing = enabledBudget("ACCOUNT", "ACC-1", "100");
+            existing.setTenantId("T1");
+            when(budgetMapper.selectByScope("ACCOUNT", "ACC-1", "VAR")).thenReturn(existing);
+
+            RiskBudget request = new RiskBudget();
+            request.setScopeType("ACCOUNT");
+            request.setScopeId("ACC-1");
+            request.setLimitValue(new BigDecimal("200"));
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                            () -> service.save(request, "risk-1"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("跨租户");
+        } finally {
+            UserContextHolder.clear();
+            TenantContextHolder.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("多租户：非 ADMIN 列表仅本租户")
+    void listFiltersByTenant() {
+        UserContextHolder.set(UserContext.of("risk-1", "RISK_OFFICER", null));
+        TenantContextHolder.set("T1");
+        try {
+            RiskBudget mine = enabledBudget("ACCOUNT", "ACC-1", "100");
+            mine.setTenantId("T1");
+            RiskBudget other = enabledBudget("ACCOUNT", "ACC-2", "100");
+            other.setTenantId("DEFAULT");
+            when(budgetMapper.selectFiltered(null, null)).thenReturn(List.of(mine, other));
+
+            List<RiskBudget> result = service.list(null, null);
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).getScopeId()).isEqualTo("ACC-1");
+        } finally {
+            UserContextHolder.clear();
+            TenantContextHolder.clear();
+        }
+    }
+
+    @Test
+    @DisplayName("多租户：跨租户查看被拒绝；ADMIN 豁免")
+    void detailTenantScopeEnforced() {
+        UserContextHolder.set(UserContext.of("risk-1", "RISK_OFFICER", null));
+        TenantContextHolder.set("DEFAULT");
+        try {
+            RiskBudget budget = enabledBudget("ACCOUNT", "ACC-1", "100");
+            budget.setTenantId("T1");
+            when(budgetMapper.selectByBudgetId("BUD-1")).thenReturn(budget);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                            () -> service.detail("BUD-1"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("跨租户");
+
+            UserContextHolder.set(UserContext.of("admin", "ADMIN", null));
+            assertThat(service.detail("BUD-1").getBudgetId()).isEqualTo("BUD-1");
+        } finally {
+            UserContextHolder.clear();
+            TenantContextHolder.clear();
+        }
     }
 
     private static RiskBudget enabledBudget(String scopeType, String scopeId, String limit) {

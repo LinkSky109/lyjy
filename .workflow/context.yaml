@@ -82,21 +82,21 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "dev-test-consistency-p2-008"
-  task_id: "TASK-P2-008"
-  task_name: "多租户横切扩展·组合（观察期补强）"
-  create_time: "2026-10-06 18:20:00"
+  workflow_id: "dev-test-consistency-p2-009"
+  task_id: "TASK-P2-009"
+  task_name: "多租户横切扩展·风险预算（观察期补强）"
+  create_time: "2026-10-06 18:30:00"
   current_phase: "P2-OBSERVATION"
   current_global_state: "GLOBAL_DONE"
-  current_node: "P2-008_COMPLETE"
+  current_node: "P2-009_COMPLETE"
   current_node_status: "DONE"
-  feature_branch: "feature/p2-008-tenant-scope"
-  baseline_commit: "ae1bd45"
+  feature_branch: "feature/p2-009-tenant-risk-budget"
+  baseline_commit: "fd89654"
   requirement_doc: ".workflow/requirements-supplement.md"
   tasks_doc: ".workflow/p2-plan.md"
-  workflow_plan_doc: ".workflow/p2-task-008-test-report.md"
+  workflow_plan_doc: ".workflow/p2-task-009-test-report.md"
   blocking_reason: ""
-  next_action: "P2 观察期继续：可做多租户横切扩展（预算/账户）或 P3 规划"
+  next_action: "P2 观察期继续：多租户横切已完成（策略/组合/风险预算），可转 P3 规划"
 
 p15_context:
   plan_status: "PLANNED"
@@ -136,10 +136,10 @@ p2_context:
   plan_status: "DONE"
   task_count: 7
   task_done: 7
-  current_task: "P2 观察期补强（多租户横切扩展）"
+  current_task: "P2 观察期补强（多租户横切扩展策略/组合/风险预算）"
   current_task_status: "DONE"
-  tests_baseline: "247/247 Java 测试通过（0 跳过），JaCoCo 通过"
-  next_action: "P2 观察期继续：可做多租户横切扩展（预算/账户）或 P3 规划"
+  tests_baseline: "252/252 Java 测试通过（0 跳过），JaCoCo 通过"
+  next_action: "P2 观察期继续：可启动 P3 规划（生产化/多活/灾备）"
 
 # 一致性校验上下文
 consistency_context:
@@ -321,4 +321,8 @@ operation_logs:
   - time: "2026-10-06 18:20:00"
     operator: "codex/agent-continuous-workflow"
     action: "TASK-P2-008 多租户横切扩展·组合完成（P2 观察期补强）：迁移 p2_008 为 portfolio 增加 tenant_id（存量默认 DEFAULT）+ 索引、tenant 增加 max_portfolios 组合配额；PortfolioService 创建归属租户并校验组合配额，requireOwned/requireReadable 统一 requireTenantScope 非 ADMIN 跨租户拒绝；/api/tenant/{id}/quota 支持 maxPortfolios。真实 E2E：创建 TP-ALPHA(maxPortfolios=1) → 首组合 tenant=TP-ALPHA，第二个 409 组合配额已用完，DEFAULT 用户访问 409 跨租户，同租户 detail 正常，配额上调 3 后同租户可再建。存量组合归 DEFAULT 不受影响。mvn verify 247/247（0跳过，JaCoCo通过）。多租户隔离现覆盖策略+组合两处用户资产。"
+    result: "success"
+  - time: "2026-10-06 18:35:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "TASK-P2-009 多租户横切扩展·风险预算完成（P2 观察期补强）：迁移 p2_009 为 risk_budget 增加 tenant_id（存量默认 DEFAULT）+ 索引；RiskBudgetService 新建预算归属 TenantContextHolder 租户，覆盖/查看经 requireTenantScope（非 ADMIN 跨租户拒绝、ADMIN 豁免），list 非 ADMIN 按租户过滤；定时全量刷新保持系统级不受租户影响（占用/BLOCK/WARN 联动不变）。真实 E2E：TR-ALPHA 下保存预算 tenant=TR-ALPHA，DEFAULT 风控跨租户覆盖 409，list 过滤（TR-ALPHA 可见/ DEFAULT 不可见），跨租户 detail 409 且 ADMIN 可读。mvn verify 252/252（0跳过，JaCoCo通过）。多租户横切三件套（策略/组合/风险预算）完成。"
     result: "success"

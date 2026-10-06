@@ -82,21 +82,21 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "dev-test-consistency-p2-004"
-  task_id: "TASK-P2-004"
-  task_name: "绩效归因（Brinson + 因子暴露 + 执行IS）"
-  create_time: "2026-10-06 14:28:00"
+  workflow_id: "dev-test-consistency-p2-005"
+  task_id: "TASK-P2-005"
+  task_name: "跨境交收状态机与多币种"
+  create_time: "2026-10-06 14:36:00"
   current_phase: "P2-第一批B"
   current_global_state: "GLOBAL_IN_DEV"
-  current_node: "P2-004_COMPLETE"
+  current_node: "P2-005_COMPLETE"
   current_node_status: "DONE"
-  feature_branch: "feature/p2-004-attribution"
-  baseline_commit: "d386660"
+  feature_branch: "feature/p2-005-settlement-fx"
+  baseline_commit: "5a9540d"
   requirement_doc: ".workflow/requirements-supplement.md"
   tasks_doc: ".workflow/p2-plan.md"
-  workflow_plan_doc: ".workflow/p2-task-004-test-report.md"
+  workflow_plan_doc: ".workflow/p2-task-005-test-report.md"
   blocking_reason: ""
-  next_action: "执行 TASK-P2-005 跨境交收状态机与多币种"
+  next_action: "执行 TASK-P2-006 多租户隔离（数据范围 + 配额）"
 
 p15_context:
   plan_status: "PLANNED"
@@ -135,11 +135,11 @@ p2_context:
   requirement_source: ".workflow/requirements-supplement.md"
   plan_status: "IN_DEV"
   task_count: 7
-  task_done: 4
-  current_task: "TASK-P2-005"
+  task_done: 5
+  current_task: "TASK-P2-006"
   current_task_status: "PENDING_DEV"
-  tests_baseline: "221/221 Java 测试通过（0 跳过），JaCoCo 通过"
-  next_action: "执行 TASK-P2-005 跨境交收状态机与多币种"
+  tests_baseline: "232/232 Java 测试通过（0 跳过），JaCoCo 通过"
+  next_action: "执行 TASK-P2-006 多租户隔离（数据范围 + 配额）"
 
 # 一致性校验上下文
 consistency_context:
@@ -301,4 +301,8 @@ operation_logs:
   - time: "2026-10-06 14:32:00"
     operator: "codex/agent-continuous-workflow"
     action: "TASK-P2-004 绩效归因完成：新增 attribution_report 表与 AttributionService（Brinson 分配/选股/交互效应 + excess=rP-rB=Σ效应 恒等式校验；因子暴露 Σ权重×暴露度 聚合；执行归因 IS/滑点/手续费 bps + 收盘价机会成本）；/api/attribution/* 计算并落库，报告列表/详情可查，写权限 COMPLIANCE/ADMIN。真实 E2E：Brinson excess=0.008(alloc0.004+interact0.004) identity=true、size=0.4+momentum=0.41、IS=200bps 滑点=99.01bps 均落库，TRADER 计算 403。mvn verify 221/221（0跳过）。"
+    result: "success"
+  - time: "2026-10-06 14:42:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "TASK-P2-005 跨境交收状态机与多币种完成：新增 settlement_rule（CN/HK/US T+N 与币种）、settlement_task（交收状态机 PENDING→SETTLED/FAILED、expected=交易日+T+N）、currency_rate + FxService（直接/反向汇率折算、缺汇率报错、upsert）；SettlementTaskService 每日定时生成+到期交收（DistributedLock 互斥），交易日兼容 BASIC/ISO 格式；/api/settlement/task/* 与 /api/currency/*，汇率写仅 ADMIN。真实 E2E：规则 T+0/T+1/T+2 正确、BASIC 交易日 20261005 生成交收任务、asOf 到期 SETTLED、CNY→USD 14 / CNY→HKD 108、CNY/EUR upsert 后即时折算、FUND_MANAGER 更新汇率 403。mvn verify 232/232（0跳过）。"
     result: "success"

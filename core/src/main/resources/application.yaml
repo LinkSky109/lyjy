@@ -77,6 +77,9 @@ lhjypt:
   fund:
     overdraft-allowed: false
     margin-ratio: 0.1
+  # 跨境交收
+  settlement:
+    daily-cron: ${LHJYPT_SETTLEMENT_DAILY_CRON:0 5 0 * * *}  # 每日生成成交交收任务并处理到期
   # 分布式调度锁（多实例下定时任务仅一个实例执行；PRD §10.1）
   schedule:
     lock:

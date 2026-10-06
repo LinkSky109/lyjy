@@ -50,6 +50,9 @@ class SchemaMigrationIntegrationTest {
             ScriptUtils.executeSqlScript(connection,
                     new FileSystemResource(
                             root.resolve("scripts/migration/p2_004_attribution.sql")));
+            ScriptUtils.executeSqlScript(connection,
+                    new FileSystemResource(
+                            root.resolve("scripts/migration/p2_005_settlement_fx.sql")));
 
             assertTrue(columnExists(connection, "orders", "offset_flag"));
             assertTrue(columnExists(connection, "orders", "broker_order_ref"));
@@ -81,6 +84,11 @@ class SchemaMigrationIntegrationTest {
             assertTrue(columnExists(connection, "risk_budget", "budget_id"));
             assertTrue(tableExists(connection, "attribution_report"));
             assertTrue(columnExists(connection, "attribution_report", "result_json"));
+            assertTrue(tableExists(connection, "settlement_rule"));
+            assertTrue(tableExists(connection, "settlement_task"));
+            assertTrue(columnExists(connection, "settlement_task", "expected_date"));
+            assertTrue(tableExists(connection, "currency_rate"));
+            assertTrue(columnExists(connection, "currency_rate", "rate"));
         }
     }
 

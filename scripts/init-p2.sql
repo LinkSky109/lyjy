@@ -129,3 +129,69 @@ CREATE TABLE IF NOT EXISTS attribution_report (
     deleted        SMALLINT DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_attr_scope ON attribution_report(attr_type, scope_id, create_time DESC);
+
+-- ========== 8. 跨境交收与多币种 ==========
+CREATE TABLE IF NOT EXISTS settlement_rule (
+    id             BIGSERIAL PRIMARY KEY,
+    rule_id        VARCHAR(64) NOT NULL UNIQUE,
+    market         VARCHAR(16) NOT NULL,
+    exchange_match VARCHAR(32),
+    cycle_days     INT NOT NULL DEFAULT 0,
+    currency       VARCHAR(8) NOT NULL,
+    remark         VARCHAR(256),
+    enabled        BOOLEAN NOT NULL DEFAULT TRUE,
+    create_time    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted        SMALLINT DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS settlement_task (
+    id            BIGSERIAL PRIMARY KEY,
+    task_id       VARCHAR(64) NOT NULL UNIQUE,
+    trade_id      VARCHAR(64) NOT NULL,
+    account_id    VARCHAR(64),
+    symbol        VARCHAR(32),
+    exchange      VARCHAR(16),
+    currency      VARCHAR(8),
+    cycle_days    INT NOT NULL DEFAULT 0,
+    trade_date    DATE,
+    expected_date DATE NOT NULL,
+    amount        DECIMAL(20,8) DEFAULT 0,
+    status        VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+    settled_by    VARCHAR(64),
+    settled_at    TIMESTAMP,
+    remark        VARCHAR(512),
+    create_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted       SMALLINT DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_settle_task_status ON settlement_task(status, expected_date);
+CREATE TABLE IF NOT EXISTS currency_rate (
+    id           BIGSERIAL PRIMARY KEY,
+    base         VARCHAR(8) NOT NULL,
+    quote        VARCHAR(8) NOT NULL,
+    rate         DECIMAL(20,8) NOT NULL,
+    rate_date    DATE NOT NULL,
+    create_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(base, quote, rate_date)
+);
+CREATE INDEX IF NOT EXISTS idx_currency_pair ON currency_rate(base, quote, rate_date DESC);
+
+INSERT INTO settlement_rule (rule_id, market, exchange_match, cycle_days, currency, remark)
+VALUES
+    ('R-CN-FUT','CN',NULL,0,'CNY','境内期货 T+0'),
+    ('R-CN-STK','CN','SSE',1,'CNY','A股沪市 T+1'),
+    ('R-CN-STK-SZ','CN','SZSE',1,'CNY','A股深市 T+1'),
+    ('R-HK','HK',NULL,2,'HKD','港股/港股通 T+2'),
+    ('R-US','US',NULL,2,'USD','美股 T+2')
+ON CONFLICT (rule_id) DO NOTHING;
+
+INSERT INTO currency_rate (base, quote, rate, rate_date)
+SELECT 'CNY','USD',0.14, CURRENT_DATE
+WHERE NOT EXISTS (SELECT 1 FROM currency_rate WHERE base='CNY' AND quote='USD');
+INSERT INTO currency_rate (base, quote, rate, rate_date)
+SELECT 'CNY','HKD',1.08, CURRENT_DATE
+WHERE NOT EXISTS (SELECT 1 FROM currency_rate WHERE base='CNY' AND quote='HKD');
+INSERT INTO currency_rate (base, quote, rate, rate_date)
+SELECT 'USD','HKD',7.80, CURRENT_DATE
+WHERE NOT EXISTS (SELECT 1 FROM currency_rate WHERE base='USD' AND quote='HKD');

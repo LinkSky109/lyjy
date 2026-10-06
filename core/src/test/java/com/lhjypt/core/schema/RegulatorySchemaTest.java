@@ -33,6 +33,20 @@ class RegulatorySchemaTest {
         assertTrue(sql.contains("usage_rate"));
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS attribution_report"));
         assertTrue(sql.contains("result_json"));
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS settlement_rule"));
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS settlement_task"));
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS currency_rate"));
+        assertTrue(sql.contains("expected_date"));
+    }
+
+    @Test
+    void settlementFxMigrationIsAdditive() throws IOException {
+        String sql = readProjectFile("scripts/migration/p2_005_settlement_fx.sql");
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS settlement_task"));
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS currency_rate"));
+        String upper = sql.toUpperCase();
+        assertTrue(!upper.contains("DROP TABLE"));
+        assertTrue(!upper.contains("TRUNCATE"));
     }
 
     @Test

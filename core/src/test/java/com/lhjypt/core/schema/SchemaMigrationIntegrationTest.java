@@ -38,6 +38,9 @@ class SchemaMigrationIntegrationTest {
                             root.resolve("scripts/migration/p1_005_gateway_routing.sql")));
             ScriptUtils.executeSqlScript(connection,
                     new FileSystemResource(root.resolve("scripts/init-p1.sql")));
+            ScriptUtils.executeSqlScript(connection,
+                    new FileSystemResource(
+                            root.resolve("scripts/migration/p2_001_regulatory_aml.sql")));
 
             assertTrue(columnExists(connection, "orders", "offset_flag"));
             assertTrue(columnExists(connection, "orders", "broker_order_ref"));
@@ -56,6 +59,11 @@ class SchemaMigrationIntegrationTest {
             assertTrue(tableExists(connection, "strategy_audit_log"));
             assertTrue(columnExists(connection, "strategy_crypto", "ciphertext"));
             assertTrue(columnExists(connection, "strategy_audit_log", "detail_json"));
+            assertTrue(tableExists(connection, "regulatory_report_batch"));
+            assertTrue(tableExists(connection, "regulatory_report_item"));
+            assertTrue(tableExists(connection, "aml_rule"));
+            assertTrue(tableExists(connection, "aml_alert"));
+            assertTrue(columnExists(connection, "aml_alert", "alert_id"));
         }
     }
 

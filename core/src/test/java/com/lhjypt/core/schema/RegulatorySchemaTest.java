@@ -1,0 +1,52 @@
+package com.lhjypt.core.schema;
+
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * P2 监管报送与 AML 表结构静态校验（init-p2.sql 幂等脚本）。
+ */
+class RegulatorySchemaTest {
+
+    @Test
+    void initP2ContainsRegulatoryAndAmlTables() throws IOException {
+        String sql = readProjectFile("scripts/init-p2.sql");
+
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS regulatory_report_batch"));
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS regulatory_report_item"));
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS aml_rule"));
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS aml_alert"));
+        assertTrue(sql.contains("UNIQUE(report_type, report_date)"));
+        assertTrue(sql.contains("LARGE_SINGLE"));
+        assertTrue(sql.contains("LARGE_CUMULATIVE"));
+        assertTrue(sql.contains("ON CONFLICT (rule_id) DO NOTHING"));
+    }
+
+    @Test
+    void migrationIsAdditive() throws IOException {
+        String sql = readProjectFile("scripts/migration/p2_001_regulatory_aml.sql");
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS regulatory_report_batch"));
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS aml_alert"));
+        String upper = sql.toUpperCase();
+        assertTrue(!upper.contains("DROP TABLE"));
+        assertTrue(!upper.contains("TRUNCATE"));
+    }
+
+    private String readProjectFile(String relativePath) throws IOException {
+        Path current = Paths.get("").toAbsolutePath();
+        while (current != null) {
+            Path candidate = current.resolve(relativePath);
+            if (Files.exists(candidate)) {
+                return Files.readString(candidate);
+            }
+            current = current.getParent();
+        }
+        throw new IOException("project file not found: " + relativePath);
+    }
+}

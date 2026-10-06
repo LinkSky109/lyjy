@@ -5,6 +5,15 @@ create_time: "2026-10-02 13:05:00"
 # 当前活跃任务以 active_workflow 为准；P0/P1 字段保留为历史基线
 current_global_state: "GLOBAL_DONE"
 
+# 使用场景（2026-10-06 用户澄清）
+user_context:
+  usage: "单人使用（仅 link 本人，无对外多租户/多客户场景）"
+  impact:
+    - "P3 多活/机房级灾备/K8s 弹性扩容降级为可选，不投入主线"
+    - "多租户保留（DEFAULT 租户下无副作用）但停止扩展"
+    - "重心转向单人日常可用性：开箱即用、真实行情/交易通道、策略开发体验、数据可靠"
+  recorded_at: "2026-10-06 18:40:00"
+
 # 需求基础信息
 requirement:
   req_id: "REQ-38445228733467138"

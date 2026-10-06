@@ -41,6 +41,9 @@ class SchemaMigrationIntegrationTest {
             ScriptUtils.executeSqlScript(connection,
                     new FileSystemResource(
                             root.resolve("scripts/migration/p2_001_regulatory_aml.sql")));
+            ScriptUtils.executeSqlScript(connection,
+                    new FileSystemResource(
+                            root.resolve("scripts/migration/p2_002_strategy_watermark.sql")));
 
             assertTrue(columnExists(connection, "orders", "offset_flag"));
             assertTrue(columnExists(connection, "orders", "broker_order_ref"));
@@ -64,6 +67,9 @@ class SchemaMigrationIntegrationTest {
             assertTrue(tableExists(connection, "aml_rule"));
             assertTrue(tableExists(connection, "aml_alert"));
             assertTrue(columnExists(connection, "aml_alert", "alert_id"));
+            assertTrue(tableExists(connection, "strategy_watermark"));
+            assertTrue(columnExists(connection, "strategy_watermark", "token"));
+            assertTrue(columnExists(connection, "strategy_watermark", "env_fingerprint"));
         }
     }
 

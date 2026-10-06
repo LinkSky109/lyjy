@@ -3,12 +3,14 @@ package com.lhjypt.core.service.strategy;
 import com.alibaba.fastjson2.JSON;
 import com.lhjypt.core.common.auth.ConfirmTokenService;
 import com.lhjypt.core.common.auth.UserContext;
+import com.lhjypt.core.config.StrategySecurityProperties;
 import com.lhjypt.core.mapper.StrategyAuditLogMapper;
 import com.lhjypt.core.mapper.StrategyCryptoMapper;
 import com.lhjypt.core.mapper.StrategyInfoMapper;
 import com.lhjypt.core.model.strategy.StrategyAuditLog;
 import com.lhjypt.core.model.strategy.StrategyCrypto;
 import com.lhjypt.core.model.strategy.StrategyInfo;
+import com.lhjypt.core.model.strategy.StrategyWatermark;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +22,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 策略加密、沙箱与审计编排（PRD §5.8）。
@@ -39,6 +42,8 @@ public class StrategySecurityService {
     private final StrategyCryptoService cryptoService;
     private final SandboxExecutor sandboxExecutor;
     private final ConfirmTokenService confirmTokenService;
+    private final StrategyWatermarkService watermarkService;
+    private final StrategySecurityProperties securityProperties;
 
     @Transactional
     public Map<String, Object> upload(String strategyId, String name, String sourceCode,
@@ -62,9 +67,12 @@ public class StrategySecurityService {
             requireOwner(strategy, context);
         }
 
+        // 嵌入不可见水印（对原型透明、可随副本携带溯源），密文/校验和针对带水印源码
+        String token = watermarkService.token(strategyId, context.userId(), System.currentTimeMillis());
+        String watermarkSource = watermarkService.embed(sourceCode, token);
         String keyId = cryptoService.activeKeyId();
-        String checksum = cryptoService.sha256(sourceCode);
-        String ciphertext = cryptoService.encrypt(sourceCode, keyId);
+        String checksum = cryptoService.sha256(watermarkSource);
+        String ciphertext = cryptoService.encrypt(watermarkSource, keyId);
 
         StrategyCrypto crypto = strategyCryptoMapper.selectByStrategyId(strategyId);
         int version = 1;
@@ -92,8 +100,12 @@ public class StrategySecurityService {
                 "checksum", checksum,
                 "keyId", keyId,
                 "algo", StrategyCrypto.ALGO_AES_GCM,
-                "bytes", sourceCode.getBytes().length,
+                "bytes", watermarkSource.getBytes().length,
                 "version", version), ip);
+
+        // 记录水印与运行环境绑定指纹，泄露后可按令牌溯源
+        watermarkService.save(strategyId, version, token, strategy.getOwner(),
+                context.userId(), checksum, watermarkService.currentFingerprint());
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("strategyId", strategyId);
@@ -138,6 +150,17 @@ public class StrategySecurityService {
 
         String plaintext = cryptoService.decrypt(crypto.getCiphertext(), crypto.getKeyId());
         verifyChecksum(plaintext, crypto.getChecksum(), strategyId);
+
+        // 运行环境绑定：上传指纹与当前宿主不一致则拒绝（防止拷贝到其他机器运行）
+        if (securityProperties.isEnvBindingEnabled()) {
+            StrategyWatermark watermark = watermarkService.latest(strategyId);
+            if (watermark != null && watermark.getEnvFingerprint() != null
+                    && !watermark.getEnvFingerprint()
+                    .equals(watermarkService.currentFingerprint())) {
+                throw new IllegalStateException(
+                        "策略运行环境绑定校验失败，疑似被拷贝到其他主机运行: " + strategyId);
+            }
+        }
 
         SandboxHandle handle = sandboxExecutor.start(new SandboxRequest(
                 strategyId, plaintext, strategy.getParamsJson(), false));
@@ -195,6 +218,52 @@ public class StrategySecurityService {
         }
         requireOwner(requireStrategy(strategyId), context);
         return auditLogMapper.selectByFilter(strategyId, blankToNull(action));
+    }
+
+    /** 查看策略水印登记信息（仅作者/管理员；不含源码）。 */
+    public Map<String, Object> watermark(String strategyId, UserContext context) {
+        StrategyInfo strategy = requireStrategy(strategyId);
+        requireOwner(strategy, context);
+        StrategyWatermark watermark = watermarkService.latest(strategyId);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("strategyId", strategyId);
+        if (watermark == null) {
+            result.put("watermarked", false);
+            return result;
+        }
+        result.put("watermarked", true);
+        result.put("token", watermark.getToken());
+        result.put("owner", watermark.getOwner());
+        result.put("uploadedBy", watermark.getUploadedBy());
+        result.put("version", watermark.getVersion());
+        result.put("sourceHash", watermark.getSourceHash());
+        result.put("envFingerprint", watermark.getEnvFingerprint());
+        result.put("createTime", watermark.getCreateTime());
+        return result;
+    }
+
+    /** 溯源：扫描疑似泄露源码/令牌，定位策略、作者与上传者（仅合规/管理员）。 */
+    public Map<String, Object> trace(String content, UserContext context) {
+        if (!context.hasAnyRole(UserContext.ROLE_ADMIN, UserContext.ROLE_COMPLIANCE)) {
+            throw new IllegalStateException("仅合规/管理员可执行泄露溯源");
+        }
+        Optional<StrategyWatermark> found = watermarkService.trace(content);
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (found.isEmpty()) {
+            result.put("found", false);
+            result.put("message", "未识别到水印标记");
+            return result;
+        }
+        StrategyWatermark watermark = found.get();
+        result.put("found", true);
+        result.put("token", watermark.getToken());
+        result.put("strategyId", watermark.getStrategyId());
+        result.put("strategyVersion", watermark.getVersion());
+        result.put("owner", watermark.getOwner());
+        result.put("uploadedBy", watermark.getUploadedBy());
+        result.put("sourceHash", watermark.getSourceHash());
+        result.put("uploadedAt", watermark.getCreateTime());
+        return result;
     }
 
     private Map<String, Object> toStatus(String strategyId, SandboxHandle handle) {

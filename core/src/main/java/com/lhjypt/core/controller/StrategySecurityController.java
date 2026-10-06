@@ -75,6 +75,18 @@ public class StrategySecurityController {
                 strategyId, action, UserContextHolder.get()));
     }
 
+    @GetMapping("/{strategyId}/watermark")
+    public Result<Map<String, Object>> watermark(@PathVariable String strategyId) {
+        return Result.success(strategySecurityService.watermark(
+                strategyId, UserContextHolder.get()));
+    }
+
+    @PostMapping("/trace")
+    public Result<Map<String, Object>> trace(@RequestBody Map<String, String> body) {
+        return Result.success(strategySecurityService.trace(
+                body == null ? null : body.get("sourceCode"), UserContextHolder.get()));
+    }
+
     private static String clientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {

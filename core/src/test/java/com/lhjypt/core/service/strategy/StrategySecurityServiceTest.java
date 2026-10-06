@@ -3,12 +3,14 @@ package com.lhjypt.core.service.strategy;
 import com.lhjypt.core.common.auth.ConfirmTokenService;
 import com.lhjypt.core.common.auth.UserContext;
 import com.lhjypt.core.config.KeyStoreProperties;
+import com.lhjypt.core.config.StrategySecurityProperties;
 import com.lhjypt.core.mapper.StrategyAuditLogMapper;
 import com.lhjypt.core.mapper.StrategyCryptoMapper;
 import com.lhjypt.core.mapper.StrategyInfoMapper;
 import com.lhjypt.core.model.strategy.StrategyAuditLog;
 import com.lhjypt.core.model.strategy.StrategyCrypto;
 import com.lhjypt.core.model.strategy.StrategyInfo;
+import com.lhjypt.core.model.strategy.StrategyWatermark;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,6 +39,9 @@ class StrategySecurityServiceTest {
     private StrategyCryptoService cryptoService;
     private SandboxExecutor sandboxExecutor;
     private ConfirmTokenService confirmTokenService;
+    private com.lhjypt.core.mapper.StrategyWatermarkMapper watermarkMapper;
+    private StrategyWatermarkService watermarkService;
+    private StrategySecurityProperties securityProperties;
     private StrategySecurityService service;
 
     private final UserContext trader = UserContext.of("trader-1", "TRADER", null);
@@ -50,8 +55,14 @@ class StrategySecurityServiceTest {
         cryptoService = new StrategyCryptoService(new LocalCryptoKeyProvider(properties));
         sandboxExecutor = mock(SandboxExecutor.class);
         confirmTokenService = new ConfirmTokenService();
+        watermarkMapper = mock(com.lhjypt.core.mapper.StrategyWatermarkMapper.class);
+        // 真实水印服务（token/embed/指纹为纯内存），仅 Mapper mock
+        watermarkService = new StrategyWatermarkService(watermarkMapper);
+        securityProperties = new StrategySecurityProperties();
+        securityProperties.setEnvBindingEnabled(true);
         service = new StrategySecurityService(strategyInfoMapper, strategyCryptoMapper,
-                auditMapper, cryptoService, sandboxExecutor, confirmTokenService);
+                auditMapper, cryptoService, sandboxExecutor, confirmTokenService,
+                watermarkService, securityProperties);
     }
 
     @Test
@@ -62,22 +73,25 @@ class StrategySecurityServiceTest {
         Map<String, Object> result = service.upload("S1", "demo", SOURCE, trader, "127.0.0.1");
 
         assertThat(result).containsEntry("version", 1);
-        assertThat(result.get("checksum")).isEqualTo(cryptoService.sha256(SOURCE));
+        assertThat((String) result.get("checksum")).hasSize(64);
         assertThat(result).doesNotContainValue(SOURCE);
 
         ArgumentCaptor<StrategyCrypto> cryptoCaptor =
                 ArgumentCaptor.forClass(StrategyCrypto.class);
         verify(strategyCryptoMapper).insert(cryptoCaptor.capture());
         StrategyCrypto stored = cryptoCaptor.getValue();
-        assertThat(stored.getCiphertext()).isNotEqualTo(SOURCE).doesNotContain("on_init");
-        assertThat(cryptoService.decrypt(stored.getCiphertext(), stored.getKeyId()))
-                .isEqualTo(SOURCE);
+        String decrypted = cryptoService.decrypt(stored.getCiphertext(), stored.getKeyId());
+        assertThat(decrypted).startsWith(SOURCE);
+        assertThat(decrypted).contains(StrategyWatermarkService.MARKER_PREFIX);
+        assertThat(stored.getChecksum()).isEqualTo(cryptoService.sha256(decrypted));
 
         ArgumentCaptor<StrategyAuditLog> auditCaptor =
                 ArgumentCaptor.forClass(StrategyAuditLog.class);
         verify(auditMapper).insert(auditCaptor.capture());
         assertThat(auditCaptor.getValue().getAction()).isEqualTo(StrategyAuditLog.UPLOAD);
         assertThat(auditCaptor.getValue().getDetailJson()).doesNotContain("on_init");
+        // 上传同时登记水印
+        verify(watermarkMapper).insert(any(StrategyWatermark.class));
     }
 
     @Test
@@ -164,6 +178,42 @@ class StrategySecurityServiceTest {
         verify(auditMapper).selectByFilter("S1", null);
 
         verify(strategyInfoMapper, never()).selectByStrategyId(anyString());
+    }
+
+    @Test
+    @DisplayName("运行环境绑定指纹不一致时拒绝运行")
+    void runRejectedWhenEnvBindingMismatch() {
+        StrategyInfo strategy = seedStrategy("trader-1");
+        seedCrypto(SOURCE);
+        StrategyWatermark watermark = new StrategyWatermark();
+        watermark.setEnvFingerprint("fingerprint-host-a");
+        when(watermarkMapper.selectLatestByStrategy("S1")).thenReturn(watermark);
+
+        assertThatThrownBy(() -> service.run("S1", trader, "ip"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("环境绑定");
+        assertThat(strategy.getStatus()).isEqualTo(StrategyInfo.OFFLINE);
+        verify(sandboxExecutor, never()).start(any());
+    }
+
+    @Test
+    @DisplayName("作者可查看水印登记信息，泄露溯源仅限合规/管理员")
+    void watermarkViewAndTraceScope() {
+        seedStrategy("trader-1");
+        StrategyWatermark watermark = new StrategyWatermark();
+        watermark.setToken("token-1");
+        watermark.setOwner("trader-1");
+        watermark.setEnvFingerprint("F1");
+        when(watermarkMapper.selectLatestByStrategy("S1")).thenReturn(watermark);
+
+        Map<String, Object> view = service.watermark("S1", trader);
+        assertThat(view).containsEntry("watermarked", true).containsEntry("owner", "trader-1");
+
+        assertThatThrownBy(() -> service.trace("x", trader))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("合规");
+        UserContext compliance = UserContext.of("comp-1", "COMPLIANCE", null);
+        assertThat(service.trace("token-1", compliance)).containsEntry("found", false);
     }
 
     private StrategyInfo seedStrategy(String owner) {

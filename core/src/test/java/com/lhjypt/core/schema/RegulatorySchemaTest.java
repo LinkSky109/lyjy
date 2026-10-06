@@ -26,6 +26,18 @@ class RegulatorySchemaTest {
         assertTrue(sql.contains("LARGE_SINGLE"));
         assertTrue(sql.contains("LARGE_CUMULATIVE"));
         assertTrue(sql.contains("ON CONFLICT (rule_id) DO NOTHING"));
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS strategy_watermark"));
+        assertTrue(sql.contains("env_fingerprint"));
+    }
+
+    @Test
+    void watermarkMigrationIsAdditive() throws IOException {
+        String sql = readProjectFile("scripts/migration/p2_002_strategy_watermark.sql");
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS strategy_watermark"));
+        assertTrue(sql.contains("token          VARCHAR(64) NOT NULL UNIQUE"));
+        String upper = sql.toUpperCase();
+        assertTrue(!upper.contains("DROP TABLE"));
+        assertTrue(!upper.contains("TRUNCATE"));
     }
 
     @Test

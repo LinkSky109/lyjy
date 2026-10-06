@@ -103,6 +103,9 @@ lhjypt:
       kms-url: ${LHJYPT_KMS_URL:}
       kms-token: ${LHJYPT_KMS_TOKEN:}
       kms-timeout-ms: ${LHJYPT_KMS_TIMEOUT_MS:3000}
+    security:
+      # 运行前校验环境绑定指纹（防止策略拷贝到其他机器运行）
+      env-binding-enabled: ${LHJYPT_STRATEGY_ENV_BINDING:true}
     sandbox:
       executor: ${LHJYPT_SANDBOX_EXECUTOR:process} # process | docker（生产容器沙箱）
       python: ${LHJYPT_SANDBOX_PYTHON:python3}

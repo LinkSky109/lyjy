@@ -77,3 +77,18 @@ VALUES
     ('AML-LARGE-SINGLE', 'LARGE_SINGLE', '单笔大额交易', 500000, 0, 'WARN', TRUE),
     ('AML-LARGE-CUMULATIVE', 'LARGE_CUMULATIVE', '账户累计大额交易', 1000000, 86400, 'WARN', TRUE)
 ON CONFLICT (rule_id) DO NOTHING;
+
+-- ========== 5. 策略水印与运行环境绑定 ==========
+CREATE TABLE IF NOT EXISTS strategy_watermark (
+    id             BIGSERIAL PRIMARY KEY,
+    strategy_id    VARCHAR(64) NOT NULL,
+    version        INT NOT NULL DEFAULT 1,
+    token          VARCHAR(64) NOT NULL UNIQUE,
+    owner          VARCHAR(64) NOT NULL,
+    uploaded_by    VARCHAR(64),
+    source_hash    VARCHAR(64),
+    env_fingerprint VARCHAR(128),
+    create_time    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted        SMALLINT DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_wm_strategy ON strategy_watermark(strategy_id, version);

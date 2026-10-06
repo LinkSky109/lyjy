@@ -82,21 +82,21 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "dev-test-consistency-p2-001"
-  task_id: "TASK-P2-001"
-  task_name: "监管报送与 AML"
-  create_time: "2026-10-06 03:55:00"
+  workflow_id: "dev-test-consistency-p2-002"
+  task_id: "TASK-P2-002"
+  task_name: "策略水印与运行环境绑定"
+  create_time: "2026-10-06 11:56:00"
   current_phase: "P2-第一批A"
   current_global_state: "GLOBAL_IN_DEV"
-  current_node: "P2-001_COMPLETE"
+  current_node: "P2-002_COMPLETE"
   current_node_status: "DONE"
-  feature_branch: "feature/p2-001-regulatory-aml"
-  baseline_commit: "ce47b8e"
+  feature_branch: "feature/p2-002-strategy-watermark"
+  baseline_commit: "f7eb1c7"
   requirement_doc: ".workflow/requirements-supplement.md"
   tasks_doc: ".workflow/p2-plan.md"
-  workflow_plan_doc: ".workflow/p2-task-001-test-report.md"
+  workflow_plan_doc: ".workflow/p2-task-002-test-report.md"
   blocking_reason: ""
-  next_action: "执行 TASK-P2-002 策略水印与运行环境绑定"
+  next_action: "执行 TASK-P2-003 风险预算分配与占用监控"
 
 p15_context:
   plan_status: "PLANNED"
@@ -135,11 +135,11 @@ p2_context:
   requirement_source: ".workflow/requirements-supplement.md"
   plan_status: "IN_DEV"
   task_count: 7
-  task_done: 1
-  current_task: "TASK-P2-002"
+  task_done: 2
+  current_task: "TASK-P2-003"
   current_task_status: "PENDING_DEV"
-  tests_baseline: "200/200 Java 测试通过（0 跳过），JaCoCo 通过"
-  next_action: "执行 TASK-P2-002 策略水印与运行环境绑定"
+  tests_baseline: "209/209 Java 测试通过（0 跳过），JaCoCo 通过"
+  next_action: "执行 TASK-P2-003 风险预算分配与占用监控"
 
 # 一致性校验上下文
 consistency_context:
@@ -289,4 +289,8 @@ operation_logs:
   - time: "2026-10-06 03:58:00"
     operator: "codex/agent-continuous-workflow"
     action: "TASK-P2-001 监管报送与 AML 完成（P2 首个任务）：新增 regulatory_report_batch/item、aml_rule/aml_alert 四表（scripts/init-p2.sql + 迁移 p2_001_regulatory_aml.sql，默认规则 LARGE_SINGLE/LARGE_CUMULATIVE）；RegulatoryReportService 成交日报/大额报备批次化生成（UNIQUE(report_type,report_date) 幂等、REPORTED 提交留痕）；AmlMonitoringService 按规则扫描成交流生成告警与去重；/api/regulatory/** 11 接口，AuthInterceptor 写权限 COMPLIANCE/ADMIN，报送与 AML 上报叠加确认令牌。修复 AmlAlertMapper countOpenDedupe 动态 SQL 未闭合 script 标签致扫描 500。真实 E2E：日报 2 条 800800、大额报备仅纳入 700000、幂等同批次、提交 SUBMITTED、TRADER 写 403；AML 首扫生成 OPEN 告警、重扫去重 0、上报 REPORTED、关闭 CLOSED。mvn verify 200/200（0跳过）。"
+    result: "success"
+  - time: "2026-10-06 12:00:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "TASK-P2-002 策略水印与运行环境绑定完成：新增 strategy_watermark 表与 StrategyWatermarkService（令牌=SHA256(策略|作者|时间)，标记行 # lhjypt-watermark-64hex，可嵌入/提取/溯源；环境指纹=hostname+MAC）；upload 改为对带水印源码加密与登记，run 前比对指纹拒绝异机运行；新增 GET /{id}/watermark 与 POST /trace（仅合规/管理员）。真实 E2E：上传登记 token/指纹、下载含标记、真实副本溯源命中 S-WM-1/wm-owner、伪造未命中、同宿主 run 通过、TRADER 溯源 403。修复水印正则 {32}→{64} 致溯源查不到。mvn verify 209/209（0跳过）。"
     result: "success"

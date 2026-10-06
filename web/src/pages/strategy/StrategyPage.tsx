@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, errorText } from '../../api/http';
 import { useApi } from '../../hooks/useApi';
 import {
@@ -63,6 +63,7 @@ export default function StrategyPage() {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   const [strategyId, setStrategyId] = useState('');
   const [codeName, setCodeName] = useState('');
@@ -98,6 +99,16 @@ export default function StrategyPage() {
       setBusy(false);
     }
   };
+
+  // 运行监控自动轮询：打开后每 3s 刷新沙箱状态与输出尾部
+  useEffect(() => {
+    if (!autoRefresh || !strategyId.trim()) {
+      return;
+    }
+    const timer = setInterval(() => status.reload(), 3000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefresh, strategyId]);
 
   const requireStrategyId = (): string => {
     const id = strategyId.trim();
@@ -222,7 +233,22 @@ export default function StrategyPage() {
       {tab === 'runtime' && (
         <Card
           title="沙箱运行控制"
-          actions={<Button size="sm" disabled={busy || !strategyId.trim()} onClick={() => status.reload()}>刷新状态</Button>}
+          actions={
+            <Toolbar>
+              <label className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(event) => setAutoRefresh(event.target.checked)}
+                  disabled={!strategyId.trim()}
+                />
+                自动刷新（3s）
+              </label>
+              <Button size="sm" disabled={busy || !strategyId.trim()} onClick={() => status.reload()}>
+                刷新状态
+              </Button>
+            </Toolbar>
+          }
         >
           <Toolbar>
             <Button variant="primary" disabled={busy} onClick={runStrategy}>

@@ -33,6 +33,7 @@ const NAV: Array<{ group: string; items: Array<{ to: string; label: string }> }>
       { to: '/gateway', label: '多柜台网关' },
       { to: '/monitor', label: '监控告警' },
       { to: '/strategy', label: '策略安全' },
+      { to: '/backtest', label: '回测' },
       { to: '/degrade', label: '性能降级' },
     ],
   },

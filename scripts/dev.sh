@@ -122,6 +122,11 @@ status() {
 case "${1:-up}" in
   up)       start_middleware; apply_sql; backend_up; frontend_up; status;;
   status)   status;;
+  restart)  pkill -f 'core-0.1.0-SNAPSHOT.jar' 2>/dev/null || true
+            pkill -f 'vite' 2>/dev/null || true
+            rm -f "$BACKEND_PID_FILE" "$FRONTEND_PID_FILE"
+            sleep 2
+            backend_up; frontend_up; status;;
   down)     stop_stack
             for c in lhjypt-postgres lhjypt-clickhouse lhjypt-kafka lhjypt-zookeeper lhjypt-redis; do
               docker stop "$c" >/dev/null 2>&1 || true
@@ -139,5 +144,5 @@ case "${1:-up}" in
               frontend) tail -f "$ROOT/logs/frontend.log";;
               *) docker logs -f "${2:-}";;
             esac;;
-  *) echo "用法: $0 {up|status|down|reset-db|logs [backend|frontend|<container>]}"; exit 1;;
+  *) echo "用法: $0 {up|status|restart|down|reset-db|logs [backend|frontend|<container>]}"; exit 1;;
 esac

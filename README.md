@@ -19,9 +19,10 @@
 ```bash
 ./scripts/dev.sh up      # 中间件 + 增量SQL + 后端8081 + 前端5173（幂等）
 ./scripts/demo.sh        # 上传策略→水印→沙箱运行→停止→审计 一键演示
+./scripts/channel-demo.sh # 真实交易通道演练：策略内SDK下单→Mock成交→撤单拒绝→持仓/资金闭环
 ```
 
-详细指南见 **[docs/quickstart.md](docs/quickstart.md)**；常用运维见 `./scripts/dev.sh status|down|reset-db|logs`。
+详细指南见 **[docs/quickstart.md](docs/quickstart.md)**、**[docs/channel.md](docs/channel.md)**；常用运维见 `./scripts/dev.sh status|down|reset-db|logs`。
 
 ## 技术栈
 

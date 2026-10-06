@@ -28,6 +28,18 @@ class RegulatorySchemaTest {
         assertTrue(sql.contains("ON CONFLICT (rule_id) DO NOTHING"));
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS strategy_watermark"));
         assertTrue(sql.contains("env_fingerprint"));
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS risk_budget"));
+        assertTrue(sql.contains("UNIQUE(scope_type, scope_id, budget_type)"));
+        assertTrue(sql.contains("usage_rate"));
+    }
+
+    @Test
+    void riskBudgetMigrationIsAdditive() throws IOException {
+        String sql = readProjectFile("scripts/migration/p2_003_risk_budget.sql");
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS risk_budget"));
+        String upper = sql.toUpperCase();
+        assertTrue(!upper.contains("DROP TABLE"));
+        assertTrue(!upper.contains("TRUNCATE"));
     }
 
     @Test

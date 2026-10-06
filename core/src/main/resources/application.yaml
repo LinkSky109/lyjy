@@ -71,6 +71,8 @@ lhjypt:
     stop-loss-line: 0.03
     intraday:
       eval-interval: 5000        # 事中风控评估间隔(ms)
+    budget:
+      refresh-interval-ms: ${LHJYPT_RISK_BUDGET_REFRESH:30000}  # 风险预算占用刷新间隔(ms)
   # 资金配置
   fund:
     overdraft-allowed: false

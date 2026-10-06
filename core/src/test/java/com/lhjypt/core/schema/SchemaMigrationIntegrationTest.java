@@ -44,6 +44,9 @@ class SchemaMigrationIntegrationTest {
             ScriptUtils.executeSqlScript(connection,
                     new FileSystemResource(
                             root.resolve("scripts/migration/p2_002_strategy_watermark.sql")));
+            ScriptUtils.executeSqlScript(connection,
+                    new FileSystemResource(
+                            root.resolve("scripts/migration/p2_003_risk_budget.sql")));
 
             assertTrue(columnExists(connection, "orders", "offset_flag"));
             assertTrue(columnExists(connection, "orders", "broker_order_ref"));
@@ -70,6 +73,9 @@ class SchemaMigrationIntegrationTest {
             assertTrue(tableExists(connection, "strategy_watermark"));
             assertTrue(columnExists(connection, "strategy_watermark", "token"));
             assertTrue(columnExists(connection, "strategy_watermark", "env_fingerprint"));
+            assertTrue(tableExists(connection, "risk_budget"));
+            assertTrue(columnExists(connection, "risk_budget", "usage_rate"));
+            assertTrue(columnExists(connection, "risk_budget", "budget_id"));
         }
     }
 

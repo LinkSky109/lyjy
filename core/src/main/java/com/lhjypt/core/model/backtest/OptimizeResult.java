@@ -36,6 +36,8 @@ public class OptimizeResult {
     private String frequency;
     private String mode;
     private String objective;
+    /** 批次（多标的一次寻优共享） */
+    private String batchId;
     private int barsUsed;
     private Run best;
     /** 基准（默认 5/20）对照 */
@@ -44,4 +46,6 @@ public class OptimizeResult {
     private List<Run> runs = new ArrayList<>();
     /** 被回撤上限过滤的组合数 */
     private int filteredByDrawdown;
+    /** 该标的寻优失败原因（多标的容错） */
+    private String error;
 }

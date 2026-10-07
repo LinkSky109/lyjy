@@ -1,7 +1,10 @@
 package com.lhjypt.core.service.backtest;
 
+import com.lhjypt.core.mapper.StrategyInfoMapper;
+import com.lhjypt.core.mapper.StrategyOptimizationMapper;
 import com.lhjypt.core.model.backtest.OptimizeRequest;
 import com.lhjypt.core.model.backtest.OptimizeResult;
+import com.lhjypt.core.model.backtest.StrategyOptimization;
 import com.lhjypt.core.model.market.BarData;
 import com.lhjypt.core.service.backtest.impl.TickMatchingEngine;
 import com.lhjypt.core.service.backtest.impl.TransactionCostCalculator;
@@ -19,11 +22,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class StrategyOptimizerServiceTest {
 
     private MarketDataRepository repository;
+    private StrategyOptimizationMapper optimizationMapper;
     private StrategyOptimizerService service;
 
     @BeforeEach
@@ -33,7 +38,9 @@ class StrategyOptimizerServiceTest {
                 new PerformanceCalculator(),
                 new LookaheadBiasDetector());
         repository = mock(MarketDataRepository.class);
-        service = new StrategyOptimizerService(engine, repository);
+        optimizationMapper = mock(StrategyOptimizationMapper.class);
+        service = new StrategyOptimizerService(engine, repository, optimizationMapper,
+                mock(StrategyInfoMapper.class));
     }
 
     private static List<BarData> bars(int count) {
@@ -70,7 +77,8 @@ class StrategyOptimizerServiceTest {
         request.setObjective(OptimizeRequest.OBJ_SHARPE);
         request.setMaxDrawdownLimit(0.5);
 
-        OptimizeResult result = service.optimize(request);
+        OptimizeResult result = service.optimize(request).get(0);
+        verify(optimizationMapper).insert(any(StrategyOptimization.class));
 
         assertThat(result.getBarsUsed()).isEqualTo(120);
         assertThat(result.getRuns()).hasSize(4); // 2x2
@@ -96,7 +104,8 @@ class StrategyOptimizerServiceTest {
         request.setSlowOptions(List.of(15, 20));
         request.setMaxDrawdownLimit(0.0001); // 极严 → 大概率全过滤
 
-        OptimizeResult result = service.optimize(request);
+        OptimizeResult result = service.optimize(request).get(0);
+        verify(optimizationMapper).insert(any(StrategyOptimization.class));
 
         assertThat(result.getRuns()).isEmpty();
         assertThat(result.getFilteredByDrawdown()).isGreaterThan(0);
@@ -113,9 +122,32 @@ class StrategyOptimizerServiceTest {
         request.setSlowOptions(List.of(20, 30)); // 30/20 非法、30/30 非法
         request.setMaxDrawdownLimit(1.0);
 
-        OptimizeResult result = service.optimize(request);
+        OptimizeResult result = service.optimize(request).get(0);
+        verify(optimizationMapper).insert(any(StrategyOptimization.class));
 
         assertThat(result.getRuns()).isEmpty(); // 非法组合不参与
         assertThat(result.getBest()).isNull();
+    }
+
+    @Test
+    @DisplayName("应用最优参数：复验回测返回详细结果（未指定策略则不落档）")
+    void applyRunsVerificationBacktest() {
+        when(repository.queryBars(eq("BTC_USDT"), eq("1h"), any(), any(), eq(50000)))
+                .thenReturn(bars(120));
+        StrategyOptimization record = new StrategyOptimization();
+        record.setBatchId("OPT-1");
+        record.setSymbol("BTC_USDT");
+        record.setFrequency("1h");
+        record.setMode("close");
+        record.setObjective("TOTAL_RETURN");
+        record.setBestFast(10);
+        record.setBestSlow(20);
+        when(optimizationMapper.selectByBatchId("OPT-1")).thenReturn(record);
+
+        var result = service.apply("OPT-1", null, false, "trader-1");
+
+        assertThat(result.get("applied")).isEqualTo(false);
+        assertThat(result.get("verify")).isNotNull();
+        assertThat(result.get("optimization")).isEqualTo(record);
     }
 }

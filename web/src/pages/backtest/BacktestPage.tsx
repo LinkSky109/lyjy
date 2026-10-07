@@ -102,13 +102,16 @@ export default function BacktestPage() {
   const [optFast, setOptFast] = useState('3,5,8');
   const [optSlow, setOptSlow] = useState('15,20,30');
   const [optObjective, setOptObjective] = useState('SHARPE');
-  const [optResult, setOptResult] = useState<any>(null);
+  const [optResult, setOptResult] = useState<any[] | null>(null);
   const [optBusy, setOptBusy] = useState(false);
   const [optError, setOptError] = useState<string | null>(null);
+  const [optStrategyId, setOptStrategyId] = useState('');
+  const [applyInfo, setApplyInfo] = useState<any>(null);
 
   const runOptimize = async () => {
     setOptError(null);
     setOptResult(null);
+    setApplyInfo(null);
     setOptBusy(true);
     try {
       const fasts = optFast.split(',').map((x) => Number(x.trim())).filter((n) => n > 0);
@@ -117,8 +120,8 @@ export default function BacktestPage() {
       if (fasts.length === 0 || slows.length === 0) {
         throw new Error('请填写快慢周期候选（逗号分隔）');
       }
-      const result = await api.post<any>('/api/backtest/optimize', {
-        symbol: tickSymbols[0] || 'BTC_USDT',
+      const result = await api.post<any[]>('/api/backtest/optimize', {
+        symbols: tickSymbols.length > 0 ? tickSymbols : ['BTC_USDT'],
         frequency: '1h',
         mode: signalClose ? 'close' : 'ohlc',
         startTime: toIso(start),
@@ -132,6 +135,27 @@ export default function BacktestPage() {
       setOptResult(result);
     } catch (error) {
       setOptError(`优化失败：${errorText(error)}`);
+    } finally {
+      setOptBusy(false);
+    }
+  };
+
+  const applyBest = async () => {
+    const first = optResult?.[0];
+    if (!first?.batchId) {
+      return;
+    }
+    setApplyInfo(null);
+    setOptBusy(true);
+    try {
+      const params = new URLSearchParams({ batchId: first.batchId });
+      if (optStrategyId.trim()) {
+        params.set('strategyId', optStrategyId.trim());
+      }
+      const result = await api.post<any>(`/api/backtest/optimize/apply?${params.toString()}`);
+      setApplyInfo(result);
+    } catch (error) {
+      setOptError(`应用失败：${errorText(error)}`);
     } finally {
       setOptBusy(false);
     }
@@ -274,35 +298,60 @@ export default function BacktestPage() {
           </Button>
         </Toolbar>
         {optError && <Notice tone="danger">{optError}</Notice>}
-        {optResult && (
+        {optResult && optResult.length > 0 && (
           <div style={{ marginTop: 16 }}>
             <Toolbar>
-              <Badge tone="ok">最优参数</Badge>
               <span className="muted">
-                快线 {optResult.best?.fast} / 慢线 {optResult.best?.slow} · ret{' '}
-                {pct(optResult.best?.totalReturn)} · dd {pct(optResult.best?.maxDrawdown)} · 交易{' '}
-                {optResult.best?.trades} 笔
+                批次 {optResult[0].batchId}（{optResult.length} 标的）
               </span>
-              <span className="muted">
-                （基准 5/20：ret {pct(optResult.baseline?.totalReturn)}）
-              </span>
+              <Field label="策略 ID（可选，落档最优参数到 params_json）">
+                <Input
+                  value={optStrategyId}
+                  onChange={(event) => setOptStrategyId(event.target.value)}
+                  placeholder="SIG-TRADE"
+                />
+              </Field>
+              <Button variant="default" disabled={optBusy} onClick={applyBest}>
+                应用最优（复验）
+              </Button>
             </Toolbar>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
-              <thead>
-                <tr>
-                  <th>快线</th><th>慢线</th><th>总收益</th><th>夏普</th><th>最大回撤</th><th>交易数</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(optResult.runs ?? []).map((run: any, index: number) => (
-                  <tr key={index} style={run === optResult.best ? { background: '#e6f4ea' } : undefined}>
-                    <td>{run.fast}</td><td>{run.slow}</td>
-                    <td>{pct(run.totalReturn)}</td><td>{run.sharpe?.toFixed(3)}</td>
-                    <td>{pct(run.maxDrawdown)}</td><td>{run.trades}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {optResult.map((res: any, idx: number) => (
+              <div key={idx} style={{ marginTop: 12 }}>
+                <Toolbar>
+                  <Badge tone="ok">{res.symbol} 最优</Badge>
+                  <span className="muted">
+                    快线 {res.best?.fast} / 慢线 {res.best?.slow} · ret {pct(res.best?.totalReturn)} ·
+                    dd {pct(res.best?.maxDrawdown)} · 交易 {res.best?.trades} 笔（基准 5/20：ret{' '}
+                    {pct(res.baseline?.totalReturn)}）
+                  </span>
+                </Toolbar>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+                  <thead>
+                    <tr>
+                      <th>快线</th><th>慢线</th><th>总收益</th><th>夏普</th><th>最大回撤</th><th>交易数</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(res.runs ?? []).map((run: any, index: number) => (
+                      <tr key={index} style={run === res.best ? { background: '#e6f4ea' } : undefined}>
+                        <td>{run.fast}</td><td>{run.slow}</td>
+                        <td>{pct(run.totalReturn)}</td><td>{run.sharpe?.toFixed(3)}</td>
+                        <td>{pct(run.maxDrawdown)}</td><td>{run.trades}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+            {applyInfo && (
+              <Notice tone="ok">
+                应用结果：参数落档={String(applyInfo.applied)}
+                {applyInfo.strategyId ? `（策略 ${applyInfo.strategyId}）` : ''} · 复验 ret=
+                {pct(applyInfo.verify?.metrics?.totalReturn)} · 交易=
+                {applyInfo.verify?.metrics?.totalTrades} · dd=
+                {pct(applyInfo.verify?.metrics?.maxDrawdown)}
+              </Notice>
+            )}
           </div>
         )}
       </Card>

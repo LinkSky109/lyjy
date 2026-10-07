@@ -1,10 +1,13 @@
 package com.lhjypt.core.controller;
 
 import com.lhjypt.core.common.Result;
+import com.lhjypt.core.common.auth.UserContext;
+import com.lhjypt.core.common.auth.UserContextHolder;
 import com.lhjypt.core.model.backtest.BacktestConfig;
 import com.lhjypt.core.model.backtest.BacktestResult;
 import com.lhjypt.core.model.backtest.OptimizeRequest;
 import com.lhjypt.core.model.backtest.OptimizeResult;
+import com.lhjypt.core.model.backtest.StrategyOptimization;
 import com.lhjypt.core.model.market.BarData;
 import com.lhjypt.core.model.market.TickData;
 import com.lhjypt.core.service.backtest.BacktestEngine;
@@ -33,10 +36,27 @@ public class BacktestController {
     private static final DateTimeFormatter ISO_LOCAL =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
-    /** 策略参数优化：真实行情网格寻优（OBS-011）。 */
+    /** 策略参数优化：真实行情网格寻优（OBS-011/012，多标的返回列表）。 */
     @PostMapping("/optimize")
-    public Result<OptimizeResult> optimize(@RequestBody OptimizeRequest request) {
+    public Result<List<OptimizeResult>> optimize(@RequestBody OptimizeRequest request) {
         return Result.success(strategyOptimizerService.optimize(request));
+    }
+
+    /** 应用最优参数：复验回测（可选把参数落档到策略 params_json）。 */
+    @PostMapping("/optimize/apply")
+    public Result<java.util.Map<String, Object>> applyOptimization(
+            @RequestParam String batchId,
+            @RequestParam(required = false) String strategyId) {
+        UserContext context = UserContextHolder.get();
+        return Result.success(strategyOptimizerService.apply(batchId, strategyId,
+                context.hasAnyRole(UserContext.ROLE_ADMIN), context.userId()));
+    }
+
+    /** 优化历史存档。 */
+    @GetMapping("/optimize/history")
+    public Result<List<StrategyOptimization>> optimizationHistory(
+            @RequestParam(defaultValue = "20") int limit) {
+        return Result.success(strategyOptimizerService.history(limit));
     }
 
     /**

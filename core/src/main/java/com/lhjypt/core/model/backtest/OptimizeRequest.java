@@ -13,6 +13,8 @@ public class OptimizeRequest {
     public static final String OBJ_CALMAR = "CALMAR";
 
     private String symbol = "BTC_USDT";
+    /** 多标的（非空时优先，逐标的各自寻优） */
+    private List<String> symbols;
     private String frequency = "1h";
     private String startTime;
     private String endTime;

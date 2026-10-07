@@ -55,6 +55,15 @@ lhjypt:
   # 交易运行模式：MOCK / LIVE。LIVE 在真实适配器就绪前必须启动失败。
   trade:
     mode: ${LHJYPT_TRADE_MODE:MOCK}
+  # 真实行情源（OBS-005 Gate.io 现货 K 线，公开免密钥；手动 refresh 才外呼）
+  market:
+    real:
+      enabled: ${LHJYPT_MARKET_REAL:true}
+      base-url: ${LHJYPT_MARKET_REAL_URL:https://api.gateio.ws/api/v4/spot/candlesticks}
+      currency-pair: ${LHJYPT_MARKET_REAL_PAIR:BTC_USDT}
+      interval: ${LHJYPT_MARKET_REAL_INTERVAL:1h}
+      limit: ${LHJYPT_MARKET_REAL_LIMIT:200}
+      timeout-seconds: ${LHJYPT_MARKET_REAL_TIMEOUT:10}
   # CTP柜台配置
   ctp:
     enabled: false

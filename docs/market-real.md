@@ -1,0 +1,53 @@
+# 真实行情数据源（Gate.io 现货 K 线）
+
+> OBS-005：把 Mock 行情补上真实数据源。策略回测与 VaR 等消费 `/api/market/bars` 的模块
+> 在刷新后可查真实 K 线。无需 API 密钥，国内可直达。
+
+## 源与格式
+
+- 源：Gate.io 公开 REST（`GET /api/v4/spot/candlesticks`），免密钥。
+- 返回：每根 `[ts(秒), amount, open, high, low, close, volume, finished]`。
+- 交易对：Gate 格式 `BTC_USDT`；周期 `1m/5m/15m/1h/1d`。
+
+## 使用
+
+```bash
+# 1) 查看源状态
+curl http://localhost:8081/api/market/real/status -H 'X-User-Role: TRADER' -H 'X-User-Id: trader-1'
+
+# 2) 拉取真实 K 线写入 ClickHouse（写操作需 ADMIN）
+curl -X POST "http://localhost:8081/api/market/real/refresh?currencyPair=BTC_USDT&interval=1h&limit=200" \
+  -H 'Content-Type: application/json' -H 'X-User-Role: ADMIN' -H 'X-User-Id: admin'
+# -> data = 新增条数（按 symbol+频率+bar_time 去重，重复拉取返回 0）
+
+# 3) 查询真实行情（/api/market/bars 需要时间窗参数）
+curl "http://localhost:8081/api/market/bars?symbol=BTC_USDT&frequency=1h&startTime=2026-10-06T00:00:00&endTime=2026-10-08T23:59:59&limit=10" \
+  -H 'X-User-Role: TRADER' -H 'X-User-Id: trader-1'
+```
+
+## 配置
+
+`core/src/main/resources/application.yaml` → `lhjypt.market.real.*`（或环境变量）：
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `LHJYPT_MARKET_REAL` | `true` | 启用真实行情 REST |
+| `LHJYPT_MARKET_REAL_URL` | `https://api.gateio.ws/api/v4/spot/candlesticks` | 源地址 |
+| `LHJYPT_MARKET_REAL_PAIR` | `BTC_USDT` | 默认交易对 |
+| `LHJYPT_MARKET_REAL_INTERVAL` | `1h` | 默认周期 |
+| `LHJYPT_MARKET_REAL_LIMIT` | `200` | 默认拉取条数（单次 ≤1000） |
+| `LHJYPT_MARKET_REAL_TIMEOUT` | `10` | HTTP 超时（秒） |
+
+## 数据流
+
+```
+Gate.io REST → GateioKlineSource(HTTP) → RealMarketDataService(去重) 
+    → ClickHouse lhjypt.bar_data → /api/market/bars、VaR(ClickHouse 行情) 等消费方
+```
+
+刷新为**手动触发**（`POST refresh`）；如需自动，可加定时任务（当前单人使用手动足够）。
+
+## 边界
+
+- 时间戳按服务端时区本地化（Asia/Shanghai +8）写入 `bar_time`。
+- 与 Mock 行情并存：Mock 提供 tick 推送，Gate 提供真实历史/实时 K 线，二者互不冲突。

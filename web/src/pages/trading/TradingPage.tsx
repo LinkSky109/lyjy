@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, errorText } from '../../api/http';
 import { useApi } from '../../hooks/useApi';
 import {
@@ -164,6 +164,20 @@ export default function TradingPage() {
     activeOrders.reload();
   };
 
+  // 持仓/订单自动刷新（10s），方便盯盘
+  const [autoTradeRefresh, setAutoTradeRefresh] = useState(false);
+  useEffect(() => {
+    if (!autoTradeRefresh) {
+      return;
+    }
+    const timer = setInterval(() => {
+      positions.reload();
+      activeOrders.reload();
+    }, 10000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoTradeRefresh, accountId, strategyId]);
+
   const submitOrder = async () => {
     setOrderNotice(null);
     if (!symbol.trim()) {
@@ -298,6 +312,14 @@ export default function TradingPage() {
           <Button variant="primary" onClick={applyQuery}>
             查询
           </Button>
+          <label className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={autoTradeRefresh}
+              onChange={(event) => setAutoTradeRefresh(event.target.checked)}
+            />
+            自动刷新（10s）
+          </label>
         </Toolbar>
       </Card>
 

@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -176,21 +177,30 @@ public class BacktestEngine {
     public List<TickData> generateMockTicks(String symbol, int count, BigDecimal basePrice) {
         List<TickData> ticks = new ArrayList<>();
         LocalDateTime time = LocalDateTime.now().minusHours(count);
-        BigDecimal price = basePrice;
+        // 固定小数位：随机游走若用 BigDecimal 反复乘(1+change)会导致 scale 无限膨胀，
+        // 使运算退化为 BigInteger.pow 超大整数乘法（10000 ticks 时卡死）。
+        BigDecimal price = basePrice.setScale(8, RoundingMode.HALF_UP);
+        BigDecimal volumeFactor = BigDecimal.valueOf(1.001d);
+        BigDecimal priceDown = BigDecimal.valueOf(0.999d);
 
         for (int i = 0; i < count; i++) {
             TickData tick = new TickData();
             tick.setSymbol(symbol);
-            // 随机游走
+            // 随机游走（double 运算后按固定精度落盘，scale 恒为 8）
             double change = (Math.random() - 0.5) * 0.002;
-            price = price.multiply(BigDecimal.valueOf(1 + change));
+            price = BigDecimal.valueOf(
+                    price.doubleValue() * (1 + change)).setScale(8, RoundingMode.HALF_UP);
+            BigDecimal high = price.multiply(volumeFactor).setScale(8, RoundingMode.HALF_UP);
+            BigDecimal low = price.multiply(priceDown).setScale(8, RoundingMode.HALF_UP);
+            long volume = (long) (Math.random() * 1000);
             tick.setLastPrice(price);
             tick.setPreClose(basePrice);
             tick.setOpen(price);
-            tick.setHigh(price.multiply(BigDecimal.valueOf(1.001)));
-            tick.setLow(price.multiply(BigDecimal.valueOf(0.999)));
-            tick.setVolume((long) (Math.random() * 1000));
-            tick.setTurnover(price.multiply(BigDecimal.valueOf(tick.getVolume())));
+            tick.setHigh(high);
+            tick.setLow(low);
+            tick.setVolume(volume);
+            tick.setTurnover(price.multiply(BigDecimal.valueOf(volume))
+                    .setScale(8, RoundingMode.HALF_UP));
             tick.setBidPrice1(price.subtract(BigDecimal.valueOf(0.01)));
             tick.setAskPrice1(price.add(BigDecimal.valueOf(0.01)));
             tick.setBidVolume1((long) (Math.random() * 500));

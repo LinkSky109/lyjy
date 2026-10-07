@@ -63,6 +63,38 @@ class BarTicksMapperTest {
     }
 
     @Test
+    @DisplayName("乱序输入（ClickHouse DESC）→ 输出按时间升序")
+    void sortsByTimeAscending() {
+        BarData later = new BarData();
+        later.setSymbol("BTC_USDT");
+        later.setFrequency("1h");
+        later.setOpen(new BigDecimal("101"));
+        later.setHigh(new BigDecimal("102"));
+        later.setLow(new BigDecimal("100"));
+        later.setClose(new BigDecimal("101"));
+        later.setVolume(1);
+        later.setBarTime(LocalDateTime.of(2026, 10, 7, 12, 0));
+
+        BarData earlier = new BarData();
+        earlier.setSymbol("BTC_USDT");
+        earlier.setFrequency("1h");
+        earlier.setOpen(new BigDecimal("100"));
+        earlier.setHigh(new BigDecimal("101"));
+        earlier.setLow(new BigDecimal("99"));
+        earlier.setClose(new BigDecimal("100"));
+        earlier.setVolume(1);
+        earlier.setBarTime(LocalDateTime.of(2026, 10, 7, 11, 0));
+
+        List<TickData> ticks = BarTicksMapper.fromBars(
+                List.of(later, earlier), BarTicksMapper.MODE_CLOSE);
+
+        assertThat(ticks).hasSize(2);
+        assertThat(ticks.get(0).getTickTime()).isBefore(ticks.get(1).getTickTime());
+        assertThat(ticks.get(0).getLastPrice()).isEqualByComparingTo("100");
+        assertThat(ticks.get(1).getLastPrice()).isEqualByComparingTo("101");
+    }
+
+    @Test
     @DisplayName("空输入返回空序列")
     void emptyInput() {
         assertThat(BarTicksMapper.fromBars(List.of())).isEmpty();

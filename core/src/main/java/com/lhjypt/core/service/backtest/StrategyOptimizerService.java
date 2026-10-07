@@ -7,6 +7,8 @@ import com.lhjypt.core.model.backtest.BacktestConfig;
 import com.lhjypt.core.model.backtest.BacktestResult;
 import com.lhjypt.core.model.backtest.OptimizeRequest;
 import com.lhjypt.core.model.backtest.OptimizeResult;
+import com.lhjypt.core.model.backtest.RobustnessRequest;
+import com.lhjypt.core.model.backtest.RobustnessResult;
 import com.lhjypt.core.model.backtest.StrategyOptimization;
 import com.lhjypt.core.model.market.BarData;
 import com.lhjypt.core.model.market.TickData;
@@ -141,6 +143,136 @@ public class StrategyOptimizerService {
 
     public List<StrategyOptimization> history(int limit) {
         return optimizationMapper.selectRecent(limit <= 0 ? 20 : Math.min(limit, 200));
+    }
+
+    // ==================== 稳健性检验（OBS-015，防过拟合） ====================
+
+    /** 多标的稳健性检验：样本内寻优 → 样本外验证 + 多折稳定性。 */
+    public List<RobustnessResult> robustness(RobustnessRequest request) {
+        List<String> symbols = new ArrayList<>();
+        if (request.getSymbols() != null && !request.getSymbols().isEmpty()) {
+            request.getSymbols().stream()
+                    .filter(s -> s != null && !s.isBlank()).forEach(symbols::add);
+        }
+        if (symbols.isEmpty()) {
+            symbols.add(request.getSymbol() == null ? "BTC_USDT" : request.getSymbol());
+        }
+        List<RobustnessResult> out = new ArrayList<>();
+        for (String symbol : symbols) {
+            out.add(doRobustness(request, symbol));
+        }
+        return out;
+    }
+
+    private RobustnessResult doRobustness(RobustnessRequest request, String symbol) {
+        String frequency = request.getFrequency() == null ? "1h" : request.getFrequency();
+        String mode = "ohlc".equalsIgnoreCase(request.getMode()) ? "ohlc" : "close";
+        String start = request.getStartTime() == null ? "2000-01-01T00:00:00" : request.getStartTime();
+        String end = request.getEndTime() == null ? "2099-12-31T23:59:59" : request.getEndTime();
+        List<TickData> ticks = loadTicks(symbol, frequency, start, end, mode);
+
+        RobustnessResult result = new RobustnessResult();
+        result.setSymbol(symbol);
+        result.setFrequency(frequency);
+        result.setMode(mode);
+        result.setObjective(upper(request.getObjective()));
+        result.setBars(ticks.size());
+
+        double ratio = request.getTrainRatio() == null ? 0.7
+                : Math.max(0.5, Math.min(0.9, request.getTrainRatio()));
+        int trainN = (int) Math.floor(ticks.size() * ratio);
+        int testN = ticks.size() - trainN;
+        result.setTrainBars(trainN);
+        result.setTestBars(testN);
+
+        if (trainN < 50 || testN < 20) {
+            result.setVerdict("INSUFFICIENT_DATA");
+            return result;
+        }
+        List<TickData> train = ticks.subList(0, trainN);
+        List<TickData> test = ticks.subList(trainN, ticks.size());
+
+        OptimizeResult.Run trainBest = optimizeWindow(train, request);
+        result.setTrainBest(trainBest);
+        if (trainBest != null) {
+            result.setOosBest(evaluate(test, trainBest.getFast(), trainBest.getSlow(),
+                    quantityOf(request)));
+            double trainRet = trainBest.getTotalReturn();
+            double oosRet = result.getOosBest() == null ? 0 : result.getOosBest().getTotalReturn();
+            result.setDegradation(Math.round(
+                    (oosRet - trainRet) / Math.max(Math.abs(trainRet), 1e-4) * 1e4) / 1e4);
+        }
+
+        // 多折稳定性
+        int folds = request.getFolds() == null ? 4 : Math.max(2, Math.min(8, request.getFolds()));
+        int segment = ticks.size() / folds;
+        Map<String, Integer> hits = new java.util.HashMap<>();
+        for (int i = 0; i < folds && segment >= 10; i++) {
+            int from = i * segment;
+            int to = (i == folds - 1) ? ticks.size() : (i + 1) * segment;
+            List<TickData> slice = ticks.subList(from, to);
+            OptimizeResult.Run best = optimizeWindow(slice, request);
+            RobustnessResult.Window window = new RobustnessResult.Window();
+            window.setIndex(i);
+            window.setFromTime(String.valueOf(slice.get(0).getTickTime()));
+            window.setToTime(String.valueOf(slice.get(slice.size() - 1).getTickTime()));
+            window.setBest(best);
+            result.getFolds().add(window);
+            if (best != null) {
+                String key = best.getFast() + "/" + best.getSlow();
+                hits.merge(key, 1, Integer::sum);
+            }
+        }
+        int maxHits = hits.values().stream().mapToInt(Integer::intValue).max().orElse(0);
+        result.setParamStability(result.getFolds().isEmpty() ? 0
+                : Math.round((double) maxHits / result.getFolds().size() * 1e4) / 1e4);
+        result.setStableParam(hits.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey).orElse("-"));
+
+        // 结论
+        if (result.getTrainBest() == null || result.getOosBest() == null) {
+            result.setVerdict("INSUFFICIENT_DATA");
+        } else {
+            double trainRet = result.getTrainBest().getTotalReturn();
+            double oosRet = result.getOosBest().getTotalReturn();
+            boolean sameSign = (trainRet >= 0 && oosRet >= 0) || (trainRet < 0 && oosRet < 0);
+            boolean acceptable = sameSign && result.getDegradation() > -0.5;
+            result.setVerdict(acceptable ? "ROBUST" : "OVERFIT_RISK");
+        }
+        log.info("稳健性检验: {} verdict={} train={} oos={} degradation={} stability={}",
+                symbol, result.getVerdict(),
+                result.getTrainBest() == null ? "-" : result.getTrainBest().getFast()
+                        + "/" + result.getTrainBest().getSlow(),
+                result.getOosBest() == null ? "-" : result.getOosBest().getTotalReturn(),
+                result.getDegradation(), result.getParamStability());
+        return result;
+    }
+
+    /** 在给定 ticks 上做网格寻优，返回最优（供稳健性检验复用）。 */
+    private OptimizeResult.Run optimizeWindow(List<TickData> ticks, RobustnessRequest request) {
+        List<Integer> fasts = request.getFastOptions() == null
+                ? List.of(3, 5, 8) : request.getFastOptions();
+        List<Integer> slows = request.getSlowOptions() == null
+                ? List.of(15, 20, 30) : request.getSlowOptions();
+        double maxDd = request.getMaxDrawdownLimit() == null ? 0.5 : request.getMaxDrawdownLimit();
+        String objective = upper(request.getObjective());
+        BigDecimal quantity = quantityOf(request);
+        List<OptimizeResult.Run> runs = new ArrayList<>();
+        for (int[] pair : buildGrid(fasts, slows, 50)) {
+            OptimizeResult.Run run = evaluate(ticks, pair[0], pair[1], quantity);
+            if (run == null || (maxDd > 0 && run.getMaxDrawdown() > maxDd)) {
+                continue;
+            }
+            runs.add(run);
+        }
+        runs.sort(Comparator
+                .comparingDouble((OptimizeResult.Run r) -> score(r, objective)).reversed());
+        return runs.isEmpty() ? null : runs.get(0);
+    }
+
+    private static BigDecimal quantityOf(RobustnessRequest request) {
+        return BigDecimal.ONE;
     }
 
     private void persist(OptimizeResult result, OptimizeRequest request) {

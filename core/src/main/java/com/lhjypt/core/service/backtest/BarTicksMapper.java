@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -33,12 +34,16 @@ public final class BarTicksMapper {
     }
 
     public static List<TickData> fromBars(List<BarData> bars, String mode) {
-        List<TickData> ticks = new ArrayList<>();
         if (bars == null || bars.isEmpty()) {
-            return ticks;
+            return new ArrayList<>();
         }
+        // ClickHouse 查询按时间倒序返回；回测/优化必须按时间升序，否则等于使用未来数据
+        List<BarData> ordered = new ArrayList<>(bars);
+        ordered.sort(Comparator.comparing(BarData::getBarTime,
+                Comparator.nullsLast(Comparator.naturalOrder())));
+        List<TickData> ticks = new ArrayList<>();
         boolean closeOnly = MODE_CLOSE.equalsIgnoreCase(mode);
-        for (BarData bar : bars) {
+        for (BarData bar : ordered) {
             if (closeOnly) {
                 ticks.add(tick(bar, bar.getClose(), bar.getBarTime(), bar.getVolume()));
             } else {

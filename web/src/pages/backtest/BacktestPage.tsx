@@ -115,6 +115,38 @@ export default function BacktestPage() {
   const [pfBusy, setPfBusy] = useState(false);
   const [pfError, setPfError] = useState<string | null>(null);
 
+  // 稳健性检验（OBS-015）
+  const [rbRatio, setRbRatio] = useState('0.7');
+  const [rbFolds, setRbFolds] = useState('4');
+  const [rbResult, setRbResult] = useState<any[] | null>(null);
+  const [rbBusy, setRbBusy] = useState(false);
+  const [rbError, setRbError] = useState<string | null>(null);
+
+  const runRobustness = async () => {
+    setRbError(null);
+    setRbResult(null);
+    setRbBusy(true);
+    try {
+      const tickSymbols = symbols.split(',').map((s) => s.trim()).filter(Boolean);
+      const result = await api.post<any[]>('/api/backtest/optimize/robustness', {
+        symbols: tickSymbols.length > 0 ? tickSymbols : ['BTC_USDT'],
+        frequency: '1h',
+        mode: signalClose ? 'close' : 'ohlc',
+        startTime: toIso(start),
+        endTime: toIso(end),
+        trainRatio: Number(rbRatio) || 0.7,
+        folds: Number(rbFolds) || 4,
+        objective: 'TOTAL_RETURN',
+        maxDrawdownLimit: 0.5,
+      });
+      setRbResult(result);
+    } catch (error) {
+      setRbError(`稳健性检验失败：${errorText(error)}`);
+    } finally {
+      setRbBusy(false);
+    }
+  };
+
   const runPortfolioOptimize = async () => {
     setPfError(null);
     setPfResult(null);
@@ -496,6 +528,53 @@ export default function BacktestPage() {
             </table>
           </div>
         )}
+      </Card>
+
+      <Card title="稳健性检验（防过拟合：样本内/外 + 多折）">
+        <Grid columns={2}>
+          <Field label="训练集占比（0.5~0.9）">
+            <Input value={rbRatio} onChange={(event) => setRbRatio(event.target.value)} />
+          </Field>
+          <Field label="稳定性折数（2~8）">
+            <Input value={rbFolds} onChange={(event) => setRbFolds(event.target.value)} />
+          </Field>
+        </Grid>
+        <Toolbar>
+          <Button variant="primary" disabled={rbBusy} onClick={runRobustness}>
+            {rbBusy ? '检验中…' : '稳健性检验'}
+          </Button>
+        </Toolbar>
+        {rbError && <Notice tone="danger">{rbError}</Notice>}
+        {rbResult && rbResult.map((res: any, idx: number) => (
+          <div key={idx} style={{ marginTop: 12 }}>
+            <Toolbar>
+              <Badge tone={res.verdict === 'ROBUST' ? 'ok' : 'warn'}>
+                {res.symbol} · {res.verdict}
+              </Badge>
+              <span className="muted">
+                样本内 {res.trainBest?.fast}/{res.trainBest?.slow} ret {pct(res.trainBest?.totalReturn)} ·
+                样本外 ret {pct(res.oosBest?.totalReturn)} · 退化 {pct(res.degradation)} · 参数稳定性{' '}
+                {pct(res.paramStability)}（{res.stableParam}）· train {res.trainBars}/test {res.testBars}
+              </span>
+            </Toolbar>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+              <thead>
+                <tr><th>折</th><th>窗口</th><th>最优参数</th><th>收益</th><th>回撤</th></tr>
+              </thead>
+              <tbody>
+                {(res.folds ?? []).map((w: any) => (
+                  <tr key={w.index}>
+                    <td>{w.index + 1}</td>
+                    <td>{String(w.fromTime).slice(0, 16)} ~ {String(w.toTime).slice(0, 16)}</td>
+                    <td>{w.best ? `${w.best.fast}/${w.best.slow}` : '-'}</td>
+                    <td>{pct(w.best?.totalReturn)}</td>
+                    <td>{pct(w.best?.maxDrawdown)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
       </Card>
     </Page>
   );

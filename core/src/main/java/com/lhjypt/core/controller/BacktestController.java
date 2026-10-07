@@ -9,6 +9,8 @@ import com.lhjypt.core.model.backtest.OptimizeRequest;
 import com.lhjypt.core.model.backtest.OptimizeResult;
 import com.lhjypt.core.model.backtest.PortfolioOptimizeRequest;
 import com.lhjypt.core.model.backtest.PortfolioOptimizeResult;
+import com.lhjypt.core.model.backtest.RobustnessRequest;
+import com.lhjypt.core.model.backtest.RobustnessResult;
 import com.lhjypt.core.model.backtest.StrategyOptimization;
 import com.lhjypt.core.model.market.BarData;
 import com.lhjypt.core.model.market.TickData;
@@ -68,6 +70,12 @@ public class BacktestController {
     public Result<PortfolioOptimizeResult> portfolioOptimize(
             @RequestBody PortfolioOptimizeRequest request) {
         return Result.success(portfolioOptimizerService.optimize(request));
+    }
+
+    /** 稳健性检验：样本内/外验证 + 多折稳定性（OBS-015）。 */
+    @PostMapping("/optimize/robustness")
+    public Result<List<RobustnessResult>> robustness(@RequestBody RobustnessRequest request) {
+        return Result.success(strategyOptimizerService.robustness(request));
     }
 
     /**

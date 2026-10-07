@@ -62,6 +62,25 @@ curl -X POST "http://localhost:8081/api/backtest/run-real?frequency=1h&mode=clos
 
 无真实数据时返回 422 提示先执行 refresh。
 
+## SDK 自写策略 × 真实行情 回测（OBS-008）
+
+后端内置策略之外，可在 **Python SDK 里用自写策略**跑真实行情回测
+（`lhjypt.backtest`：`load_real_bars` 拉平台真实 K 线 + `SimpleMatchingEngine` 收盘撮合）：
+
+```bash
+# 示例：真实 BTC_USDT 1h，窗口 7 天，复用双均线策略
+cd strategy-sdk
+PYTHONPATH=. python lhjypt/examples/real_backtest_demo.py BTC_USDT 1h 7
+# -> 拉取 159 根真实 K 线，策略信号 8 笔成交，输出净值/收益率
+
+import lhjypt.backtest.real_data as rd
+from lhjypt.backtest.simple_matching import SimpleMatchingEngine
+```
+
+- `load_real_bars(RestClient, symbol, freq, start, end)`：从 `/api/market/bars` 拉真实数据（需已 `refresh`）。
+- `SimpleMatchingEngine`：`set_price` 后策略 `buy/sell` 按收盘价撮合、记账现金/持仓/手续费，`summary()` 出净值。
+- 策略文件照常继承 `lhjypt.Strategy`（如 `examples/dual_ma_strategy.py`）。
+
 ## 数据流
 
 ```

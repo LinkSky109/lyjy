@@ -158,6 +158,11 @@ public class StrategySecurityService {
     }
 
     @Transactional
+    /** 公开归属校验（值守/调度等系统场景复用）：ADMIN 豁免；非归属或跨租户拒绝。 */
+    public void requireStrategyOwnerOrAdmin(String strategyId, UserContext context) {
+        requireOwner(requireStrategy(strategyId), context);
+    }
+
     public Map<String, Object> run(String strategyId, UserContext context, String ip) {
         StrategyInfo strategy = requireStrategy(strategyId);
         requireOwner(strategy, context);

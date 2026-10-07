@@ -123,7 +123,7 @@ class RealMarketDataServiceTest {
     }
 
     @Test
-    @DisplayName("禁用或 interval=0 时定时刷新直接跳过")
+    @DisplayName("禁用或 interval<5000 时定时刷新直接跳过")
     void scheduledRefreshSkippedWhenDisabled() throws Exception {
         properties.setRefreshIntervalMs(0);
         service.scheduledRefresh();

@@ -64,6 +64,7 @@ export default function StrategyPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [watchdogOn, setWatchdogOn] = useState(false);
 
   const [strategyId, setStrategyId] = useState('');
   const [codeName, setCodeName] = useState('');
@@ -154,6 +155,19 @@ export default function StrategyPage() {
       setOkMsg(`策略已启动，状态：${result.status ?? '-'}`);
       status.reload();
       audit.reload();
+    });
+
+  const toggleWatchdog = () =>
+    run(async () => {
+      const id = requireStrategyId();
+      const next = !watchdogOn;
+      const result = await api.post<{ enabled?: boolean }>(
+        `/api/strategy/${id}/watchdog`,
+        undefined,
+        { params: { enabled: next, checkIntervalMs: 30000 } },
+      );
+      setWatchdogOn(result.enabled ?? next);
+      setOkMsg(`自动值守已${result.enabled ?? next ? '开启' : '关闭'}：策略离线时每 30s 自动拉起`);
     });
 
   const stopStrategy = () =>
@@ -257,7 +271,13 @@ export default function StrategyPage() {
             <Button variant="danger" disabled={busy} onClick={stopStrategy}>
               停止策略
             </Button>
+            <Button variant="default" size="sm" disabled={busy || !strategyId.trim()} onClick={toggleWatchdog}>
+              {watchdogOn ? '关闭自动值守' : '开启自动值守'}
+            </Button>
           </Toolbar>
+          <div className="muted" style={{ marginTop: 6 }}>
+            自动值守：策略离线时定时自动拉起（挂机运行），开启后将自动启动并以每 30s 检查。
+          </div>
 
           <div style={{ marginTop: 16 }}>
             {!strategyId.trim() ? (

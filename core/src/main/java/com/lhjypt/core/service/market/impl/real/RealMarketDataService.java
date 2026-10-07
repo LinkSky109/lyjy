@@ -48,10 +48,10 @@ public class RealMarketDataService {
         this.distributedLock = distributedLock;
     }
 
-    /** 定时自动刷新（间隔 0 时关闭）；失败仅记录日志，不中断调度。 */
+    /** 定时自动刷新（间隔 >=5000 才执行；失败仅记录日志，不中断调度）。 */
     @Scheduled(fixedRateString = "${lhjypt.market.real.refresh-interval-ms:900000}")
     public void scheduledRefresh() {
-        if (!properties.isEnabled() || properties.getRefreshIntervalMs() <= 0) {
+        if (!properties.isEnabled() || properties.getRefreshIntervalMs() < 5000) {
             return;
         }
         distributedLock.execute("market.real.refresh", () -> {

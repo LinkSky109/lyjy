@@ -64,7 +64,7 @@ lhjypt:
       interval: ${LHJYPT_MARKET_REAL_INTERVAL:1h}
       limit: ${LHJYPT_MARKET_REAL_LIMIT:200}
       timeout-seconds: ${LHJYPT_MARKET_REAL_TIMEOUT:10}
-      refresh-interval-ms: ${LHJYPT_MARKET_REAL_REFRESH_MS:900000}  # 0 关闭定时自动刷新
+      refresh-interval-ms: ${LHJYPT_MARKET_REAL_REFRESH_MS:900000}  # 定时自动刷新间隔（>=5000；关闭请设 LHJYPT_MARKET_REAL=false）
   # CTP柜台配置
   ctp:
     enabled: false
@@ -117,6 +117,10 @@ lhjypt:
       timeout-ms: 3000
   # P1 策略加密与沙箱配置
   strategy:
+    # 自动值守（OBS-010）：扫描间隔；值守列表由 API 动态管理
+    watchdog:
+      enabled: ${LHJYPT_STRATEGY_WATCHDOG:true}
+      scan-interval-ms: ${LHJYPT_STRATEGY_WATCHDOG_SCAN:30000}
     crypto:
       provider: ${LHJYPT_CRYPTO_PROVIDER:local}    # local | env（生产可扩展 kms/hsm，SPI 预留）
       key-store-path: ${LHJYPT_KEYSTORE_PATH:config/key-store.properties}

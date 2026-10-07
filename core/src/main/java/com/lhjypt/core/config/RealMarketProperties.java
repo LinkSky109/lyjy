@@ -30,6 +30,6 @@ public class RealMarketProperties {
     /** HTTP 超时（秒） */
     private int timeoutSeconds = 10;
 
-    /** 定时自动刷新间隔（ms）；0 关闭 */
+    /** 定时自动刷新间隔（ms，>=5000 才启用；通过 enabled 关闭） */
     private long refreshIntervalMs = 900000;
 }

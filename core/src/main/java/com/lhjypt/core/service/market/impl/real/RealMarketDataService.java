@@ -1,10 +1,12 @@
 package com.lhjypt.core.service.market.impl.real;
 
+import com.lhjypt.core.config.DistributedLock;
 import com.lhjypt.core.config.RealMarketProperties;
 import com.lhjypt.core.model.market.BarData;
 import com.lhjypt.core.service.market.MarketDataRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -31,16 +33,35 @@ public class RealMarketDataService {
     private final RealMarketProperties properties;
     private final GateioKlineSource klineSource;
     private final MarketDataRepository repository;
+    private final DistributedLock distributedLock;
 
     private volatile LocalDateTime lastRefreshAt;
     private volatile int lastRefreshed;
 
     public RealMarketDataService(RealMarketProperties properties,
                                  GateioKlineSource klineSource,
-                                 MarketDataRepository repository) {
+                                 MarketDataRepository repository,
+                                 DistributedLock distributedLock) {
         this.properties = properties;
         this.klineSource = klineSource;
         this.repository = repository;
+        this.distributedLock = distributedLock;
+    }
+
+    /** 定时自动刷新（间隔 0 时关闭）；失败仅记录日志，不中断调度。 */
+    @Scheduled(fixedRateString = "${lhjypt.market.real.refresh-interval-ms:900000}")
+    public void scheduledRefresh() {
+        if (!properties.isEnabled() || properties.getRefreshIntervalMs() <= 0) {
+            return;
+        }
+        distributedLock.execute("market.real.refresh", () -> {
+            try {
+                refresh(properties.getCurrencyPair(), properties.getInterval(),
+                        properties.getLimit());
+            } catch (Exception error) {
+                log.warn("定时真实行情刷新失败（忽略，等待下轮）: {}", error.getMessage());
+            }
+        });
     }
 
     public int refresh(String currencyPair, String interval, Integer limit) {
@@ -93,6 +114,7 @@ public class RealMarketDataService {
         result.put("enabled", properties.isEnabled());
         result.put("source", "gateio");
         result.put("baseUrl", properties.getBaseUrl());
+        result.put("autoRefreshMs", properties.getRefreshIntervalMs());
         result.put("lastRefreshAt", lastRefreshAt == null ? "（尚未刷新）"
                 : lastRefreshAt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
         result.put("lastInserted", lastRefreshed);

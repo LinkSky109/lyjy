@@ -64,6 +64,7 @@ lhjypt:
       interval: ${LHJYPT_MARKET_REAL_INTERVAL:1h}
       limit: ${LHJYPT_MARKET_REAL_LIMIT:200}
       timeout-seconds: ${LHJYPT_MARKET_REAL_TIMEOUT:10}
+      refresh-interval-ms: ${LHJYPT_MARKET_REAL_REFRESH_MS:900000}  # 0 关闭定时自动刷新
   # CTP柜台配置
   ctp:
     enabled: false

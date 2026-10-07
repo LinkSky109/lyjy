@@ -3,12 +3,16 @@ package com.lhjypt.core.controller;
 import com.lhjypt.core.common.Result;
 import com.lhjypt.core.model.backtest.BacktestConfig;
 import com.lhjypt.core.model.backtest.BacktestResult;
+import com.lhjypt.core.model.market.BarData;
 import com.lhjypt.core.model.market.TickData;
 import com.lhjypt.core.service.backtest.BacktestEngine;
+import com.lhjypt.core.service.backtest.BarTicksMapper;
+import com.lhjypt.core.service.market.MarketDataRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -20,6 +24,10 @@ import java.util.List;
 public class BacktestController {
 
     private final BacktestEngine backtestEngine;
+    private final MarketDataRepository marketDataRepository;
+
+    private static final DateTimeFormatter ISO_LOCAL =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     /**
      * 同步运行回测（使用模拟数据）
@@ -30,6 +38,32 @@ public class BacktestController {
         String symbol = config.getSymbols() != null && !config.getSymbols().isEmpty()
                 ? config.getSymbols().get(0) : "rb2410";
         List<TickData> ticks = backtestEngine.generateMockTicks(symbol, 1000, new BigDecimal("3500"));
+        return Result.success(backtestEngine.run(config, ticks));
+    }
+
+    /**
+     * 使用真实行情回测：从 ClickHouse bar_data 读取真实 K 线。
+     * 数据窗取 config.startTime/endTime（可空→全量最近）；频率默认 dataFrequency 或参数覆盖。
+     */
+    @PostMapping("/run-real")
+    public Result<BacktestResult> runReal(@RequestBody BacktestConfig config,
+                                          @RequestParam(required = false) String frequency) {
+        String symbol = config.getSymbols() != null && !config.getSymbols().isEmpty()
+                ? config.getSymbols().get(0) : "BTC_USDT";
+        String freq = frequency != null && !frequency.isBlank() ? frequency
+                : (config.getDataFrequency() != null && !config.getDataFrequency().isBlank()
+                        ? config.getDataFrequency() : "1h");
+        String start = config.getStartTime() == null
+                ? "2000-01-01T00:00:00" : config.getStartTime().format(ISO_LOCAL);
+        String end = config.getEndTime() == null
+                ? "2099-12-31T23:59:59" : config.getEndTime().format(ISO_LOCAL);
+
+        List<BarData> bars = marketDataRepository.queryBars(symbol, freq, start, end, 50000);
+        if (bars.isEmpty()) {
+            return Result.error(422, "无真实行情数据: " + symbol + "@" + freq
+                    + "，请先 POST /api/market/real/refresh");
+        }
+        List<TickData> ticks = BarTicksMapper.fromBars(bars);
         return Result.success(backtestEngine.run(config, ticks));
     }
 

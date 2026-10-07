@@ -97,7 +97,7 @@ export default function BacktestPage() {
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
 
-  const runBacktest = async () => {
+  const runBacktest = async (useRealData: boolean) => {
     setRunError(null);
     setResult(null);
     const tickSymbols = symbols
@@ -115,7 +115,7 @@ export default function BacktestPage() {
     }
     setTask("running");
     try {
-      const resultData = await api.post<BacktestResult>('/api/backtest/run', {
+      const payload = {
         strategyName: strategyName.trim() || 'BUILTIN_SMA',
         symbols: tickSymbols,
         startTime: toIso(start),
@@ -123,7 +123,12 @@ export default function BacktestPage() {
         initialCapital: toNum(capital) ?? 1000000,
         commissionRate: commission / 100,
         slippage: toNum(slippage) ?? 0.01,
-      });
+      };
+      // 真实行情回测：后端从 ClickHouse 读真实 K 线（需先 /api/market/real/refresh），
+      // 数据频率默认 1h（Gate.io 已入库存档）。
+      const resultData = useRealData
+        ? await api.post<BacktestResult>('/api/backtest/run-real?frequency=1h', payload)
+        : await api.post<BacktestResult>('/api/backtest/run', payload);
       setResult(resultData);
       setTask("done");
     } catch (error) {
@@ -178,11 +183,18 @@ export default function BacktestPage() {
           </Field>
         </Grid>
         <Toolbar>
-          <Button variant="primary" disabled={task === "running"} onClick={runBacktest}>
-            {task === "running" ? '回测运行中…' : '运行回测'}
+          <Button variant="primary" disabled={task === "running"} onClick={() => runBacktest(false)}>
+            {task === "running" ? '回测运行中…' : '运行回测（模拟）'}
+          </Button>
+          <Button variant="default" disabled={task === "running"} onClick={() => runBacktest(true)}>
+            真实行情回测
           </Button>
         </Toolbar>
         {runError && <Notice tone="danger">{runError}</Notice>}
+        <Notice tone="warn">
+          真实行情回测使用 ClickHouse 中的真实 K 线（默认 1h），数据来自 Gate.io；
+          如无数据请先执行 POST /api/market/real/refresh。
+        </Notice>
       </Card>
 
       {task !== "idle" && (

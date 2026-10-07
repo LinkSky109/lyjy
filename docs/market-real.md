@@ -37,6 +37,29 @@ curl "http://localhost:8081/api/market/bars?symbol=BTC_USDT&frequency=1h&startTi
 | `LHJYPT_MARKET_REAL_INTERVAL` | `1h` | 默认周期 |
 | `LHJYPT_MARKET_REAL_LIMIT` | `200` | 默认拉取条数（单次 ≤1000） |
 | `LHJYPT_MARKET_REAL_TIMEOUT` | `10` | HTTP 超时（秒） |
+| `LHJYPT_MARKET_REAL_REFRESH_MS` | `900000` | 定时自动刷新间隔（ms），`0` 关闭 |
+
+## 定时自动刷新
+
+默认每 15 分钟自动拉取一次默认交易对 K 线（`@Scheduled` + 分布式锁防重，失败静默等待下轮）；`status` 返回 `autoRefreshMs` 与最近刷新时间。
+
+## 基于真实行情的回测
+
+```bash
+# 前提：先刷新真实行情（写入 ClickHouse bar_data）
+curl -X POST "http://localhost:8081/api/market/real/refresh?currencyPair=BTC_USDT&interval=1h&limit=1000" \
+  -H 'X-User-Role: ADMIN' -H 'X-User-Id: admin'
+
+# 真实行情回测（数据窗取 body 时间；频率默认 1h，可 5m/15m/1d）
+curl -X POST "http://localhost:8081/api/backtest/run-real?frequency=1h" \
+  -H 'Content-Type: application/json' -H 'X-User-Role: TRADER' -H 'X-User-Id: trader-1' \
+  -d '{"strategyName":"BUILTIN_SMA","symbols":["BTC_USDT"],"startTime":"2026-10-07T00:00:00","endTime":"2026-10-08T23:59:59","initialCapital":1000000}'
+# -> COMPLETED，指标与交易明细基于真实 K 线（每根 bar 展开 OHLC 参考 tick 撮合）
+
+# 前端「回测」页提供「真实行情回测」按钮
+```
+
+无真实数据时返回 422 提示先执行 refresh。
 
 ## 数据流
 

@@ -1,5 +1,6 @@
 package com.lhjypt.core.service.market.impl.real;
 
+import com.lhjypt.core.config.DistributedLock;
 import com.lhjypt.core.config.RealMarketProperties;
 import com.lhjypt.core.model.market.BarData;
 import com.lhjypt.core.service.market.MarketDataRepository;
@@ -16,7 +17,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -34,7 +37,14 @@ class RealMarketDataServiceTest {
         properties = new RealMarketProperties();
         klineSource = mock(GateioKlineSource.class);
         repository = mock(MarketDataRepository.class);
-        service = new RealMarketDataService(properties, klineSource, repository);
+        DistributedLock distributedLock = mock(DistributedLock.class);
+        // 锁模拟：直接执行回调节（否则 mock 默认不调用任务）
+        when(distributedLock.execute(any(), any(Runnable.class)))
+                .thenAnswer(invocation -> {
+                    invocation.getArgument(1, Runnable.class).run();
+                    return true;
+                });
+        service = new RealMarketDataService(properties, klineSource, repository, distributedLock);
     }
 
     @Test
@@ -85,5 +95,43 @@ class RealMarketDataServiceTest {
         int inserted = service.refresh(null, null, null);
 
         assertThat(inserted).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("定时刷新：拉取失败静默（不抛出，不影响调度）")
+    void scheduledRefreshSwallowsFailure() throws Exception {
+        properties.setRefreshIntervalMs(900000);
+        doThrow(new java.io.IOException("network down"))
+                .when(klineSource).fetchCandles("BTC_USDT", "1h", 200);
+
+        service.scheduledRefresh(); // 不应抛出
+
+        verify(repository, times(0)).saveBar(any(BarData.class));
+    }
+
+    @Test
+    @DisplayName("定时刷新：正常路径使用默认参数并写入")
+    void scheduledRefreshUsesDefaults() throws Exception {
+        properties.setRefreshIntervalMs(900000);
+        when(klineSource.fetchCandles("BTC_USDT", "1h", 200))
+                .thenReturn(List.of(new RealKline(1791338400L, "1", "1", "1", "1", "1", "1")));
+        when(repository.queryBars(any(), any(), any(), any(), eq(1000))).thenReturn(List.of());
+
+        service.scheduledRefresh();
+
+        verify(repository, times(1)).saveBar(any(BarData.class));
+    }
+
+    @Test
+    @DisplayName("禁用或 interval=0 时定时刷新直接跳过")
+    void scheduledRefreshSkippedWhenDisabled() throws Exception {
+        properties.setRefreshIntervalMs(0);
+        service.scheduledRefresh();
+        verify(klineSource, times(0)).fetchCandles(any(), any(), anyInt());
+
+        properties.setRefreshIntervalMs(900000);
+        properties.setEnabled(false);
+        service.scheduledRefresh();
+        verify(klineSource, times(0)).fetchCandles(any(), any(), anyInt());
     }
 }

@@ -47,7 +47,8 @@ public class BacktestController {
      */
     @PostMapping("/run-real")
     public Result<BacktestResult> runReal(@RequestBody BacktestConfig config,
-                                          @RequestParam(required = false) String frequency) {
+                                          @RequestParam(required = false) String frequency,
+                                          @RequestParam(defaultValue = "ohlc") String mode) {
         String symbol = config.getSymbols() != null && !config.getSymbols().isEmpty()
                 ? config.getSymbols().get(0) : "BTC_USDT";
         String freq = frequency != null && !frequency.isBlank() ? frequency
@@ -63,7 +64,9 @@ public class BacktestController {
             return Result.error(422, "无真实行情数据: " + symbol + "@" + freq
                     + "，请先 POST /api/market/real/refresh");
         }
-        List<TickData> ticks = BarTicksMapper.fromBars(bars);
+        List<TickData> ticks = "close".equalsIgnoreCase(mode)
+                ? BarTicksMapper.fromBars(bars, BarTicksMapper.MODE_CLOSE)
+                : BarTicksMapper.fromBars(bars, BarTicksMapper.MODE_OHLC);
         return Result.success(backtestEngine.run(config, ticks));
     }
 

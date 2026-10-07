@@ -96,6 +96,7 @@ export default function BacktestPage() {
   const [task, setTask] = useState<TaskState>("idle");
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  const [signalClose, setSignalClose] = useState(false);
 
   const runBacktest = async (useRealData: boolean) => {
     setRunError(null);
@@ -127,7 +128,10 @@ export default function BacktestPage() {
       // 真实行情回测：后端从 ClickHouse 读真实 K 线（需先 /api/market/real/refresh），
       // 数据频率默认 1h（Gate.io 已入库存档）。
       const resultData = useRealData
-        ? await api.post<BacktestResult>('/api/backtest/run-real?frequency=1h', payload)
+        ? await api.post<BacktestResult>(
+            `/api/backtest/run-real?frequency=1h&mode=${signalClose ? 'close' : 'ohlc'}`,
+            payload,
+          )
         : await api.post<BacktestResult>('/api/backtest/run', payload);
       setResult(resultData);
       setTask("done");
@@ -189,6 +193,14 @@ export default function BacktestPage() {
           <Button variant="default" disabled={task === "running"} onClick={() => runBacktest(true)}>
             真实行情回测
           </Button>
+          <label className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={signalClose}
+              onChange={(event) => setSignalClose(event.target.checked)}
+            />
+            收盘信号（close-only，真实回测）
+          </label>
         </Toolbar>
         {runError && <Notice tone="danger">{runError}</Notice>}
         <Notice tone="warn">

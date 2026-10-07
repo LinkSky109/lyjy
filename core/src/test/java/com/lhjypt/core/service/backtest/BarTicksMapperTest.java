@@ -42,9 +42,31 @@ class BarTicksMapperTest {
     }
 
     @Test
+    @DisplayName("收盘信号模式：每根 bar 仅 1 个收盘价 tick")
+    void mapsBarToCloseTick() {
+        BarData bar = new BarData();
+        bar.setSymbol("BTC_USDT");
+        bar.setOpen(new BigDecimal("84000"));
+        bar.setHigh(new BigDecimal("85000"));
+        bar.setLow(new BigDecimal("83800"));
+        bar.setClose(new BigDecimal("84500"));
+        bar.setVolume(400);
+        bar.setTurnover(new BigDecimal("40000000"));
+        bar.setBarTime(LocalDateTime.of(2026, 10, 7, 12, 0));
+
+        List<TickData> ticks = BarTicksMapper.fromBars(List.of(bar), BarTicksMapper.MODE_CLOSE);
+
+        assertThat(ticks).hasSize(1);
+        assertThat(ticks.get(0).getLastPrice()).isEqualByComparingTo("84500");
+        assertThat(ticks.get(0).getVolume()).isEqualTo(400L);
+        assertThat(ticks.get(0).getTurnover()).isEqualByComparingTo("10000000");
+    }
+
+    @Test
     @DisplayName("空输入返回空序列")
     void emptyInput() {
         assertThat(BarTicksMapper.fromBars(List.of())).isEmpty();
         assertThat(BarTicksMapper.fromBars(null)).isEmpty();
+        assertThat(BarTicksMapper.fromBars(List.of(), "close")).isEmpty();
     }
 }

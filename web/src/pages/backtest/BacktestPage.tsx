@@ -108,6 +108,46 @@ export default function BacktestPage() {
   const [optStrategyId, setOptStrategyId] = useState('');
   const [applyInfo, setApplyInfo] = useState<any>(null);
 
+  // 组合优化（OBS-014）
+  const [pfMembers, setPfMembers] = useState('BTC_USDT:10:20, ETH_USDT:10:20');
+  const [pfMethod, setPfMethod] = useState('RISK_PARITY');
+  const [pfResult, setPfResult] = useState<any>(null);
+  const [pfBusy, setPfBusy] = useState(false);
+  const [pfError, setPfError] = useState<string | null>(null);
+
+  const runPortfolioOptimize = async () => {
+    setPfError(null);
+    setPfResult(null);
+    setPfBusy(true);
+    try {
+      const strategies = pfMembers
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .map((x) => {
+          const [symbol, fast, slow] = x.split(':');
+          return { symbol: symbol.trim(), fast: Number(fast) || 5, slow: Number(slow) || 20 };
+        });
+      if (strategies.length === 0) {
+        throw new Error('请填写组合成员（symbol:fast:slow，逗号分隔）');
+      }
+      const result = await api.post<any>('/api/backtest/portfolio-optimize', {
+        strategies,
+        frequency: '1h',
+        mode: 'close',
+        startTime: toIso(start),
+        endTime: toIso(end),
+        method: pfMethod,
+        step: 0.1,
+      });
+      setPfResult(result);
+    } catch (error) {
+      setPfError(`组合优化失败：${errorText(error)}`);
+    } finally {
+      setPfBusy(false);
+    }
+  };
+
   const runOptimize = async () => {
     setOptError(null);
     setOptResult(null);
@@ -402,6 +442,61 @@ export default function BacktestPage() {
           </AsyncState>
         </Card>
       )}
+      <Card title="组合优化（多策略资金分配）">
+        <Grid columns={2}>
+          <Field label="组合成员（symbol:fast:slow，逗号分隔）">
+            <Input value={pfMembers} onChange={(event) => setPfMembers(event.target.value)} />
+          </Field>
+          <Field label="分配方法">
+            <select
+              value={pfMethod}
+              onChange={(event) => setPfMethod(event.target.value)}
+              style={{ width: '100%', padding: 8 }}
+            >
+              <option value="EQUAL">等权</option>
+              <option value="RISK_PARITY">风险平价（反波动率）</option>
+              <option value="MAX_SHARPE">最大夏普（网格）</option>
+            </select>
+          </Field>
+        </Grid>
+        <Toolbar>
+          <Button variant="primary" disabled={pfBusy} onClick={runPortfolioOptimize}>
+            {pfBusy ? '组合优化中…' : '组合优化'}
+          </Button>
+        </Toolbar>
+        {pfError && <Notice tone="danger">{pfError}</Notice>}
+        {pfResult && (
+          <div style={{ marginTop: 12 }}>
+            <Toolbar>
+              <Badge tone="ok">组合 · {pfResult.method}</Badge>
+              <span className="muted">
+                组合夏普 {pfResult.portfolioSharpe}（等权对照 {pfResult.equalWeightSharpe}）· 年化{' '}
+                {pct(pfResult.portfolioReturn)} · 波动 {pct(pfResult.portfolioVolatility)} · 样本{' '}
+                {pfResult.bars}
+              </span>
+            </Toolbar>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+              <thead>
+                <tr>
+                  <th>成员</th><th>快/慢</th><th>年化收益</th><th>年化波动</th><th>夏普</th><th>权重</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(pfResult.members ?? []).map((m: any, index: number) => (
+                  <tr key={index}>
+                    <td>{m.symbol}</td>
+                    <td>{m.fast}/{m.slow}</td>
+                    <td>{pct(m.annualReturn)}</td>
+                    <td>{pct(m.annualVolatility)}</td>
+                    <td>{m.sharpe}</td>
+                    <td><b>{pct(m.weight)}</b></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </Page>
   );
 }

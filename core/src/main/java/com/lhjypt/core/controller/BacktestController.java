@@ -7,11 +7,14 @@ import com.lhjypt.core.model.backtest.BacktestConfig;
 import com.lhjypt.core.model.backtest.BacktestResult;
 import com.lhjypt.core.model.backtest.OptimizeRequest;
 import com.lhjypt.core.model.backtest.OptimizeResult;
+import com.lhjypt.core.model.backtest.PortfolioOptimizeRequest;
+import com.lhjypt.core.model.backtest.PortfolioOptimizeResult;
 import com.lhjypt.core.model.backtest.StrategyOptimization;
 import com.lhjypt.core.model.market.BarData;
 import com.lhjypt.core.model.market.TickData;
 import com.lhjypt.core.service.backtest.BacktestEngine;
 import com.lhjypt.core.service.backtest.BarTicksMapper;
+import com.lhjypt.core.service.backtest.PortfolioOptimizerService;
 import com.lhjypt.core.service.backtest.StrategyOptimizerService;
 import com.lhjypt.core.service.market.MarketDataRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,7 @@ public class BacktestController {
     private final BacktestEngine backtestEngine;
     private final MarketDataRepository marketDataRepository;
     private final StrategyOptimizerService strategyOptimizerService;
+    private final PortfolioOptimizerService portfolioOptimizerService;
 
     private static final DateTimeFormatter ISO_LOCAL =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
@@ -57,6 +61,13 @@ public class BacktestController {
     public Result<List<StrategyOptimization>> optimizationHistory(
             @RequestParam(defaultValue = "20") int limit) {
         return Result.success(strategyOptimizerService.history(limit));
+    }
+
+    /** 组合层优化：多策略资金分配（OBS-014）。 */
+    @PostMapping("/portfolio-optimize")
+    public Result<PortfolioOptimizeResult> portfolioOptimize(
+            @RequestBody PortfolioOptimizeRequest request) {
+        return Result.success(portfolioOptimizerService.optimize(request));
     }
 
     /**

@@ -105,6 +105,10 @@ public class DockerSandboxExecutor implements SandboxExecutor {
         command.add("PYTHONUNBUFFERED=1");
         command.add("-e");
         command.add("LHJYPT_SANDBOX_ONESHOT=" + (request.oneshot() ? "1" : "0"));
+        if (request.paramsJson() != null && !request.paramsJson().isBlank()) {
+            command.add("-e");
+            command.add("LHJYPT_STRATEGY_PARAMS=" + request.paramsJson());
+        }
         command.add("-e");
         // SDK 挂载到顶层 /sdk：嵌套挂载点(/sandbox/sdk)在部分 Docker 运行时无法创建
         command.add("PYTHONPATH=/sdk");

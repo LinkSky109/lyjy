@@ -91,21 +91,21 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "obs-012-opt-apply"
-  task_id: "OBS-012"
-  task_name: "优化落地闭环（多标的 + 存档 + 应用）"
-  create_time: "2026-10-07 15:00:00"
+  workflow_id: "obs-014-portfolio-opt"
+  task_id: "OBS-014"
+  task_name: "策略参数化注入 + 组合层优化"
+  create_time: "2026-10-07 15:40:00"
   current_phase: "STRATEGY-OPT"
   current_global_state: "GLOBAL_DONE"
-  current_node: "OBS-012_COMPLETE"
+  current_node: "OBS-014_COMPLETE"
   current_node_status: "DONE"
   feature_branch: "feature/obs-012-opt-apply"
-  baseline_commit: "e7fda20"
+  baseline_commit: "84b3ec1"
   requirement_doc: ".workflow/requirements-supplement.md"
   tasks_doc: ".workflow/p2-plan.md"
-  workflow_plan_doc: ".workflow/obs-task-012-opt-apply-report.md"
+  workflow_plan_doc: ".workflow/obs-task-014-portfolio-report.md"
   blocking_reason: ""
-  next_action: "寻优→存档→应用闭环；可选项：策略源码参数化(优化参数注入沙箱运行)、组合层优化、P3 规划"
+  next_action: "策略优化/参数注入/组合分配闭环；可选项：多频段稳健性检验、策略回撤熔断联动、P3 规划"
 
 p15_context:
   plan_status: "PLANNED"
@@ -382,4 +382,8 @@ operation_logs:
   - time: "2026-10-07 15:02:00"
     operator: "codex/agent-continuous-workflow"
     action: "OBS-012 优化落地闭环完成：优化支持多标的（symbols 逐个寻优、单标的失败带 error 不中断整批）；新增 strategy_optimization 存档表（迁移 p2_011 + init-p2：batchId/最优参数/指标/基准/bars/时间窗/runs_json）；POST /api/backtest/optimize/apply（读存档→最优参数复验回测→可选落档到策略 params_json，归属校验）与 GET /optimize/history；前端优化面板多标的结果列表+批次+「应用最优(复验)」按钮+复验指标。真实 E2E：BTC 有数据 best 10/20、ETH 无数据带 error 容错；ETH refresh 200 根后 best 10/20；应用最优 applied=True 复验 ret -0.297%/5 笔/dd 0.33%；参数落档 params_json={'fast':10,'slow':20,'source':'optimizer','batchId':'OPT-…','objective':'TOTAL_RETURN'}。单测 4（含应用复验），mvn verify 273/273（0跳过）；前端 build 通过。『寻优→存档→应用』闭环。"
+    result: "success"
+  - time: "2026-10-07 15:42:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "OBS-013 策略源码参数化 + OBS-014 组合层优化完成。①参数注入：SDK lhjypt/runtime/params.py（load_params/get_param 读 LHJYPT_STRATEGY_PARAMS，容错）、DockerSandboxExecutor 补齐 LHJYPT_STRATEGY_PARAMS 注入（此前仅进程沙箱）、signal_trade.py 参数化（fast/slow 优先读平台参数）；E2E 落档 params={fast:10,slow:20} → 运行 outputTail 显示 [sig] params fast=10 slow=20 → 参数化信号下单成交，闭环『优化参数→落档→注入→驱动策略』。②组合优化：PortfolioOptimizerService（成员各真实回测取权益收益序列；EQUAL/RISK_PARITY/MAX_SHARPE 权重分配；组合与等权对照指标）+ POST /api/backtest/portfolio-optimize + 前端组合优化卡片；E2E 三方法：EQUAL 0.5/0.5=对照 -4.229、RISK_PARITY 反波动率降波动至 0.0010、MAX_SHARPE -4.095≥等权。SDK pytest 29/29（新增 params 2）；后端 mvn verify 276/276（新增组合 3）；前端 build 通过。"
     result: "success"

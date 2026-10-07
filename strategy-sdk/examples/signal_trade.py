@@ -15,6 +15,7 @@ import time
 from lhjypt.api.strategy import Strategy
 from lhjypt.indicators import SMA
 from lhjypt.live.live_api import LiveApiError, LiveDataAPI, LiveOrderAPI, RestClient
+from lhjypt.runtime.params import get_param
 
 SYMBOL = "BTC_USDT"
 ACCOUNT = "DEFAULT-001"
@@ -27,6 +28,10 @@ class SignalTrader(Strategy):
         self.alive = True
         self.pos = 0
         self.no_signal_rounds = 0
+        # 参数化：优先使用平台注入参数（可由「策略参数优化」落档），缺省 5/20
+        self.fast_period = int(get_param("fast", 5))
+        self.slow_period = int(get_param("slow", 20))
+        print("[sig] params fast=%d slow=%d" % (self.fast_period, self.slow_period))
         threading.Thread(target=self.loop, daemon=True).start()
 
     def on_start(self):
@@ -40,14 +45,14 @@ class SignalTrader(Strategy):
                               user_id="trader-1")
         while self.alive:
             try:
-                bars = data.get_bar(SYMBOL, "1h", 30)
-                if len(bars) < 26:
+                bars = data.get_bar(SYMBOL, "1h", max(30, self.slow_period + 10))
+                if len(bars) < self.slow_period + 1:
                     print("[sig] 真实K线不足(%d)，等待…" % len(bars))
                     time.sleep(3)
                     continue
                 closes = [float(b["close"]) for b in bars]
-                fast = SMA(closes, 5)[-1]
-                slow = SMA(closes, 20)[-1]
+                fast = SMA(closes, self.fast_period)[-1]
+                slow = SMA(closes, self.slow_period)[-1]
 
                 # 幂等：先对齐本地持仓（平旧仓）
                 if self.pos == 0:
@@ -69,7 +74,7 @@ class SignalTrader(Strategy):
                         print("[sig] 金叉买入 %s @%.2f -> %s" % (SYMBOL, last, order_id))
                     else:
                         self.no_signal_rounds += 1
-                        print("[sig] 无信号，close=%.2f sma5=%.2f sma20=%.2f"
+                        print("[sig] 无信号，close=%.2f fast=%.2f slow=%.2f"
                               % (last, fast, slow))
                         # 演示注单：连续 2 轮无信号则按当前价强制下一单（演练展示成交路径）
                         if self.no_signal_rounds >= 2:
@@ -85,7 +90,7 @@ class SignalTrader(Strategy):
                         self.no_signal_rounds = 0
                         print("[sig] 死叉平仓 %s @%.2f" % (SYMBOL, last))
                     else:
-                        print("[sig] 持仓中，sma5=%.2f sma20=%.2f" % (fast, slow))
+                        print("[sig] 持仓中，fast=%.2f slow=%.2f" % (fast, slow))
             except LiveApiError as error:
                 print("[sig] api error:", error.code, str(error)[:80])
             except Exception as error:  # noqa: BLE001

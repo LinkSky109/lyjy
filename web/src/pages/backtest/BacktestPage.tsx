@@ -98,6 +98,45 @@ export default function BacktestPage() {
   const [runError, setRunError] = useState<string | null>(null);
   const [signalClose, setSignalClose] = useState(false);
 
+  // 参数优化（OBS-011）
+  const [optFast, setOptFast] = useState('3,5,8');
+  const [optSlow, setOptSlow] = useState('15,20,30');
+  const [optObjective, setOptObjective] = useState('SHARPE');
+  const [optResult, setOptResult] = useState<any>(null);
+  const [optBusy, setOptBusy] = useState(false);
+  const [optError, setOptError] = useState<string | null>(null);
+
+  const runOptimize = async () => {
+    setOptError(null);
+    setOptResult(null);
+    setOptBusy(true);
+    try {
+      const fasts = optFast.split(',').map((x) => Number(x.trim())).filter((n) => n > 0);
+      const slows = optSlow.split(',').map((x) => Number(x.trim())).filter((n) => n > 0);
+      const tickSymbols = symbols.split(',').map((s) => s.trim()).filter(Boolean);
+      if (fasts.length === 0 || slows.length === 0) {
+        throw new Error('请填写快慢周期候选（逗号分隔）');
+      }
+      const result = await api.post<any>('/api/backtest/optimize', {
+        symbol: tickSymbols[0] || 'BTC_USDT',
+        frequency: '1h',
+        mode: signalClose ? 'close' : 'ohlc',
+        startTime: toIso(start),
+        endTime: toIso(end),
+        fastOptions: fasts,
+        slowOptions: slows,
+        objective: optObjective,
+        maxDrawdownLimit: 0.2,
+        quantity: 1,
+      });
+      setOptResult(result);
+    } catch (error) {
+      setOptError(`优化失败：${errorText(error)}`);
+    } finally {
+      setOptBusy(false);
+    }
+  };
+
   const runBacktest = async (useRealData: boolean) => {
     setRunError(null);
     setResult(null);
@@ -207,6 +246,65 @@ export default function BacktestPage() {
           真实行情回测使用 ClickHouse 中的真实 K 线（默认 1h），数据来自 Gate.io；
           如无数据请先执行 POST /api/market/real/refresh。
         </Notice>
+      </Card>
+
+      <Card title="策略参数优化（双均线网格寻优，真实行情）">
+        <Grid columns={3}>
+          <Field label="快线周期候选（逗号分隔）">
+            <Input value={optFast} onChange={(event) => setOptFast(event.target.value)} />
+          </Field>
+          <Field label="慢线周期候选（逗号分隔）">
+            <Input value={optSlow} onChange={(event) => setOptSlow(event.target.value)} />
+          </Field>
+          <Field label="目标函数">
+            <select
+              value={optObjective}
+              onChange={(event) => setOptObjective(event.target.value)}
+              style={{ width: '100%', padding: 8 }}
+            >
+              <option value="SHARPE">夏普比率</option>
+              <option value="TOTAL_RETURN">总收益</option>
+              <option value="CALMAR">卡玛比率</option>
+            </select>
+          </Field>
+        </Grid>
+        <Toolbar>
+          <Button variant="primary" disabled={optBusy} onClick={runOptimize}>
+            {optBusy ? '优化中…' : '参数优化'}
+          </Button>
+        </Toolbar>
+        {optError && <Notice tone="danger">{optError}</Notice>}
+        {optResult && (
+          <div style={{ marginTop: 16 }}>
+            <Toolbar>
+              <Badge tone="ok">最优参数</Badge>
+              <span className="muted">
+                快线 {optResult.best?.fast} / 慢线 {optResult.best?.slow} · ret{' '}
+                {pct(optResult.best?.totalReturn)} · dd {pct(optResult.best?.maxDrawdown)} · 交易{' '}
+                {optResult.best?.trades} 笔
+              </span>
+              <span className="muted">
+                （基准 5/20：ret {pct(optResult.baseline?.totalReturn)}）
+              </span>
+            </Toolbar>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+              <thead>
+                <tr>
+                  <th>快线</th><th>慢线</th><th>总收益</th><th>夏普</th><th>最大回撤</th><th>交易数</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(optResult.runs ?? []).map((run: any, index: number) => (
+                  <tr key={index} style={run === optResult.best ? { background: '#e6f4ea' } : undefined}>
+                    <td>{run.fast}</td><td>{run.slow}</td>
+                    <td>{pct(run.totalReturn)}</td><td>{run.sharpe?.toFixed(3)}</td>
+                    <td>{pct(run.maxDrawdown)}</td><td>{run.trades}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
 
       {task !== "idle" && (

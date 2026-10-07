@@ -3,10 +3,13 @@ package com.lhjypt.core.controller;
 import com.lhjypt.core.common.Result;
 import com.lhjypt.core.model.backtest.BacktestConfig;
 import com.lhjypt.core.model.backtest.BacktestResult;
+import com.lhjypt.core.model.backtest.OptimizeRequest;
+import com.lhjypt.core.model.backtest.OptimizeResult;
 import com.lhjypt.core.model.market.BarData;
 import com.lhjypt.core.model.market.TickData;
 import com.lhjypt.core.service.backtest.BacktestEngine;
 import com.lhjypt.core.service.backtest.BarTicksMapper;
+import com.lhjypt.core.service.backtest.StrategyOptimizerService;
 import com.lhjypt.core.service.market.MarketDataRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -25,9 +28,16 @@ public class BacktestController {
 
     private final BacktestEngine backtestEngine;
     private final MarketDataRepository marketDataRepository;
+    private final StrategyOptimizerService strategyOptimizerService;
 
     private static final DateTimeFormatter ISO_LOCAL =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
+    /** 策略参数优化：真实行情网格寻优（OBS-011）。 */
+    @PostMapping("/optimize")
+    public Result<OptimizeResult> optimize(@RequestBody OptimizeRequest request) {
+        return Result.success(strategyOptimizerService.optimize(request));
+    }
 
     /**
      * 同步运行回测（使用模拟数据）

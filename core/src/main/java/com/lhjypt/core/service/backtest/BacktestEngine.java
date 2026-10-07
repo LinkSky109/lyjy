@@ -45,6 +45,12 @@ public class BacktestEngine {
      * @return 回测结果
      */
     public BacktestResult run(BacktestConfig config, List<TickData> ticks) {
+        return run(config, ticks, new BuiltInStrategy());
+    }
+
+    /** 支持注入参数化策略（策略优化器用）。 */
+    public BacktestResult run(BacktestConfig config, List<TickData> ticks,
+                              BuiltInStrategy strategy) {
         String backtestId = "BT-" + UUID.randomUUID().toString().substring(0, 8);
         config.setBacktestId(backtestId);
 
@@ -71,7 +77,7 @@ public class BacktestEngine {
             int tradeCount = 0;
 
             // 内置示例策略信号源（外部策略脚本接入前用于闭环自检）
-            BuiltInStrategy strategy = new BuiltInStrategy();
+            BuiltInStrategy builtIn = strategy == null ? new BuiltInStrategy() : strategy;
 
             // 3. 逐tick回测
             for (TickData tick : ticks) {
@@ -80,7 +86,7 @@ public class BacktestEngine {
                 }
 
                 // 3.1 撮合挂单
-                strategy.onTick(tick, matchingEngine);
+                builtIn.onTick(tick, matchingEngine);
             List<TradeRecord> trades = matchingEngine.processTick(tick);
                 for (TradeRecord trade : trades) {
                     // 更新资金和持仓

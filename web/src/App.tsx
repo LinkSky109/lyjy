@@ -14,6 +14,7 @@ import PortfolioPage from './pages/portfolio/PortfolioPage';
 import SettlementPage from './pages/settlement/SettlementPage';
 import GatewayPage from './pages/gateway/GatewayPage';
 import StrategyPage from './pages/strategy/StrategyPage';
+import RiskBoardPage from './pages/strategy/RiskBoardPage';
 import BacktestPage from './pages/backtest/BacktestPage';
 import DegradePage from './pages/degrade/DegradePage';
 
@@ -38,6 +39,7 @@ export default function App() {
             <Route path="/monitor" element={<MonitorPage />} />
             <Route path="/strategy" element={<StrategyPage />} />
             <Route path="/backtest" element={<BacktestPage />} />
+            <Route path="/risk-board" element={<RiskBoardPage />} />
             <Route path="/degrade" element={<DegradePage />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>

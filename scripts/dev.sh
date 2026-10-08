@@ -27,6 +27,20 @@ PG="docker exec -i lhjypt-postgres psql -U lhjypt -d lhjypt"
 BACKEND_PID_FILE="$ROOT/.runtime/backend.pid"
 FRONTEND_PID_FILE="$ROOT/.runtime/frontend.pid"
 
+# 日志轮转：单文件超过 10MB 归档，保留最近 5 个（P3-002）
+rotate_logs() {
+  mkdir -p "$ROOT/logs"
+  for name in backend frontend; do
+    local f="$ROOT/logs/$name.log"
+    if [ -f "$f" ] && [ "$(wc -c < "$f" | tr -d ' ')" -gt 10485760 ]; then
+      mv "$f" "$ROOT/logs/$name.log.$(date +%Y%m%d-%H%M%S)"
+      echo "[dev] 日志轮转: $name.log"
+    fi
+  done
+  ls -1t "$ROOT/logs"/backend.log.* 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null || true
+  ls -1t "$ROOT/logs"/frontend.log.* 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null || true
+}
+
 start_middleware() {
   local all_present=1
   for c in lhjypt-postgres lhjypt-clickhouse lhjypt-kafka lhjypt-redis lhjypt-zookeeper; do
@@ -60,6 +74,7 @@ apply_sql() {
 }
 
 backend_up() {
+  rotate_logs
   if curl -s -m 2 http://localhost:8081/actuator/health 2>/dev/null | grep -q '"status":"UP"'; then
     echo "[dev] 后端已在运行 (8081)"
     return 0
@@ -84,6 +99,7 @@ backend_up() {
 }
 
 frontend_up() {
+  rotate_logs
   if curl -s -m 2 -o /dev/null -w '%{http_code}' http://localhost:5173/ 2>/dev/null | grep -q 200; then
     echo "[dev] 前端已在运行 (5173)"
     return 0

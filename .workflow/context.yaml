@@ -91,21 +91,21 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "p3-001-backup"
-  task_id: "P3-001"
-  task_name: "数据备份与恢复（单机生产化）"
+  workflow_id: "p3-002-service"
+  task_id: "P3-002"
+  task_name: "部署常驻与进程守护"
   create_time: "2026-10-08 13:55:00"
   current_phase: "P3-第一批A"
   current_global_state: "GLOBAL_IN_DEV"
-  current_node: "P3-001_COMPLETE"
+  current_node: "P3-002_COMPLETE"
   current_node_status: "DONE"
-  feature_branch: "feature/p3-001-backup"
-  baseline_commit: "4c6f268"
+  feature_branch: "feature/p3-002-service"
+  baseline_commit: "8de6c40"
   requirement_doc: ".workflow/p3-plan.md"
   tasks_doc: ".workflow/p3-plan.md"
-  workflow_plan_doc: ".workflow/p3-task-001-backup-report.md"
+  workflow_plan_doc: ".workflow/p3-task-002-service-report.md"
   blocking_reason: ""
-  next_action: "P3-002 部署常驻与进程守护（launchd/systemd 模板 + 日志轮转）"
+  next_action: "P3-003 启动自检与健康巡检"
 
 p15_context:
   plan_status: "PLANNED"
@@ -157,10 +157,10 @@ p3_context:
   positioning: "单人使用：部署常驻/数据不丢/可观测/密钥加固/性能；明确不做多活·灾备·微服务·对外多租户（观察期项）"
   batch_order: "A 部署常驻与备份 → B 可观测性与密钥 → C 行情质量与性能"
   task_count: 7
-  task_done: 1
-  current_task: "P3-001 数据备份与恢复"
+  task_done: 2
+  current_task: "P3-002 部署常驻与进程守护"
   current_task_status: "DONE"
-  next_action: "P3-002 部署常驻与进程守护"
+  next_action: "P3-003 启动自检与健康巡检"
 
 # 一致性校验上下文
 consistency_context:
@@ -422,4 +422,8 @@ operation_logs:
   - time: "2026-10-08 13:58:00"
     operator: "codex/agent-continuous-workflow"
     action: "P3 规划 + P3-001 数据备份与恢复完成：产出 .workflow/p3-plan.md（定位单机生产化与可持续运营；明确不做多活/灾备/微服务/对外多租户，记为观察期项；7 任务分批 A 部署与备份/B 可观测与密钥/C 行情质量与性能）。P3-001 交付 scripts/backup.sh（backup/list/verify/restore：PG 逻辑备份 + CH 关键表 Native 导出 + 配置打包排除密钥 + manifest 行数/sha256 + 归档 sha256）与 docs/backup.md；演练全绿：备份 173K → 破坏（删 PG 数据+TRUNCATE bar_data）→ 恢复 → 校验 tenants1/strategies3/aml_rules2/opt_archive6/bar_data788/metric_sample74475 与基线完全一致。修复 trap unbound（${work:-}）与 CH 空表回灌中断（空表跳过）。"
+    result: "success"
+  - time: "2026-10-08 15:20:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "P3-002 部署常驻与进程守护完成：新增 scripts/service.sh（install/uninstall/status/logs；macOS launchd RunAtLoad+KeepAlive 自动生成 plist 并注入 DOCKER_HOST/MOCK；Linux systemd unit Restart=always；Java 路径自动探测）+ dev.sh 日志轮转 rotate_logs（>10MB 归档保留 5 个）+ docs/deploy.md。真实演练：launchd 安装 running+健康 UP → kill -9 pid33782 → 8s 自愈 pid33828 健康 UP → 造 11M 日志 dev.sh up 轮转为 backend.log.20261008-151811 → 卸载无残留并 dev.sh 恢复。后端无 Java 改动（mvn 基线 288/288）。进程守护能力就绪。"
     result: "success"

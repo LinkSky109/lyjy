@@ -67,6 +67,10 @@ export default function StrategyPage() {
   const [watchdogOn, setWatchdogOn] = useState(false);
   const [circuitPct, setCircuitPct] = useState('5');
   const [circuitInfo, setCircuitInfo] = useState<string | null>(null);
+  const [pfKey, setPfKey] = useState('PF-COMBINED');
+  const [pfMembersInput, setPfMembersInput] = useState('');
+  const [pfPct, setPfPct] = useState('5');
+  const [pfCircuitInfo, setPfCircuitInfo] = useState<string | null>(null);
 
   const [strategyId, setStrategyId] = useState('');
   const [codeName, setCodeName] = useState('');
@@ -184,6 +188,32 @@ export default function StrategyPage() {
       );
       setWatchdogOn(result.enabled ?? next);
       setOkMsg(`自动值守已${result.enabled ?? next ? '开启' : '关闭'}：策略离线时每 30s 自动拉起`);
+    });
+
+  const setPortfolioCircuit = (enabled: boolean) =>
+    run(async () => {
+      const members = pfMembersInput
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (members.length === 0) {
+        throw new Error('请填写成员策略（逗号分隔）');
+      }
+      const result = await api.post<{ portfolioKey?: string; memberStrategies?: string; enabled?: boolean }>(
+        '/api/strategy/portfolio-circuit',
+        undefined,
+        {
+          params: {
+            portfolioKey: pfKey.trim(),
+            members: members.join(','),
+            maxDrawdownPct: Number(pfPct) / 100,
+            enabled,
+          },
+        },
+      );
+      setPfCircuitInfo(
+        `组合风控已${result.enabled ? '启用' : '关闭'}：${result.portfolioKey} · 成员 ${members.length} 个 · 阈值 ${pfPct}%`,
+      );
     });
 
   const stopStrategy = () =>
@@ -308,6 +338,32 @@ export default function StrategyPage() {
             </Toolbar>
           </div>
           {circuitInfo && <Notice tone="ok">{circuitInfo}</Notice>}
+          <div style={{ marginTop: 12 }}>
+            <Toolbar>
+              <Field label="组合标识">
+                <Input value={pfKey} onChange={(event) => setPfKey(event.target.value)} />
+              </Field>
+              <Field label="成员策略（逗号分隔）" hint="任一成员运行中即纳入组合风控">
+                <Input
+                  value={pfMembersInput}
+                  onChange={(event) => setPfMembersInput(event.target.value)}
+                  placeholder="SIG-A,SIG-B"
+                />
+              </Field>
+              <Field label="组合回撤阈值（%）">
+                <Input value={pfPct} onChange={(event) => setPfPct(event.target.value)} />
+              </Field>
+            </Toolbar>
+            <Toolbar>
+              <Button variant="default" size="sm" disabled={busy} onClick={() => setPortfolioCircuit(true)}>
+                启用组合风控
+              </Button>
+              <Button variant="danger" size="sm" disabled={busy} onClick={() => setPortfolioCircuit(false)}>
+                关闭组合风控
+              </Button>
+            </Toolbar>
+            {pfCircuitInfo && <Notice tone="ok">{pfCircuitInfo}</Notice>}
+          </div>
 
           <div style={{ marginTop: 16 }}>
             {!strategyId.trim() ? (

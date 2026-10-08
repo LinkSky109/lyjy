@@ -101,6 +101,18 @@ class RegulatorySchemaTest {
     }
 
     @Test
+    void portfolioCircuitMigrationIsAdditive() throws IOException {
+        String init = readProjectFile("scripts/init-p2.sql");
+        assertTrue(init.contains("CREATE TABLE IF NOT EXISTS portfolio_circuit"));
+        assertTrue(init.contains("member_strategies"));
+        String sql = readProjectFile("scripts/migration/p2_013_portfolio_circuit.sql");
+        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS portfolio_circuit"));
+        String upper = sql.toUpperCase();
+        assertTrue(!upper.contains("DROP TABLE"));
+        assertTrue(!upper.contains("TRUNCATE"));
+    }
+
+    @Test
     void tenantMigrationIsAdditiveAndScopesStrategyInfo() throws IOException {
         String sql = readProjectFile("scripts/migration/p2_006_multi_tenant.sql");
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS tenant"));

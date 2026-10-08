@@ -2,12 +2,15 @@ package com.lhjypt.core.service.strategy;
 
 import com.lhjypt.core.common.auth.UserContext;
 import com.lhjypt.core.config.DistributedLock;
+import com.lhjypt.core.mapper.AlertEventMapper;
 import com.lhjypt.core.mapper.PositionMapper;
 import com.lhjypt.core.mapper.StrategyCircuitMapper;
 import com.lhjypt.core.mapper.StrategyInfoMapper;
 import com.lhjypt.core.model.Position;
+import com.lhjypt.core.model.monitor.AlertEvent;
 import com.lhjypt.core.model.strategy.StrategyCircuit;
 import com.lhjypt.core.model.strategy.StrategyInfo;
+import com.lhjypt.core.service.monitor.AlertNotifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,6 +35,8 @@ class StrategyCircuitBreakerServiceTest {
     private StrategyInfoMapper strategyInfoMapper;
     private PositionMapper positionMapper;
     private StrategySecurityService securityService;
+    private AlertEventMapper alertEventMapper;
+    private AlertNotifier alertNotifier;
     private StrategyCircuitBreakerService service;
 
     @BeforeEach
@@ -40,13 +45,15 @@ class StrategyCircuitBreakerServiceTest {
         strategyInfoMapper = mock(StrategyInfoMapper.class);
         positionMapper = mock(PositionMapper.class);
         securityService = mock(StrategySecurityService.class);
+        alertEventMapper = mock(AlertEventMapper.class);
+        alertNotifier = mock(AlertNotifier.class);
         DistributedLock lock = mock(DistributedLock.class);
         doAnswer(inv -> {
             inv.getArgument(1, Runnable.class).run();
             return true;
         }).when(lock).execute(anyString(), any(Runnable.class));
         service = new StrategyCircuitBreakerService(circuitMapper, strategyInfoMapper,
-                positionMapper, securityService, lock);
+                positionMapper, securityService, lock, alertEventMapper, alertNotifier);
     }
 
     private static Position position(double qty, double avgCost, double pnl) {
@@ -92,6 +99,12 @@ class StrategyCircuitBreakerServiceTest {
         verify(circuitMapper).updateById(captor.capture());
         assertThat(captor.getValue().getTripped()).isTrue();
         assertThat(captor.getValue().getLastTripTime()).isNotNull();
+        // 告警落库 + 通知
+        ArgumentCaptor<AlertEvent> eventCaptor = ArgumentCaptor.forClass(AlertEvent.class);
+        verify(alertEventMapper).insert(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getRuleId()).isEqualTo("strategy.circuit");
+        assertThat(eventCaptor.getValue().getSeverity()).isEqualTo("CRITICAL");
+        verify(alertNotifier).notify(any(AlertEvent.class));
     }
 
     @Test

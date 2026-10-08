@@ -2,12 +2,15 @@ package com.lhjypt.core.service.strategy;
 
 import com.lhjypt.core.common.auth.UserContext;
 import com.lhjypt.core.config.DistributedLock;
+import com.lhjypt.core.mapper.AlertEventMapper;
 import com.lhjypt.core.mapper.PositionMapper;
 import com.lhjypt.core.mapper.StrategyCircuitMapper;
 import com.lhjypt.core.mapper.StrategyInfoMapper;
 import com.lhjypt.core.model.Position;
+import com.lhjypt.core.model.monitor.AlertEvent;
 import com.lhjypt.core.model.strategy.StrategyCircuit;
 import com.lhjypt.core.model.strategy.StrategyInfo;
+import com.lhjypt.core.service.monitor.AlertNotifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,6 +20,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 策略回撤熔断（OBS-016）：跟踪运行中策略的持仓浮盈率峰值，
@@ -32,17 +36,23 @@ public class StrategyCircuitBreakerService {
     private final PositionMapper positionMapper;
     private final StrategySecurityService strategySecurityService;
     private final DistributedLock distributedLock;
+    private final AlertEventMapper alertEventMapper;
+    private final AlertNotifier alertNotifier;
 
     public StrategyCircuitBreakerService(StrategyCircuitMapper circuitMapper,
                                          StrategyInfoMapper strategyInfoMapper,
                                          PositionMapper positionMapper,
                                          StrategySecurityService strategySecurityService,
-                                         DistributedLock distributedLock) {
+                                         DistributedLock distributedLock,
+                                         AlertEventMapper alertEventMapper,
+                                         AlertNotifier alertNotifier) {
         this.circuitMapper = circuitMapper;
         this.strategyInfoMapper = strategyInfoMapper;
         this.positionMapper = positionMapper;
         this.strategySecurityService = strategySecurityService;
         this.distributedLock = distributedLock;
+        this.alertEventMapper = alertEventMapper;
+        this.alertNotifier = alertNotifier;
     }
 
     /** 设置/更新熔断阈值（归属校验：非 ADMIN 仅本人策略）。 */
@@ -131,6 +141,29 @@ public class StrategyCircuitBreakerService {
             circuit.setLastTripTime(LocalDateTime.now());
             circuit.setUpdateTime(LocalDateTime.now());
             circuitMapper.updateById(circuit);
+            notifyTrip(circuit, peak, pnlRate, drawdown);
+        }
+    }
+
+    /** 熔断告警：落库（ruleId=strategy.circuit）+ 外部渠道通知（失败不影响主流程）。 */
+    private void notifyTrip(StrategyCircuit circuit, BigDecimal peak,
+                            BigDecimal current, BigDecimal drawdown) {
+        try {
+            AlertEvent event = new AlertEvent();
+            event.setEventId("EVT-" + UUID.randomUUID().toString().substring(0, 8));
+            event.setRuleId("strategy.circuit");
+            event.setMetricKey("strategy:" + circuit.getStrategyId());
+            event.setValue(String.format("%.4f", drawdown));
+            event.setSeverity("CRITICAL");
+            event.setMessage(String.format(
+                    "[CRITICAL] 策略回撤熔断 %s - 峰值浮盈率 %s 当前 %s 回撤 %s ≥ 阈值 %s，已自动停止策略",
+                    circuit.getStrategyId(), peak, current, drawdown, circuit.getMaxDrawdownPct()));
+            event.setStatus("OPEN");
+            event.setCreateTime(LocalDateTime.now());
+            alertEventMapper.insert(event);
+            alertNotifier.notify(event);
+        } catch (Exception error) {
+            log.warn("熔断告警通知失败（不影响停止）: {}", error.getMessage());
         }
     }
 

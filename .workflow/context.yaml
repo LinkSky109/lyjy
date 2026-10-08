@@ -91,21 +91,21 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "obs-016-circuit-breaker"
-  task_id: "OBS-016"
-  task_name: "策略回撤熔断 + 修复版结论复核"
-  create_time: "2026-10-08 13:00:00"
+  workflow_id: "obs-017-circuit-alert"
+  task_id: "OBS-017"
+  task_name: "熔断告警通知联动"
+  create_time: "2026-10-08 13:20:00"
   current_phase: "STRATEGY-RISK"
   current_global_state: "GLOBAL_DONE"
-  current_node: "OBS-016_COMPLETE"
+  current_node: "OBS-017_COMPLETE"
   current_node_status: "DONE"
   feature_branch: "feature/obs-016-circuit-breaker"
-  baseline_commit: "e4ea4c9"
+  baseline_commit: "718deb8"
   requirement_doc: ".workflow/requirements-supplement.md"
   tasks_doc: ".workflow/p2-plan.md"
-  workflow_plan_doc: ".workflow/obs-task-016-circuit-breaker-report.md"
+  workflow_plan_doc: ".workflow/obs-task-017-circuit-alert-report.md"
   blocking_reason: ""
-  next_action: "策略风控闭环（优化→落档→值守→熔断）；可选项：熔断告警通知、多策略组合风控、P3 规划"
+  next_action: "策略风控+告警闭环；可选项：多策略组合风控 / P3 规划"
 
 p15_context:
   plan_status: "PLANNED"
@@ -394,4 +394,8 @@ operation_logs:
   - time: "2026-10-08 13:05:00"
     operator: "codex/agent-continuous-workflow"
     action: "OBS-016 策略回撤熔断完成 + 修复版结论复核：新增 strategy_circuit 表（迁移 p2_012）与 StrategyCircuitBreakerService（@Scheduled 30s+锁；持仓浮盈率=ΣunrealizedPnl/Σ|qty×avgCost|，维护峰值，回撤≥阈值自动 stop 策略并 tripped 留痕）+ POST /api/strategy/{id}/circuit 与 /circuit/list + 前端策略页回撤熔断设置。真实 E2E：建仓 1 手 BTC_USDT → 阈值 1e-6 → 模拟浮亏 -10000/峰值 0.1 → 定时扫描自动 STOPPED、tripped=t、last_trip_time 记录。复核（时序修复后）：优化 BTC 5/20 +0.113%、组合 MAX_SHARPE -3.540≥等权 -3.876、稳健性 BTC OVERFIT_RISK（样本内+0.255%→样本外-0.051%），结论自洽。新增单测 4（熔断 3 + schema 1），mvn verify 283/283（0跳过）；前端 build 通过。策略风控闭环：优化→落档→值守→熔断。"
+    result: "success"
+  - time: "2026-10-08 13:22:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "OBS-017 熔断告警通知联动完成：StrategyCircuitBreakerService 触发熔断时新增告警落库（alert_event：rule_id=strategy.circuit、metric_key=strategy:<id>、severity=CRITICAL、status=OPEN、message 含峰值/回撤/阈值）+ 复用 AlertNotifier 外部渠道通知（失败仅日志不阻断停止）。真实 E2E：建仓→阈值 1e-6→构造浮亏→第 3 轮熔断 STOPPED 且 alert_event 落库 EVT-c08a290f/CRITICAL。单测 3（新增告警落库+通知断言），mvn verify 283/283（0跳过）。熔断不再静默：触发即告警与推送。"
     result: "success"

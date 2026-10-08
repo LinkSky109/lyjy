@@ -246,6 +246,19 @@ CREATE TABLE IF NOT EXISTS strategy_optimization (
 CREATE INDEX IF NOT EXISTS idx_opt_batch ON strategy_optimization(batch_id);
 CREATE INDEX IF NOT EXISTS idx_opt_symbol ON strategy_optimization(symbol, create_time DESC);
 
+-- ========== 14. 策略回撤熔断 ==========
+CREATE TABLE IF NOT EXISTS strategy_circuit (
+    id               BIGSERIAL PRIMARY KEY,
+    strategy_id      VARCHAR(64) NOT NULL UNIQUE,
+    max_drawdown_pct DECIMAL(10,6) NOT NULL DEFAULT 0.05,
+    enabled          BOOLEAN NOT NULL DEFAULT true,
+    peak_pnl_rate    DECIMAL(20,8),
+    tripped          BOOLEAN NOT NULL DEFAULT false,
+    last_trip_time   TIMESTAMP,
+    update_time      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted          SMALLINT DEFAULT 0
+);
+
 INSERT INTO settlement_rule (rule_id, market, exchange_match, cycle_days, currency, remark)
 VALUES
     ('R-CN-FUT','CN',NULL,0,'CNY','境内期货 T+0'),

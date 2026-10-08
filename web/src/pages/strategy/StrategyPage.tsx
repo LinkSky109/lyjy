@@ -65,6 +65,8 @@ export default function StrategyPage() {
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [watchdogOn, setWatchdogOn] = useState(false);
+  const [circuitPct, setCircuitPct] = useState('5');
+  const [circuitInfo, setCircuitInfo] = useState<string | null>(null);
 
   const [strategyId, setStrategyId] = useState('');
   const [codeName, setCodeName] = useState('');
@@ -155,6 +157,20 @@ export default function StrategyPage() {
       setOkMsg(`策略已启动，状态：${result.status ?? '-'}`);
       status.reload();
       audit.reload();
+    });
+
+  const setCircuit = (enabled: boolean) =>
+    run(async () => {
+      const id = requireStrategyId();
+      const pct = Number(circuitPct) / 100;
+      const result = await api.post<{ maxDrawdownPct?: number; enabled?: boolean }>(
+        `/api/strategy/${id}/circuit`,
+        undefined,
+        { params: { maxDrawdownPct: pct, enabled } },
+      );
+      setCircuitInfo(
+        `回撤熔断已${result.enabled ? '启用' : '关闭'}：阈值 ${((result.maxDrawdownPct ?? pct) * 100).toFixed(2)}%（策略浮盈率峰值回撤触发自动停止）`,
+      );
     });
 
   const toggleWatchdog = () =>
@@ -278,6 +294,20 @@ export default function StrategyPage() {
           <div className="muted" style={{ marginTop: 6 }}>
             自动值守：策略离线时定时自动拉起（挂机运行），开启后将自动启动并以每 30s 检查。
           </div>
+          <div style={{ marginTop: 8 }}>
+            <Toolbar>
+            <Field label="回撤熔断阈值（%）" hint="策略持仓浮盈率峰值回撤达到该比例时自动停止策略">
+              <Input value={circuitPct} onChange={(event) => setCircuitPct(event.target.value)} />
+            </Field>
+            <Button variant="default" size="sm" disabled={busy || !strategyId.trim()} onClick={() => setCircuit(true)}>
+              启用回撤熔断
+            </Button>
+            <Button variant="danger" size="sm" disabled={busy || !strategyId.trim()} onClick={() => setCircuit(false)}>
+              关闭回撤熔断
+            </Button>
+            </Toolbar>
+          </div>
+          {circuitInfo && <Notice tone="ok">{circuitInfo}</Notice>}
 
           <div style={{ marginTop: 16 }}>
             {!strategyId.trim() ? (

@@ -3,7 +3,7 @@ task_id: "TASK-20261002-001"
 task_name: "企业级量化交易平台（lhjypt）"
 create_time: "2026-10-02 13:05:00"
 # 当前活跃任务以 active_workflow 为准；P0/P1 字段保留为历史基线
-current_global_state: "GLOBAL_DONE"
+current_global_state: "GLOBAL_IN_DEV"
 
 # 使用场景（2026-10-06 用户澄清）
 user_context:

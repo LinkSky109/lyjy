@@ -77,6 +77,10 @@ public class AuthInterceptor implements HandlerInterceptor {
                     UserContext.ROLE_COMPLIANCE)) {
                 return reject(response, "当前角色无权查看组合数据");
             }
+            if (path.startsWith("/api/strategy/keys/")
+                    && !context.hasAnyRole(UserContext.ROLE_ADMIN)) {
+                return reject(response, "仅管理员可查看密钥信息");
+            }
             return true;
         }
         if (context.isViewer()) {
@@ -155,6 +159,9 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (path.startsWith("/api/var/")) {
             return context.hasAnyRole(
                     UserContext.ROLE_RISK_OFFICER, UserContext.ROLE_TRADER);
+        }
+        if (path.startsWith("/api/strategy/keys/")) {
+            return context.hasAnyRole(UserContext.ROLE_ADMIN);
         }
         if (path.startsWith("/api/strategy/trace")) {
             return context.hasAnyRole(UserContext.ROLE_COMPLIANCE);

@@ -91,19 +91,19 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "p3-004-metrics"
-  task_id: "P3-004"
-  task_name: "Prometheus 指标与看板"
+  workflow_id: "p3-005-key-rotation"
+  task_id: "P3-005"
+  task_name: "密钥与审计加固"
   create_time: "2026-10-08 13:55:00"
   current_phase: "P3-第一批A"
   current_global_state: "GLOBAL_IN_DEV"
-  current_node: "P3-004_COMPLETE"
+  current_node: "P3-005_COMPLETE"
   current_node_status: "DONE"
-  feature_branch: "feature/p3-004-metrics"
-  baseline_commit: "57c3370"
+  feature_branch: "feature/p3-005-key-rotation"
+  baseline_commit: "e6f061c"
   requirement_doc: ".workflow/p3-plan.md"
   tasks_doc: ".workflow/p3-plan.md"
-  workflow_plan_doc: ".workflow/p3-task-004-metrics-report.md"
+  workflow_plan_doc: ".workflow/p3-task-005-key-rotation-report.md"
   blocking_reason: ""
   next_action: "P3-004 Prometheus 指标与看板"
 
@@ -157,10 +157,10 @@ p3_context:
   positioning: "单人使用：部署常驻/数据不丢/可观测/密钥加固/性能；明确不做多活·灾备·微服务·对外多租户（观察期项）"
   batch_order: "A 部署常驻与备份 → B 可观测性与密钥 → C 行情质量与性能"
   task_count: 7
-  task_done: 4
-  current_task: "P3-004 Prometheus 指标与看板"
+  task_done: 5
+  current_task: "P3-005 密钥与审计加固"
   current_task_status: "DONE"
-  next_action: "P3-005 密钥与审计加固"
+  next_action: "P3-006 行情回补与数据质量（含源重试/超时/备用源）"
 
 # 一致性校验上下文
 consistency_context:
@@ -434,4 +434,8 @@ operation_logs:
   - time: "2026-10-09 11:00:00"
     operator: "codex/agent-continuous-workflow"
     action: "P3-004 Prometheus 指标与看板完成：core/pom 增 micrometer-registry-prometheus；management.metrics.export.prometheus.enabled 置 true（合并此前重复键并修复 P1 遗留的显式禁用）并暴露 prometheus 端点；新增 MetricsService（orderSubmitted/backtestRun/marketRefresh/marketRefreshFailure/circuitTrip/capacityLoad gauge）并接入 BacktestEngine、RealMarketDataService、两个熔断服务（均主构造+便捷构造模式，零改动既有单测）。实测 /actuator/prometheus 214 指标行（JVM/Hikari/HTTP + 自定义 lhjypt_*），回测计数 1 与 duration Timer、行情失败计数 result=error 2 均可见。修复双构造 Bean 缺 @Autowired 致启动失败（4 服务）。新增 docs/metrics.md。mvn verify 288/288（0跳过）。"
+    result: "success"
+  - time: "2026-10-09 11:30:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "P3-005 密钥与审计加固完成：新增 KeyRotationService（状态：活跃 keyId+各 key 使用计数；轮换：旧密钥解密→新密钥 AES-256-GCM 重加密并更新 checksum/keyId，新密钥不可用快速失败，审计 KEY_ROTATE）+ KeyRotationController（/api/strategy/keys/status 与 /rotate，rotate 需 X-Confirm-Token）+ AuthInterceptor 密钥接口读写均限 ADMIN + StrategyCryptoMapper.selectKeyUsage + docs/security.md（密钥体系/轮换流程/审计覆盖清单/残留风险）。真实 E2E（env 双密钥 k1/k2）：上传 k1 → status k1:1 → TRADER 访问 403 → rotate k2 rotated=1 → status k2:1 且下载解密成功 → 审计 __KEYSTORE__/KEY_ROTATE。修复：mapper import、测试 stub null 参数、测试密钥 Base64 非 32 字节。mvn verify 291/291（0跳过）。另按用户要求在 p3-plan 补充 P3-006 范围含行情源重试/超时/备用源切换。"
     result: "success"

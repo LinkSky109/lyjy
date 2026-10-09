@@ -43,11 +43,13 @@ rotate_logs() {
 
 start_middleware() {
   local all_present=1
-  for c in lhjypt-postgres lhjypt-clickhouse lhjypt-kafka lhjypt-redis lhjypt-zookeeper; do
+  local containers=(lhjypt-postgres lhjypt-clickhouse lhjypt-kafka lhjypt-redis lhjypt-zookeeper)
+  for c in "${containers[@]}"; do
     docker inspect "$c" >/dev/null 2>&1 || all_present=0
   done
   if [ "$all_present" = 1 ]; then
-    echo "[dev] 中间件容器已存在，直接复用（如配置变更需 reset-db）"
+    echo "[dev] 中间件容器已存在，确保运行（重启后可能处于停止态）..."
+    docker start "${containers[@]}" >/dev/null 2>&1 || true
   else
     echo "[dev] 创建中间件容器..."
     docker compose -f "$COMPOSE_FILE" up -d

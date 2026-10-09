@@ -91,21 +91,21 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "p3-002-service"
-  task_id: "P3-002"
-  task_name: "部署常驻与进程守护"
+  workflow_id: "p3-003-healthcheck"
+  task_id: "P3-003"
+  task_name: "启动自检与健康巡检"
   create_time: "2026-10-08 13:55:00"
   current_phase: "P3-第一批A"
   current_global_state: "GLOBAL_IN_DEV"
-  current_node: "P3-002_COMPLETE"
+  current_node: "P3-003_COMPLETE"
   current_node_status: "DONE"
-  feature_branch: "feature/p3-002-service"
-  baseline_commit: "8de6c40"
+  feature_branch: "feature/p3-003-healthcheck"
+  baseline_commit: "225faf6"
   requirement_doc: ".workflow/p3-plan.md"
   tasks_doc: ".workflow/p3-plan.md"
-  workflow_plan_doc: ".workflow/p3-task-002-service-report.md"
+  workflow_plan_doc: ".workflow/p3-task-003-healthcheck-report.md"
   blocking_reason: ""
-  next_action: "P3-003 启动自检与健康巡检"
+  next_action: "P3-004 Prometheus 指标与看板"
 
 p15_context:
   plan_status: "PLANNED"
@@ -157,10 +157,10 @@ p3_context:
   positioning: "单人使用：部署常驻/数据不丢/可观测/密钥加固/性能；明确不做多活·灾备·微服务·对外多租户（观察期项）"
   batch_order: "A 部署常驻与备份 → B 可观测性与密钥 → C 行情质量与性能"
   task_count: 7
-  task_done: 2
-  current_task: "P3-002 部署常驻与进程守护"
+  task_done: 3
+  current_task: "P3-003 启动自检与健康巡检"
   current_task_status: "DONE"
-  next_action: "P3-003 启动自检与健康巡检"
+  next_action: "P3-004 Prometheus 指标与看板"
 
 # 一致性校验上下文
 consistency_context:
@@ -426,4 +426,8 @@ operation_logs:
   - time: "2026-10-08 15:20:00"
     operator: "codex/agent-continuous-workflow"
     action: "P3-002 部署常驻与进程守护完成：新增 scripts/service.sh（install/uninstall/status/logs；macOS launchd RunAtLoad+KeepAlive 自动生成 plist 并注入 DOCKER_HOST/MOCK；Linux systemd unit Restart=always；Java 路径自动探测）+ dev.sh 日志轮转 rotate_logs（>10MB 归档保留 5 个）+ docs/deploy.md。真实演练：launchd 安装 running+健康 UP → kill -9 pid33782 → 8s 自愈 pid33828 健康 UP → 造 11M 日志 dev.sh up 轮转为 backend.log.20261008-151811 → 卸载无残留并 dev.sh 恢复。后端无 Java 改动（mvn 基线 288/288）。进程守护能力就绪。"
+    result: "success"
+  - time: "2026-10-09 08:40:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "P3-003 启动自检与健康巡检完成：新增 scripts/healthcheck.sh（中间件5容器→后端健康与子组件→前端→数据面(关键表齐全/bar_data新鲜度≤24h/磁盘<90%)；FAIL 退出码 1；可选 LHJYPT_HEALTH_WEBHOOK 异常通知；报告追加 logs/healthcheck.log）与 docs/deploy.md 巡检章节（launchd/cron 定时示例 + 处置表）；修复 scripts/dev.sh：容器存在但停止（机器重启）时 docker start 拉起，避免等待健康超时。实测：正常 13 项 OK exit=0；停后端 → [FAIL] backend FAIL=1 exit=1，恢复后回全 OK。另修复脚本 $var 紧邻中文被并入变量名（统一 ${var}）与 Lima VM 停机后的环境恢复。后端无 Java 改动（mvn 基线 288/288）。"
     result: "success"

@@ -4,9 +4,11 @@ import com.lhjypt.core.config.DistributedLock;
 import com.lhjypt.core.config.RealMarketProperties;
 import com.lhjypt.core.model.market.BarData;
 import com.lhjypt.core.service.market.MarketDataRepository;
+import com.lhjypt.core.service.monitor.MetricsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -34,18 +36,31 @@ public class RealMarketDataService {
     private final GateioKlineSource klineSource;
     private final MarketDataRepository repository;
     private final DistributedLock distributedLock;
+    private final MetricsService metricsService;
 
     private volatile LocalDateTime lastRefreshAt;
     private volatile int lastRefreshed;
 
+    /** Spring 注入构造（含业务指标）。 */
+    @Autowired
     public RealMarketDataService(RealMarketProperties properties,
                                  GateioKlineSource klineSource,
                                  MarketDataRepository repository,
-                                 DistributedLock distributedLock) {
+                                 DistributedLock distributedLock,
+                                 MetricsService metricsService) {
         this.properties = properties;
         this.klineSource = klineSource;
         this.repository = repository;
         this.distributedLock = distributedLock;
+        this.metricsService = metricsService;
+    }
+
+    /** 便捷构造（无指标，供单元测试）。 */
+    public RealMarketDataService(RealMarketProperties properties,
+                                 GateioKlineSource klineSource,
+                                 MarketDataRepository repository,
+                                 DistributedLock distributedLock) {
+        this(properties, klineSource, repository, distributedLock, null);
     }
 
     /** 定时自动刷新（间隔 >=5000 才执行；失败仅记录日志，不中断调度）。 */
@@ -101,10 +116,16 @@ public class RealMarketDataService {
             }
             lastRefreshed = inserted;
             lastRefreshAt = LocalDateTime.now();
+            if (metricsService != null) {
+                metricsService.marketRefresh(inserted);
+            }
             log.info("真实行情刷新完成: {}@{} 拉取 {} 新增 {}", pair, freq,
                     candles.size(), inserted);
             return inserted;
         } catch (Exception error) {
+            if (metricsService != null) {
+                metricsService.marketRefreshFailure();
+            }
             throw new IllegalStateException("真实行情刷新失败: " + error.getMessage(), error);
         }
     }

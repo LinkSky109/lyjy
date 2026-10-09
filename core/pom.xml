@@ -28,6 +28,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+
+        <!-- Prometheus 指标导出（P3-004） -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
         <!-- Redis：分布式调度锁 / 限流 / 降级开关热更新（PRD §2.1） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

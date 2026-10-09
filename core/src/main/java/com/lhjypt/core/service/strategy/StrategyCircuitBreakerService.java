@@ -11,9 +11,11 @@ import com.lhjypt.core.model.monitor.AlertEvent;
 import com.lhjypt.core.model.strategy.StrategyCircuit;
 import com.lhjypt.core.model.strategy.StrategyInfo;
 import com.lhjypt.core.service.monitor.AlertNotifier;
+import com.lhjypt.core.service.monitor.MetricsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -38,14 +40,18 @@ public class StrategyCircuitBreakerService {
     private final DistributedLock distributedLock;
     private final AlertEventMapper alertEventMapper;
     private final AlertNotifier alertNotifier;
+    private final MetricsService metricsService;
 
+    /** Spring 注入构造（含业务指标）。 */
+    @Autowired
     public StrategyCircuitBreakerService(StrategyCircuitMapper circuitMapper,
                                          StrategyInfoMapper strategyInfoMapper,
                                          PositionMapper positionMapper,
                                          StrategySecurityService strategySecurityService,
                                          DistributedLock distributedLock,
                                          AlertEventMapper alertEventMapper,
-                                         AlertNotifier alertNotifier) {
+                                         AlertNotifier alertNotifier,
+                                         MetricsService metricsService) {
         this.circuitMapper = circuitMapper;
         this.strategyInfoMapper = strategyInfoMapper;
         this.positionMapper = positionMapper;
@@ -53,6 +59,19 @@ public class StrategyCircuitBreakerService {
         this.distributedLock = distributedLock;
         this.alertEventMapper = alertEventMapper;
         this.alertNotifier = alertNotifier;
+        this.metricsService = metricsService;
+    }
+
+    /** 便捷构造（无指标，供单元测试）。 */
+    public StrategyCircuitBreakerService(StrategyCircuitMapper circuitMapper,
+                                         StrategyInfoMapper strategyInfoMapper,
+                                         PositionMapper positionMapper,
+                                         StrategySecurityService strategySecurityService,
+                                         DistributedLock distributedLock,
+                                         AlertEventMapper alertEventMapper,
+                                         AlertNotifier alertNotifier) {
+        this(circuitMapper, strategyInfoMapper, positionMapper, strategySecurityService,
+                distributedLock, alertEventMapper, alertNotifier, null);
     }
 
     /** 设置/更新熔断阈值（归属校验：非 ADMIN 仅本人策略）。 */
@@ -132,6 +151,9 @@ public class StrategyCircuitBreakerService {
         if (drawdown.compareTo(circuit.getMaxDrawdownPct()) >= 0) {
             log.warn("策略回撤熔断触发: {} 峰值浮盈率={} 当前={} 回撤={} 阈值={}",
                     circuit.getStrategyId(), peak, pnlRate, drawdown, circuit.getMaxDrawdownPct());
+            if (metricsService != null) {
+                metricsService.circuitTrip("strategy");
+            }
             try {
                 strategySecurityService.stop(circuit.getStrategyId(), SYSTEM, "circuit-breaker");
             } catch (Exception error) {

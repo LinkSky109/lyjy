@@ -12,9 +12,11 @@ import com.lhjypt.core.model.monitor.AlertEvent;
 import com.lhjypt.core.model.strategy.PortfolioCircuit;
 import com.lhjypt.core.model.strategy.StrategyInfo;
 import com.lhjypt.core.service.monitor.AlertNotifier;
+import com.lhjypt.core.service.monitor.MetricsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -42,14 +44,18 @@ public class PortfolioCircuitService {
     private final DistributedLock distributedLock;
     private final AlertEventMapper alertEventMapper;
     private final AlertNotifier alertNotifier;
+    private final MetricsService metricsService;
 
+    /** Spring 注入构造（含业务指标）。 */
+    @Autowired
     public PortfolioCircuitService(PortfolioCircuitMapper portfolioCircuitMapper,
                                    StrategyInfoMapper strategyInfoMapper,
                                    PositionMapper positionMapper,
                                    StrategySecurityService strategySecurityService,
                                    DistributedLock distributedLock,
                                    AlertEventMapper alertEventMapper,
-                                   AlertNotifier alertNotifier) {
+                                   AlertNotifier alertNotifier,
+                                   MetricsService metricsService) {
         this.portfolioCircuitMapper = portfolioCircuitMapper;
         this.strategyInfoMapper = strategyInfoMapper;
         this.positionMapper = positionMapper;
@@ -57,6 +63,19 @@ public class PortfolioCircuitService {
         this.distributedLock = distributedLock;
         this.alertEventMapper = alertEventMapper;
         this.alertNotifier = alertNotifier;
+        this.metricsService = metricsService;
+    }
+
+    /** 便捷构造（无指标，供单元测试）。 */
+    public PortfolioCircuitService(PortfolioCircuitMapper portfolioCircuitMapper,
+                                   StrategyInfoMapper strategyInfoMapper,
+                                   PositionMapper positionMapper,
+                                   StrategySecurityService strategySecurityService,
+                                   DistributedLock distributedLock,
+                                   AlertEventMapper alertEventMapper,
+                                   AlertNotifier alertNotifier) {
+        this(portfolioCircuitMapper, strategyInfoMapper, positionMapper, strategySecurityService,
+                distributedLock, alertEventMapper, alertNotifier, null);
     }
 
     /** 设置组合风控（成员策略逐一做归属校验）。 */
@@ -151,6 +170,9 @@ public class PortfolioCircuitService {
         log.warn("组合风控触发: {} 峰值={} 当前={} 回撤={} 阈值={} 成员={}",
                 circuit.getPortfolioKey(), peak, pnlRate, drawdown,
                 circuit.getMaxDrawdownPct(), runningMembers);
+        if (metricsService != null) {
+            metricsService.circuitTrip("portfolio");
+        }
         for (String member : runningMembers) {
             try {
                 strategySecurityService.stop(member, SYSTEM, "portfolio-circuit");

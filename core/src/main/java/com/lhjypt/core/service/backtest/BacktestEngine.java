@@ -3,7 +3,9 @@ package com.lhjypt.core.service.backtest;
 import com.lhjypt.core.model.backtest.*;
 import com.lhjypt.core.model.market.TickData;
 import com.lhjypt.core.service.backtest.impl.TickMatchingEngine;
+import com.lhjypt.core.service.monitor.MetricsService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -26,7 +28,6 @@ import org.slf4j.LoggerFactory;
  * 4. 回测结束后计算绩效指标
  */
 @Service
-@RequiredArgsConstructor
 public class BacktestEngine {
     private static final Logger log = LoggerFactory.getLogger(BacktestEngine.class);
 
@@ -34,6 +35,26 @@ public class BacktestEngine {
     private final TickMatchingEngine matchingEngine;
     private final PerformanceCalculator performanceCalculator;
     private final LookaheadBiasDetector lookaheadDetector;
+    private final MetricsService metricsService;
+
+    /** Spring 注入构造（含业务指标，P3-004）。 */
+    @Autowired
+    public BacktestEngine(TickMatchingEngine matchingEngine,
+                          PerformanceCalculator performanceCalculator,
+                          LookaheadBiasDetector lookaheadDetector,
+                          MetricsService metricsService) {
+        this.matchingEngine = matchingEngine;
+        this.performanceCalculator = performanceCalculator;
+        this.lookaheadDetector = lookaheadDetector;
+        this.metricsService = metricsService;
+    }
+
+    /** 便捷构造（无指标，供单元测试/非 Spring 场景）。 */
+    public BacktestEngine(TickMatchingEngine matchingEngine,
+                          PerformanceCalculator performanceCalculator,
+                          LookaheadBiasDetector lookaheadDetector) {
+        this(matchingEngine, performanceCalculator, lookaheadDetector, null);
+    }
 
     /** 运行中的回测任务 */
     private final Map<String, BacktestResult> runningBacktests = new ConcurrentHashMap<>();
@@ -146,6 +167,9 @@ public class BacktestEngine {
         result.setDurationMs(System.currentTimeMillis() - startMs);
         log.info("回测完成: {} 状态:{} 耗时:{}ms 交易数:{}",
                 backtestId, result.getStatus(), result.getDurationMs(), result.getTrades().size());
+        if (metricsService != null) {
+            metricsService.backtestRun(result.getStatus(), result.getDurationMs());
+        }
 
         return result;
     }

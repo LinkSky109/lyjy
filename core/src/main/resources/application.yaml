@@ -63,7 +63,11 @@ lhjypt:
       currency-pair: ${LHJYPT_MARKET_REAL_PAIR:BTC_USDT}
       interval: ${LHJYPT_MARKET_REAL_INTERVAL:1h}
       limit: ${LHJYPT_MARKET_REAL_LIMIT:200}
-      timeout-seconds: ${LHJYPT_MARKET_REAL_TIMEOUT:10}
+      timeout-seconds: ${LHJYPT_MARKET_REAL_TIMEOUT:25}
+      # 行情源优先级（按序故障切换；gateio 主源较慢，binance-vision 备用快速）
+      sources: ${LHJYPT_MARKET_REAL_SOURCES:gateio,binance-vision}
+      max-attempts: ${LHJYPT_MARKET_REAL_ATTEMPTS:2}
+      retry-backoff-ms: ${LHJYPT_MARKET_REAL_BACKOFF:800}
       refresh-interval-ms: ${LHJYPT_MARKET_REAL_REFRESH_MS:900000}  # 定时自动刷新间隔（>=5000；关闭请设 LHJYPT_MARKET_REAL=false）
   # CTP柜台配置
   ctp:

@@ -91,19 +91,19 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "p3-005-key-rotation"
-  task_id: "P3-005"
-  task_name: "密钥与审计加固"
+  workflow_id: "p3-006-market-reliability"
+  task_id: "P3-006"
+  task_name: "行情回补与数据质量（含重试/超时/备用源）"
   create_time: "2026-10-08 13:55:00"
   current_phase: "P3-第一批A"
   current_global_state: "GLOBAL_IN_DEV"
-  current_node: "P3-005_COMPLETE"
+  current_node: "P3-006_COMPLETE"
   current_node_status: "DONE"
-  feature_branch: "feature/p3-005-key-rotation"
-  baseline_commit: "e6f061c"
+  feature_branch: "feature/p3-006-market-reliability"
+  baseline_commit: "0b53f84"
   requirement_doc: ".workflow/p3-plan.md"
   tasks_doc: ".workflow/p3-plan.md"
-  workflow_plan_doc: ".workflow/p3-task-005-key-rotation-report.md"
+  workflow_plan_doc: ".workflow/p3-task-006-market-reliability-report.md"
   blocking_reason: ""
   next_action: "P3-004 Prometheus 指标与看板"
 
@@ -157,10 +157,10 @@ p3_context:
   positioning: "单人使用：部署常驻/数据不丢/可观测/密钥加固/性能；明确不做多活·灾备·微服务·对外多租户（观察期项）"
   batch_order: "A 部署常驻与备份 → B 可观测性与密钥 → C 行情质量与性能"
   task_count: 7
-  task_done: 5
-  current_task: "P3-005 密钥与审计加固"
+  task_done: 6
+  current_task: "P3-006 行情回补与数据质量（含重试/超时/备用源）"
   current_task_status: "DONE"
-  next_action: "P3-006 行情回补与数据质量（含源重试/超时/备用源）"
+  next_action: "P3-007 性能与容量基线"
 
 # 一致性校验上下文
 consistency_context:
@@ -438,4 +438,8 @@ operation_logs:
   - time: "2026-10-09 11:30:00"
     operator: "codex/agent-continuous-workflow"
     action: "P3-005 密钥与审计加固完成：新增 KeyRotationService（状态：活跃 keyId+各 key 使用计数；轮换：旧密钥解密→新密钥 AES-256-GCM 重加密并更新 checksum/keyId，新密钥不可用快速失败，审计 KEY_ROTATE）+ KeyRotationController（/api/strategy/keys/status 与 /rotate，rotate 需 X-Confirm-Token）+ AuthInterceptor 密钥接口读写均限 ADMIN + StrategyCryptoMapper.selectKeyUsage + docs/security.md（密钥体系/轮换流程/审计覆盖清单/残留风险）。真实 E2E（env 双密钥 k1/k2）：上传 k1 → status k1:1 → TRADER 访问 403 → rotate k2 rotated=1 → status k2:1 且下载解密成功 → 审计 __KEYSTORE__/KEY_ROTATE。修复：mapper import、测试 stub null 参数、测试密钥 Base64 非 32 字节。mvn verify 291/291（0跳过）。另按用户要求在 p3-plan 补充 P3-006 范围含行情源重试/超时/备用源切换。"
+    result: "success"
+  - time: "2026-10-09 11:40:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "P3-006 行情回补与数据质量（含源重试/超时/备用源）完成：新增 MarketDataSource SPI + MarketCandle 统一模型、GateioMarketDataSource（主）与 BinanceVisionMarketDataSource（备用，data-api.binance.vision 免密钥且 ~0.6s）、MarketDataQualityService（缺口/异常值/重复检测 + GET /api/market/real/quality）；RealMarketDataService 改造为多源故障切换（sources 顺序、首个成功即用、每源 max-attempts 重试+退避、超时可配），status 增 currentSource/sourceState。根因修复：Gate 响应 ~16.6s 超过旧默认 10s 超时（刷新的真实原因）→ 默认超时提升 25s。实测：默认刷新 inserted=53 currentSource=gateio；主源指向死地址 → 自动切 binance-vision inserted=37 且源状态正确；质量检测 300 根 0 缺口/0 异常。修复源状态 ConcurrentHashMap 不接受 null 值。docs/market-reliability.md。mvn verify 294/294（0跳过）。"
     result: "success"

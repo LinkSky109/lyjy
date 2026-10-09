@@ -4,6 +4,8 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
  * 真实行情源配置（OBS-005 Gate.io 现货 K 线）。
  */
@@ -27,9 +29,18 @@ public class RealMarketProperties {
     /** 默认拉取条数 */
     private int limit = 200;
 
-    /** HTTP 超时（秒） */
-    private int timeoutSeconds = 10;
+    /** HTTP 超时（秒）；Gate 实测响应可达 16s+，默认放宽到 25s */
+    private int timeoutSeconds = 25;
 
     /** 定时自动刷新间隔（ms，>=5000 才启用；通过 enabled 关闭） */
     private long refreshIntervalMs = 900000;
+
+    /** 行情源优先级（按序故障切换，P3-006） */
+    private List<String> sources = new java.util.ArrayList<>(java.util.List.of("gateio", "binance-vision"));
+
+    /** 每源最大尝试次数（重试，P3-006） */
+    private int maxAttempts = 2;
+
+    /** 重试退避（ms） */
+    private long retryBackoffMs = 800;
 }

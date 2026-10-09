@@ -1,6 +1,7 @@
 package com.lhjypt.core.controller;
 
 import com.lhjypt.core.common.Result;
+import com.lhjypt.core.service.market.impl.real.MarketDataQualityService;
 import com.lhjypt.core.service.market.impl.real.RealMarketDataService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +21,7 @@ import java.util.Map;
 public class RealMarketController {
 
     private final RealMarketDataService realMarketDataService;
+    private final MarketDataQualityService qualityService;
 
     /** 拉取真实 K 线并写入 ClickHouse bar_data（写操作需 ADMIN）。 */
     @PostMapping("/refresh")
@@ -35,5 +37,17 @@ public class RealMarketController {
     @GetMapping("/status")
     public Result<Map<String, Object>> status() {
         return Result.success(realMarketDataService.status());
+    }
+
+    /** 行情数据质量检测（缺口/异常/重复，P3-006）。 */
+    @GetMapping("/quality")
+    public Result<Map<String, Object>> quality(
+            @RequestParam(required = false) String currencyPair,
+            @RequestParam(required = false) String frequency,
+            @RequestParam(defaultValue = "1000") int limit) {
+        return Result.success(qualityService.check(
+                currencyPair == null || currencyPair.isBlank() ? "BTC_USDT" : currencyPair,
+                frequency == null || frequency.isBlank() ? "1h" : frequency,
+                limit));
     }
 }

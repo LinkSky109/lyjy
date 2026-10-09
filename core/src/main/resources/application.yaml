@@ -13,12 +13,24 @@ spring:
       username: ${POSTGRES_USER:lhjypt}
       password: ${POSTGRES_PASSWORD:lhjypt_local_dev}
       driver-class-name: org.postgresql.Driver
+      # 连接池（P3-007 显式化，按压测基线留余量）
+      pool-name: ${POSTGRES_POOL_NAME:lhjypt-pg}
+      maximum-pool-size: ${POSTGRES_POOL_MAX:20}
+      minimum-idle: ${POSTGRES_POOL_MIN:5}
+      connection-timeout: ${POSTGRES_POOL_TIMEOUT_MS:30000}
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      validation-timeout: 5000
     # ClickHouse - 行情时序数据
     clickhouse:
       jdbc-url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123/lhjypt}
       username: ${CLICKHOUSE_USER:default}
       password: ${CLICKHOUSE_PASSWORD:}
       driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
+      pool-name: ${CLICKHOUSE_POOL_NAME:lhjypt-ch}
+      maximum-pool-size: ${CLICKHOUSE_POOL_MAX:10}
+      minimum-idle: ${CLICKHOUSE_POOL_MIN:2}
+      connection-timeout: ${CLICKHOUSE_POOL_TIMEOUT_MS:30000}
 
   # Redis：分布式锁/限流/降级开关
   data:

@@ -3,7 +3,7 @@ task_id: "TASK-20261002-001"
 task_name: "企业级量化交易平台（lhjypt）"
 create_time: "2026-10-02 13:05:00"
 # 当前活跃任务以 active_workflow 为准；P0/P1 字段保留为历史基线
-current_global_state: "GLOBAL_IN_DEV"
+current_global_state: "GLOBAL_DONE"
 
 # 使用场景（2026-10-06 用户澄清）
 user_context:
@@ -91,19 +91,19 @@ p1_context:
 
 # 当前活跃工作流（P0/P1.5 上下文保留为历史基线）
 active_workflow:
-  workflow_id: "p3-007-perf-baseline"
-  task_id: "P3-007"
-  task_name: "性能与容量基线"
+  workflow_id: "p3-final"
+  task_id: "TASK-P3-FULL"
+  task_name: "P3 全批次回归 + 一致性巡检 + 交付（7/7）"
   create_time: "2026-10-08 13:55:00"
   current_phase: "P3-第一批A"
-  current_global_state: "GLOBAL_IN_DEV"
-  current_node: "P3-007_COMPLETE"
+  current_global_state: "GLOBAL_DONE"
+  current_node: "P3_DELIVERY_COMPLETE"
   current_node_status: "DONE"
   feature_branch: "feature/p3-007-perf-baseline"
-  baseline_commit: "56ad2c0"
+  baseline_commit: "812f731"
   requirement_doc: ".workflow/p3-plan.md"
   tasks_doc: ".workflow/p3-plan.md"
-  workflow_plan_doc: ".workflow/p3-task-007-perf-baseline-report.md"
+  workflow_plan_doc: ".workflow/delivery-report-p3.md"
   blocking_reason: ""
   next_action: "P3-004 Prometheus 指标与看板"
 
@@ -153,14 +153,14 @@ p2_context:
 # P3 规划上下文（2026-10-08 启动，单机生产化与可持续运营）
 p3_context:
   plan_doc_link: ".workflow/p3-plan.md"
-  plan_status: "IN_DEV"
+  plan_status: "DONE"
   positioning: "单人使用：部署常驻/数据不丢/可观测/密钥加固/性能；明确不做多活·灾备·微服务·对外多租户（观察期项）"
   batch_order: "A 部署常驻与备份 → B 可观测性与密钥 → C 行情质量与性能"
   task_count: 7
   task_done: 7
-  current_task: "P3-007 性能与容量基线"
+  current_task: "P3 交付完成（全量回归 + 一致性巡检 + 交付报告）"
   current_task_status: "DONE"
-  next_action: "P3 全批次回归 + 一致性巡检 + 交付报告（P3 收尾）"
+  next_action: "P3 已交付，进入观察期；如需可再扩展（时区口径/行情分页回补/观测栈）"
 
 # 一致性校验上下文
 consistency_context:
@@ -446,4 +446,8 @@ operation_logs:
   - time: "2026-10-09 12:00:00"
     operator: "codex/agent-continuous-workflow"
     action: "P3-007 性能与容量基线完成（P3 全部 7 项完成）：新增 scripts/bench.sh（health/market.bars/trade.positions/risk.overview/backtest.run 压测，p50/p95/p99/max+成功率+吞吐）与 docs/perf-baseline.md；连接池显式化（spring.datasource.primary/clickhouse 直接绑定 Hikari pool-name/max/min/conn-timeout/idle/max-lifetime，PG 20/CH 10）。基线（60 请求 并发 6）：health p50 9.6/p95 43.7、market.bars 16.7/47.6、positions 5.9/10.3、risk.overview 8.0/14.4、backtest.run(1000tick) 19.9/55.4，全部 100% 成功；压测后池 active/pending/timeout=0、Heap Old ~46MB、GC 平稳。对比调优前持平或更优。mvn verify 294/294（0跳过）。下一步 P3 收尾（全批次回归+一致性巡检+交付报告）。"
+    result: "success"
+  - time: "2026-10-09 14:10:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "P3 收尾完成（全批次回归+一致性巡检+交付报告）：全量 mvn verify 294/294（0跳过，JaCoCo）+ SDK pytest 29/29；环境 5 容器 healthy、后端/前端 200、池具名；P3 能力回归全通过（巡检 13 OK exit0；备份 204K+sha256 校验；指标 289 行；密钥状态；行情源 gateio/binance-vision 质量 303 根 0 缺口异常；性能抽样全 100% p95≤34ms）。五维一致性 CONSISTENCY_PASS（含已知项：bar_time 时区口径、行情分页回补、归档不含密钥）。生成 delivery-report-p3.md 与 consistency-report-p3.md。P3 七项全部交付，全局状态 GLOBAL_DONE。"
     result: "success"

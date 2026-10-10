@@ -1,0 +1,18 @@
+# lhjypt Alertmanager 配置模板（P4-006）
+# __WEBHOOK__ 由 scripts/obs.sh 依据 LHJYPT_ALERT_WEBHOOK 替换（默认内置 sink，便于本地验证）
+# 钉钉/企业微信：把 LHJYPT_ALERT_WEBHOOK 指向你的转发网关（其负责 → 钉钉/企业微信 格式转换）
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: default
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 3h
+
+receivers:
+  - name: default
+    webhook_configs:
+      - url: '__WEBHOOK__'
+        send_resolved: true

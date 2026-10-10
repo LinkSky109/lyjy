@@ -57,6 +57,30 @@ LHJYPT_SCRAPE_TARGET=host.docker.internal:8081 ./scripts/obs.sh up
 校验规则语法：`docker run --rm -v $PWD/config/observability/prometheus.rules.yml:/r.yml:ro --entrypoint promtool prom/prometheus:v2.54.1 check rules /r.yml`。
 如需外发（钉钉/企业微信/邮件），另行接入 Alertmanager（本项目已内置业务侧 `AlertNotifier` 兜底，见 P3-004）。
 
+## 告警外发（P4-006：Alertmanager）
+
+`config/observability/` 内置 **Alertmanager v0.27.0**（9093）+ **本地 webhook 接收器** `alert-sink`：
+Prometheus 触发规则 → Alertmanager 路由分组 → POST 到 webhook。
+
+```bash
+# 默认 webhook 落到内置 sink（便于本地验证）
+./scripts/obs.sh up
+docker logs lhjypt-alert-sink          # 观察投递：ALERT status=firing / RECEIVED
+
+# 钉钉 / 企业微信：指向你的转发网关（网关负责 → 钉钉/企业微信 消息格式）
+LHJYPT_ALERT_WEBHOOK=https://your-bridge.example/dingtalk ./scripts/obs.sh up
+```
+
+| 项 | 说明 |
+|----|------|
+| 路由 | `group_by=[alertname]`，`group_wait=10s`，`group_interval=1m`，`repeat_interval=3h` |
+| 接收器 | `default`：`webhook_configs.url=${LHJYPT_ALERT_WEBHOOK}`，`send_resolved=true` |
+| 配置生成 | `alertmanager.yml.tmpl` → `scripts/obs.sh` 注入 webhook → `.generated/alertmanager.yml` |
+
+- Prometheus 侧 `alerting.alertmanagers=[lhjypt-alertmanager:9093]`；`/api/v1/alertmanagers` 可见 active。
+- 内置 `alert-sink` 仅验证/兜底；钉钉/企业微信需转发网关（Alertmanager 无原生钉钉接收器）。
+
+
 
 ## 实测（2026-10-10）
 
@@ -66,6 +90,9 @@ LHJYPT_SCRAPE_TARGET=host.docker.internal:8081 ./scripts/obs.sh up
 - Grafana 已 provision：数据源 `Prometheus`(uid `lhjypt-prom`)、看板 `lhjypt 平台总览`(uid `lhjypt-overview`)。
 - 告警规则 6 条 `health=ok`；`promtool check rules` SUCCESS。受控演练：把抓取目标临时指向死地址并 reload →
   `LhjyptBackendDown` 由 `inactive` 变 **`firing`(critical)**；恢复目标后自动回到 `inactive`（旧实例序列 staleness 过期后解析）。
+- **告警外发（P4-006）演练**：Prometheus firing → Alertmanager active(1) → 内置 sink 收到
+  `ALERT status=firing name=LhjyptBackendDown severity=critical` + `RECEIVED groupStatus=firing alerts=1`；
+  恢复后 sink 收到 `status=resolved`，Alertmanager 活动告警归 0。
 - 注意：单文件 bind mount 不可用 BSD `sed -i` 就地改写（会换 inode 致容器内文件消失）；改抓取目标用 `LHJYPT_SCRAPE_TARGET=... ./scripts/obs.sh up`。
 
 ## 边界

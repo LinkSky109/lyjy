@@ -14,6 +14,7 @@
 | P4-003 | 观测栈接入（本机 Prometheus/Grafana） | ✅ DONE | Prometheus 抓取 `/actuator/prometheus` 目标 up；Grafana 预置数据源+看板；脚本一键启停 |
 | P4-004 | 备用行情源再增（更多公开源） | ⛔ BLOCKED | 本机出网受限：仅 gateio/gateio-futures/binance-vision 可达，OKX/Bybit/Coinbase/Kraken/MEXC/HTX/CoinGecko 均超时，无法真实验证 → 不交付未验证集成，待网络放开再做 |
 | P4-005 | 观测栈告警规则（Prometheus rules） | ✅ DONE | 6 条规则加载 `health=ok`；受控演练 BackendDown firing(critical) → 恢复 inactive |
+| P4-006 | 告警外发（Alertmanager → webhook） | ✅ DONE | Prometheus→Alertmanager→sink 投递 firing/resolved 均验证；钉钉/企业微信经 webhook 网关注入 |
 
 ## 实施节奏
 - 每任务一次「开发 → 测试 → 一致性」闭环（与 P0~P3 一致）。

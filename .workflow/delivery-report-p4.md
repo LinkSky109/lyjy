@@ -38,10 +38,11 @@
 | P4-002 巡检时区口径 | `74df8cf` | `healthcheck.sh` 新鲜度同口径比较（-8h → 0h），`LHJYPT_MARKET_TZ` 可配 |
 | P4-003 观测栈接入 | `74df8cf` | `config/observability`（Prometheus+Grafana 预置看板）+ `scripts/obs.sh` + `docs/observability.md` |
 | P4-005 观测栈告警规则 | 本次 | 6 条 Prometheus 告警规则；受控演练 firing→inactive |
+| P4-006 告警外发（Alertmanager） | 本次 | Prometheus→Alertmanager→webhook 投递 firing/resolved；钉钉/企业微信经网关注入 |
 | P4-004 备用行情源再增 | ⛔ BLOCKED | 本机出网受限，除 gateio/binance-vision 外源不可达，无法真实验证 |
 
 ## 6. 后续建议
 
 - P4-004 备用行情源再增：待网络放开（OKX/Bybit/Coinbase/Kraken 等可达）后新增 `MarketDataSource` 实现即可。
-- 告警外发：接入 Alertmanager（钉钉/企业微信/邮件）或复用业务侧 `AlertNotifier`。
+- 告警外发已接 Alertmanager（webhook）；钉钉/企业微信需自备转发网关（或复用业务侧 `AlertNotifier`）。
 - bar_time 存量是否迁移到 UTC：单机自用无必要（功能一致），如未来多时区协同再评估。

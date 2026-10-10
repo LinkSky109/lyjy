@@ -41,6 +41,30 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
 
+  # 告警外发（P4-006）：Prometheus → Alertmanager → webhook（默认落到本地 sink）
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: lhjypt-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./.generated/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - amdata:/alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+
+  # 本地 webhook 接收器（验证用；生产可用转发网关替换 LHJYPT_ALERT_WEBHOOK）
+  alert-sink:
+    image: python:3.12-alpine
+    container_name: lhjypt-alert-sink
+    restart: unless-stopped
+    volumes:
+      - ./alert-sink.py:/sink/sink.py:ro
+    command: ["python", "/sink/sink.py"]
+
 volumes:
   promdata:
   grafanadata:
+  amdata:

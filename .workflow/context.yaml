@@ -162,6 +162,19 @@ p3_context:
   current_task_status: "DONE"
   next_action: "P3 已交付，进入观察期；如需可再扩展（时区口径/行情分页回补/观测栈）"
 
+# P4 规划上下文（2026-10-10 启动；承接 P3 后续建议，单机自用后续加固）
+p4_context:
+  plan_doc_link: ".workflow/p4-plan.md"
+  requirement_source: ".workflow/delivery-report-p3.md §6 后续建议"
+  plan_status: "IN_PROGRESS"
+  positioning: "承接 P3 后续项：行情分页回补（已做）/ 时区口径（候选）/ 观测栈（候选）/ 备用源再增（候选）"
+  batch_order: "A 行情数据能力 → B 时间口径 → C 观测"
+  task_count: 4
+  task_done: 1
+  current_task: "P4-001 行情分页翻页回补"
+  current_task_status: "DONE"
+  next_action: "P4-001 已交付，可评估 P4-002 时区口径统一"
+
 # 一致性校验上下文
 consistency_context:
   code_check: "PASSED（p1 全量 158/158、JaCoCo 门禁通过、18控制器117端点与PRD对齐、无敏感信息入库）"
@@ -450,4 +463,8 @@ operation_logs:
   - time: "2026-10-09 14:10:00"
     operator: "codex/agent-continuous-workflow"
     action: "P3 收尾完成（全批次回归+一致性巡检+交付报告）：全量 mvn verify 294/294（0跳过，JaCoCo）+ SDK pytest 29/29；环境 5 容器 healthy、后端/前端 200、池具名；P3 能力回归全通过（巡检 13 OK exit0；备份 204K+sha256 校验；指标 289 行；密钥状态；行情源 gateio/binance-vision 质量 303 根 0 缺口异常；性能抽样全 100% p95≤34ms）。五维一致性 CONSISTENCY_PASS（含已知项：bar_time 时区口径、行情分页回补、归档不含密钥）。生成 delivery-report-p3.md 与 consistency-report-p3.md。P3 七项全部交付，全局状态 GLOBAL_DONE。"
+    result: "success"
+  - time: "2026-10-10 15:05:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "P4-001 行情分页翻页回补完成（承接 P3 §6 后续建议）：MarketDataSource SPI 增游标重载 fetch(...,endTimeSec)+supportsBackfill；GateioKlineSource/GateioMarketDataSource 支持 to（秒）、BinanceVisionMarketDataSource 支持 endTime（毫秒）；RealMarketDataService 新增 backfill（最早 K 线为游标向前翻页 + 跨页全窗去重 + 粘性源 + 防死循环）+ BackfillResult；POST /api/market/real/backfill（ADMIN）+ 配置 backfill-page-size/backfill-max-pages。单测新增 10（RealMarketDataService 7 + Gateio buildUrl 1 + BinanceVision 新增 2），mvn verify 304 通过/0 失败（SchemaMigrationIntegrationTest 因本机 Docker API 版本不匹配被 disabledWithoutDocker 跳过，属既有环境限制，本任务无 schema 变更）。真实 E2E（8082 连本地中间件）：BTC_USDT@1h 327 根 → 3 页 fetched3000/inserted2673 → CH 3000 根(2026-06-07~10-10) uniqExact 差 0；重复回补 inserted=0；默认源单页 src=gateio 成功；TRADER 403；质量 0 缺口/0 异常/0 重复。"
     result: "success"

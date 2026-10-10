@@ -41,8 +41,19 @@ public class BinanceVisionMarketDataSource implements MarketDataSource {
 
     @Override
     public List<MarketCandle> fetch(String pair, String interval, int limit) throws Exception {
+        return fetch(pair, interval, limit, null);
+    }
+
+    @Override
+    public boolean supportsBackfill() {
+        return true;
+    }
+
+    @Override
+    public List<MarketCandle> fetch(String pair, String interval, int limit, Long endTimeSec)
+            throws Exception {
         String symbol = pair.replace("_", "").toUpperCase(Locale.ROOT); // BTC_USDT -> BTCUSDT
-        String url = BASE + "?symbol=" + symbol + "&interval=" + interval + "&limit=" + limit;
+        String url = buildUrl(symbol, interval, limit, endTimeSec);
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(properties.getTimeoutSeconds()))
                 .GET().build();
@@ -51,6 +62,18 @@ public class BinanceVisionMarketDataSource implements MarketDataSource {
             throw new IOException("binance-vision 返回 " + response.statusCode());
         }
         return parse(response.body());
+    }
+
+    /** 组装 Binance klines 请求 URL（分页回补时附带 {@code endTime} 游标，毫秒）。 */
+    static String buildUrl(String symbol, String interval, int limit, Long endTimeSec) {
+        StringBuilder url = new StringBuilder(BASE)
+                .append("?symbol=").append(symbol)
+                .append("&interval=").append(interval)
+                .append("&limit=").append(limit);
+        if (endTimeSec != null && endTimeSec > 0) {
+            url.append("&endTime=").append(endTimeSec * 1000L);
+        }
+        return url.toString();
     }
 
     static List<MarketCandle> parse(String body) {

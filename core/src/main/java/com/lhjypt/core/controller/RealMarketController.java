@@ -33,6 +33,24 @@ public class RealMarketController {
                 realMarketDataService.refresh(currencyPair, interval, limit));
     }
 
+    /**
+     * 分页回补更长历史（P4-001，写操作需 ADMIN）。
+     *
+     * @param total    目标条数（空 = pageSize × maxPages）
+     * @param pageSize 每页条数（空取配置，上限 1000）
+     * @param source   指定数据源（空则按配置顺序故障切换）
+     */
+    @PostMapping("/backfill")
+    public Result<RealMarketDataService.BackfillResult> backfill(
+            @RequestParam(required = false) String currencyPair,
+            @RequestParam(required = false) String interval,
+            @RequestParam(required = false) Integer total,
+            @RequestParam(required = false) Integer pageSize,
+            @RequestParam(required = false) String source) {
+        return Result.success(
+                realMarketDataService.backfill(currencyPair, interval, total, pageSize, source));
+    }
+
     /** 源状态与最近刷新。 */
     @GetMapping("/status")
     public Result<Map<String, Object>> status() {

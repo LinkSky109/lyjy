@@ -36,4 +36,14 @@ class GateioKlineSourceTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("解析失败");
     }
+
+    @Test
+    @DisplayName("buildUrl：分页游标 to 仅在提供时附带（P4-001）")
+    void buildUrlAddsCursorOnlyWhenPresent() {
+        String base = "https://api.gateio.ws/api/v4/spot/candlesticks";
+        assertThat(GateioKlineSource.buildUrl(base, "BTC_USDT", "1h", 1000, null))
+                .isEqualTo(base + "?currency_pair=BTC_USDT&interval=1h&limit=1000");
+        assertThat(GateioKlineSource.buildUrl(base, "BTC_USDT", "1h", 500, 1700000000L))
+                .isEqualTo(base + "?currency_pair=BTC_USDT&interval=1h&limit=500&to=1700000000");
+    }
 }

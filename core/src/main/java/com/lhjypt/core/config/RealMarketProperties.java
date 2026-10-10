@@ -43,4 +43,10 @@ public class RealMarketProperties {
 
     /** 重试退避（ms） */
     private long retryBackoffMs = 800;
+
+    /** 分页回补每页条数（P4-001；上限 1000，受各源限制） */
+    private int backfillPageSize = 1000;
+
+    /** 分页回补最大页数（P4-001；总历史 = pageSize × maxPages） */
+    private int backfillMaxPages = 10;
 }

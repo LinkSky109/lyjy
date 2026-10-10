@@ -41,10 +41,16 @@ public class GateioKlineSource {
 
     public List<RealKline> fetchCandles(String currencyPair, String interval, int limit)
             throws IOException, InterruptedException {
-        String url = properties.getBaseUrl()
-                + "?currency_pair=" + currencyPair
-                + "&interval=" + interval
-                + "&limit=" + limit;
+        return fetchCandles(currencyPair, interval, limit, null);
+    }
+
+    /**
+     * 分页拉取（P4-001）：{@code toSeconds} 为结束时间游标（秒，含），为空取最近 {@code limit} 根。
+     * Gate v4 现货 candlesticks 支持 {@code to} 参数用于历史回补。
+     */
+    public List<RealKline> fetchCandles(String currencyPair, String interval, int limit,
+                                        Long toSeconds) throws IOException, InterruptedException {
+        String url = buildUrl(properties.getBaseUrl(), currencyPair, interval, limit, toSeconds);
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(properties.getTimeoutSeconds()))
                 .GET()
@@ -62,8 +68,20 @@ public class GateioKlineSource {
         return candles;
     }
 
-    static List<RealKline> parseCandles(String body) {
-        List<RealKline> result = new ArrayList<>();
+    /** 组装 Gate.io candlesticks 请求 URL（分页回补时附带 {@code to} 游标）。 */
+    static String buildUrl(String baseUrl, String currencyPair, String interval,
+                           int limit, Long toSeconds) {
+        StringBuilder url = new StringBuilder(baseUrl)
+                .append("?currency_pair=").append(currencyPair)
+                .append("&interval=").append(interval)
+                .append("&limit=").append(limit);
+        if (toSeconds != null && toSeconds > 0) {
+            url.append("&to=").append(toSeconds);
+        }
+        return url.toString();
+    }
+
+    static List<RealKline> parseCandles(String body) {        List<RealKline> result = new ArrayList<>();
         try {
             JSONArray array = JSON.parseArray(body);
             for (int i = 0; i < array.size(); i++) {

@@ -39,6 +39,21 @@ curl "http://localhost:8081/api/market/bars?symbol=BTC_USDT&frequency=1h&startTi
 | `LHJYPT_MARKET_REAL_TIMEOUT` | `10` | HTTP 超时（秒） |
 | `LHJYPT_MARKET_REAL_REFRESH_MS` | `900000` | 定时自动刷新间隔（ms），`0` 关闭 |
 
+## 分页回补更长历史（P4-001）
+
+单次 `refresh` 上限 1000 根；需要更长历史用 `POST /api/market/real/backfill`（写操作需 ADMIN），
+以最早 K 线时间为游标向前翻页，返回 `{pages, fetched, inserted, source, earliest, latest}`：
+
+```bash
+curl -X POST "http://localhost:8081/api/market/real/backfill?currencyPair=BTC_USDT&interval=1h&total=3000&pageSize=1000&source=binance-vision" \
+  -H 'X-User-Role: ADMIN' -H 'X-User-Id: admin'
+# 327 根 → 3 页 fetched 3000 / inserted 2673（去重）→ 3000 根历史；重复执行 inserted=0
+```
+
+- 参数：`total`（目标条数，空=pageSize×maxPages）、`pageSize`（≤1000）、`source`（指定源；空则按 `sources` 故障切换）。
+- 配置：`LHJYPT_MARKET_REAL_BACKFILL_PAGE`（默认 1000）、`LHJYPT_MARKET_REAL_BACKFILL_PAGES`（默认 10）。
+- 详见 [market-reliability.md](market-reliability.md) §3。
+
 ## 定时自动刷新
 
 默认每 15 分钟自动拉取一次默认交易对 K 线（`@Scheduled` + 分布式锁防重，失败静默等待下轮）；`status` 返回 `autoRefreshMs` 与最近刷新时间。

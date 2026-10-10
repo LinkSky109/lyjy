@@ -26,8 +26,21 @@ public class GateioMarketDataSource implements MarketDataSource {
 
     @Override
     public List<MarketCandle> fetch(String pair, String interval, int limit) throws Exception {
-        List<GateioKlineSource.RealKline> candles =
-                gateioKlineSource.fetchCandles(pair, interval, limit);
+        return toCandles(gateioKlineSource.fetchCandles(pair, interval, limit, null));
+    }
+
+    @Override
+    public boolean supportsBackfill() {
+        return true;
+    }
+
+    @Override
+    public List<MarketCandle> fetch(String pair, String interval, int limit, Long endTimeSec)
+            throws Exception {
+        return toCandles(gateioKlineSource.fetchCandles(pair, interval, limit, endTimeSec));
+    }
+
+    private static List<MarketCandle> toCandles(List<GateioKlineSource.RealKline> candles) {
         List<MarketCandle> result = new ArrayList<>(candles.size());
         for (GateioKlineSource.RealKline candle : candles) {
             result.add(new MarketCandle(candle.timestamp(), candle.open(), candle.high(),

@@ -81,6 +81,9 @@ lhjypt:
       max-attempts: ${LHJYPT_MARKET_REAL_ATTEMPTS:2}
       retry-backoff-ms: ${LHJYPT_MARKET_REAL_BACKOFF:800}
       refresh-interval-ms: ${LHJYPT_MARKET_REAL_REFRESH_MS:900000}  # 定时自动刷新间隔（>=5000；关闭请设 LHJYPT_MARKET_REAL=false）
+      # 分页回补（P4-001）：总历史 = backfill-page-size × backfill-max-pages
+      backfill-page-size: ${LHJYPT_MARKET_REAL_BACKFILL_PAGE:1000}
+      backfill-max-pages: ${LHJYPT_MARKET_REAL_BACKFILL_PAGES:10}
   # CTP柜台配置
   ctp:
     enabled: false

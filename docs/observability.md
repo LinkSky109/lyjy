@@ -41,12 +41,32 @@ LHJYPT_SCRAPE_TARGET=host.docker.internal:8081 ./scripts/obs.sh up
 
 指标定义与扩展方式见 [metrics.md](metrics.md)。
 
+## 告警规则（P4-005）
+
+`config/observability/prometheus.rules.yml`（`rule_files` 已挂载），在 Prometheus `/alerts` 与 `/api/v1/rules` 可见：
+
+| 告警 | 表达式 | for | 级别 |
+|------|--------|-----|------|
+| `LhjyptBackendDown` | `up{job="lhjypt"} == 0` | 1m | critical |
+| `LhjyptHttpP95High` | HTTP P95 > 1s | 5m | warning |
+| `LhjyptMarketRefreshErrors` | 近 10m `lhjypt_market_refresh_total{result="error"}` 增量 > 0 | 0m | warning |
+| `LhjyptCircuitTripped` | 近 10m `lhjypt_circuit_trips_total` 增量 > 0 | 0m | critical |
+| `LhjyptCapacityHigh` | `lhjypt_capacity_load_pct > 85` | 5m | warning |
+| `LhjyptJvmHeapHigh` | Heap 使用率 > 90% | 5m | warning |
+
+校验规则语法：`docker run --rm -v $PWD/config/observability/prometheus.rules.yml:/r.yml:ro --entrypoint promtool prom/prometheus:v2.54.1 check rules /r.yml`。
+如需外发（钉钉/企业微信/邮件），另行接入 Alertmanager（本项目已内置业务侧 `AlertNotifier` 兜底，见 P3-004）。
+
+
 ## 实测（2026-10-10）
 
 - `obs.sh up` 启动 `lhjypt-prometheus`(9090) / `lhjypt-grafana`(3000)。
 - Prometheus 目标 `lhjypt → http://host.lima.internal:8081/actuator/prometheus` **up**；
   抓取到 `lhjypt_*`（3）、`jvm_memory_used_bytes`（8）、`http_server_requests_*`（3）、`hikaricp_connections_*`（2）等系列。
 - Grafana 已 provision：数据源 `Prometheus`(uid `lhjypt-prom`)、看板 `lhjypt 平台总览`(uid `lhjypt-overview`)。
+- 告警规则 6 条 `health=ok`；`promtool check rules` SUCCESS。受控演练：把抓取目标临时指向死地址并 reload →
+  `LhjyptBackendDown` 由 `inactive` 变 **`firing`(critical)**；恢复目标后自动回到 `inactive`（旧实例序列 staleness 过期后解析）。
+- 注意：单文件 bind mount 不可用 BSD `sed -i` 就地改写（会换 inode 致容器内文件消失）；改抓取目标用 `LHJYPT_SCRAPE_TARGET=... ./scripts/obs.sh up`。
 
 ## 边界
 

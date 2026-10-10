@@ -1,0 +1,58 @@
+# lhjypt Prometheus 告警规则（P4-005）
+# 规则在 Prometheus /alerts、/api/v1/rules 可见；如需外发，再接入 Alertmanager（可选）。
+groups:
+  - name: lhjypt
+    rules:
+      - alert: LhjyptBackendDown
+        expr: up{job="lhjypt"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "lhjypt 后端不可达"
+          description: "Prometheus 已 1 分钟无法抓取 {{ $labels.instance }}"
+
+      - alert: LhjyptHttpP95High
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{application="lhjypt-core"}[5m]))) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "lhjypt HTTP P95 > 1s"
+          description: "P95 延迟 {{ $value }}s（5 分钟窗口）"
+
+      - alert: LhjyptMarketRefreshErrors
+        expr: increase(lhjypt_market_refresh_total{result="error"}[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "lhjypt 行情刷新失败"
+          description: "近 10 分钟行情刷新失败 {{ $value }} 次"
+
+      - alert: LhjyptCircuitTripped
+        expr: increase(lhjypt_circuit_trips_total[10m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "lhjypt 策略/组合熔断触发"
+          description: "近 10 分钟熔断触发 {{ $value }} 次"
+
+      - alert: LhjyptCapacityHigh
+        expr: lhjypt_capacity_load_pct > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "lhjypt 容量水位 > 85%"
+          description: "当前容量水位 {{ $value }}%"
+
+      - alert: LhjyptJvmHeapHigh
+        expr: sum(jvm_memory_used_bytes{application="lhjypt-core", area="heap"}) / sum(jvm_memory_max_bytes{application="lhjypt-core", area="heap"}) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "lhjypt JVM Heap 使用 > 90%"
+          description: "Heap 使用率 {{ $value | humanizePercentage }}"

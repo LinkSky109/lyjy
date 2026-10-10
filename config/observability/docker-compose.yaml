@@ -16,6 +16,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./.generated/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus.rules.yml:/etc/prometheus/rules/lhjypt.rules.yml:ro
       - promdata:/prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml

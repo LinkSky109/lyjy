@@ -167,13 +167,13 @@ p4_context:
   plan_doc_link: ".workflow/p4-plan.md"
   requirement_source: ".workflow/delivery-report-p3.md §6 后续建议"
   plan_status: "DONE"
-  positioning: "承接 P3 后续项：行情分页回补（已做）/ 时区口径（已做）/ 观测栈（已做）/ 备用源再增（候选）"
+  positioning: "承接 P3 后续项：行情分页回补（已做）/ 时区口径（已做）/ 观测栈（已做）/ 观测告警规则（已做）/ 备用源再增（阻塞）"
   batch_order: "A 行情数据能力 → B 时间口径 → C 观测"
-  task_count: 4
-  task_done: 3
-  current_task: "P4 交付完成（全量回归 + 一致性巡检 + 交付报告）"
+  task_count: 5
+  task_done: 4
+  current_task: "P4-005 观测栈告警规则 + P4-004 备用源再增（阻塞）"
   current_task_status: "DONE"
-  next_action: "P4-001/002/003 已交付；剩余候选 P4-004 备用源再增"
+  next_action: "P4-004 阻塞（出网受限，无其他可达公开源可验证）；其余 P4-001/002/003/005 已交付"
 
 # 一致性校验上下文
 consistency_context:
@@ -479,4 +479,8 @@ operation_logs:
   - time: "2026-10-10 16:15:00"
     operator: "codex/agent-continuous-workflow"
     action: "P4 收尾完成（全量回归 + 一致性巡检 + 交付报告）：全量 mvn verify 304 通过/0 失败（1 跳过为 Testcontainers 客户端 API 版本环境限制）+ SDK pytest 29/29。五维一致性 CONSISTENCY_PASS：代码（304/0/1、31 控制器 176 映射、工作区干净）；环境（5 中间件 healthy + 后端 8081 UP + 前端 5173 200 + 观测栈 Prometheus/Grafana up）；数据（PG 49 表关键表齐全、CH bar_data BTC_USDT@1h 3001 根 0 重复 0 缺口 0 异常、回补 327→3000 正确、重复回补 inserted=0）；安全（/backfill 仅 ADMIN：TRADER 403/ADMIN 200；Grafana 禁注册；归档不含密钥）；文档（p4-plan + 3 任务报告 + observability/deploy/metrics/README 对齐）。生成 delivery-report-p4.md 与 consistency-report-p4.md。P4 后续加固（P4-001~003）交付完成，全局状态 GLOBAL_DONE；剩余候选 P4-004 备用源再增。"
+    result: "success"
+  - time: "2026-10-10 16:55:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "P4-004 备用行情源再增评估 + P4-005 观测栈告警规则完成。P4-004：出网探测显示仅 gateio/gateio-futures/binance-vision 可达，OKX/Bybit/Coinbase/Kraken/MEXC/HTX/CoinGecko/api.binance.com 均超时（DNS 可解析、TCP 不通）→ 无可真实验证的新源，按『不交付未验证集成』置 BLOCKED，不写代码。P4-005：新增 config/observability/prometheus.rules.yml（6 条：BackendDown/HttpP95High/MarketRefreshErrors/CircuitTripped/CapacityHigh/JvmHeapHigh），模板加 rule_files、compose 挂载 rules、docs/observability.md 补章节。验证：promtool check rules SUCCESS(6)；/api/v1/rules 6 条 health=ok；受控演练抓取目标指向死地址 → LhjyptBackendDown inactive→firing(critical)，恢复后 staleness 过期→inactive，alerts 0。教训：单文件 bind mount 禁用 BSD sed -i（换 inode 致容器内文件消失）。"
     result: "success"

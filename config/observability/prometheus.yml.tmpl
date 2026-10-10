@@ -1,0 +1,13 @@
+# lhjypt Prometheus 抓取配置模板（P4-003）
+# __TARGET__ 由 scripts/obs.sh 依据 LHJYPT_SCRAPE_TARGET 替换后写入 .generated/prometheus.yml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: lhjypt
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['__TARGET__']
+        labels:
+          application: lhjypt-core

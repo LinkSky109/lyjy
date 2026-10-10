@@ -12,6 +12,8 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASE="${LHJYPT_BASE:-http://localhost:8081}"
+# 行情 bar_time 按本地时区（Asia/Shanghai +8）口径写入，新鲜度需用同口径比较（P4-002）
+TZ_DATA="${LHJYPT_MARKET_TZ:-Asia/Shanghai}"
 LOG="$ROOT/logs/healthcheck.log"
 mkdir -p "$ROOT/logs"
 
@@ -84,8 +86,9 @@ if [ "$(docker inspect -f '{{.State.Status}}' lhjypt-postgres 2>/dev/null)" = "r
 fi
 
 if [ "$(docker inspect -f '{{.State.Status}}' lhjypt-clickhouse 2>/dev/null)" = "running" ]; then
+  # bar_time 以本地墙钟写入（epoch 承载本地值），故 now() 需加本地偏移后比较，否则呈现 -8h 假滞后（P4-002）
   lag="$(docker exec lhjypt-clickhouse clickhouse-client -q \
-    "SELECT if(count()=0, -1, dateDiff('hour', max(bar_time), now())) FROM lhjypt.bar_data;" 2>/dev/null || echo -2)"
+    "SELECT if(count()=0, -1, dateDiff('hour', max(bar_time), now() + toIntervalSecond(timeZoneOffset(now('${TZ_DATA}'))))) FROM lhjypt.bar_data;" 2>/dev/null || echo -2)"
   if [ "$lag" = "-1" ]; then
     record WARN "ch.bar_data" "无行情数据（可 POST /api/market/real/refresh）"
   elif [ "$lag" = "-2" ]; then

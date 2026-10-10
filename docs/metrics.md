@@ -42,13 +42,17 @@ hikaricp_connections_active / hikaricp_connections_max
 
 ## 接入本机 Prometheus（可选）
 
+已提供一键观测栈（Prometheus + Grafana，含预置数据源与看板）：`./scripts/obs.sh up`，详见 [observability.md](observability.md)。
+
+手动接入示例：
+
 ```yaml
 # prometheus.yml
 scrape_configs:
   - job_name: lhjypt
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: ['host.docker.internal:8081']   # 容器内抓宿主机
+      - targets: ['host.docker.internal:8081']   # 容器内抓宿主机（Lima 用 host.lima.internal）
 ```
 
 Grafana 导入任意 JVM/Spring Boot 仪表盘即可（`application="lhjypt-core"` 过滤）。

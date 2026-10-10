@@ -167,13 +167,13 @@ p4_context:
   plan_doc_link: ".workflow/p4-plan.md"
   requirement_source: ".workflow/delivery-report-p3.md §6 后续建议"
   plan_status: "IN_PROGRESS"
-  positioning: "承接 P3 后续项：行情分页回补（已做）/ 时区口径（候选）/ 观测栈（候选）/ 备用源再增（候选）"
+  positioning: "承接 P3 后续项：行情分页回补（已做）/ 时区口径（已做）/ 观测栈（已做）/ 备用源再增（候选）"
   batch_order: "A 行情数据能力 → B 时间口径 → C 观测"
   task_count: 4
-  task_done: 1
-  current_task: "P4-001 行情分页翻页回补"
+  task_done: 3
+  current_task: "P4-003 观测栈接入（Prometheus + Grafana）"
   current_task_status: "DONE"
-  next_action: "P4-001 已交付，可评估 P4-002 时区口径统一"
+  next_action: "P4-001/002/003 已交付；剩余候选 P4-004 备用源再增"
 
 # 一致性校验上下文
 consistency_context:
@@ -467,4 +467,12 @@ operation_logs:
   - time: "2026-10-10 15:05:00"
     operator: "codex/agent-continuous-workflow"
     action: "P4-001 行情分页翻页回补完成（承接 P3 §6 后续建议）：MarketDataSource SPI 增游标重载 fetch(...,endTimeSec)+supportsBackfill；GateioKlineSource/GateioMarketDataSource 支持 to（秒）、BinanceVisionMarketDataSource 支持 endTime（毫秒）；RealMarketDataService 新增 backfill（最早 K 线为游标向前翻页 + 跨页全窗去重 + 粘性源 + 防死循环）+ BackfillResult；POST /api/market/real/backfill（ADMIN）+ 配置 backfill-page-size/backfill-max-pages。单测新增 10（RealMarketDataService 7 + Gateio buildUrl 1 + BinanceVision 新增 2），mvn verify 304 通过/0 失败（SchemaMigrationIntegrationTest 因本机 Docker API 版本不匹配被 disabledWithoutDocker 跳过，属既有环境限制，本任务无 schema 变更）。真实 E2E（8082 连本地中间件）：BTC_USDT@1h 327 根 → 3 页 fetched3000/inserted2673 → CH 3000 根(2026-06-07~10-10) uniqExact 差 0；重复回补 inserted=0；默认源单页 src=gateio 成功；TRADER 403；质量 0 缺口/0 异常/0 重复。"
+    result: "success"
+  - time: "2026-10-10 15:40:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "P4-002 巡检行情新鲜度时区口径修正完成：根因实测——bar_time 以本地墙钟写入但由 CH DateTime(UTC) 承载（epoch=本地墙钟当 UTC），巡检用 SQL now() 比较呈 -8h 假滞后（用 now(tz) 反致 -16h）。healthcheck.sh 改为 now()+toIntervalSecond(timeZoneOffset(now('<tz>'))) 同口径比较，时区可配 LHJYPT_MARKET_TZ（默认 Asia/Shanghai）；docs/deploy.md 补口径说明。验证：修正前 -8h → 修正后「最新 bar 距今 0h」，巡检 OK=12/FAIL=0。不改存量数据与应用写入。"
+    result: "success"
+  - time: "2026-10-10 15:55:00"
+    operator: "codex/agent-continuous-workflow"
+    action: "P4-003 观测栈接入完成（Prometheus + Grafana，纯新增不改应用）：config/observability（compose v2.54.1 Prometheus@9090 + Grafana@11.2.0@3000、prometheus.yml 模板、grafana provisioning 数据源+看板、lhjypt-overview 9 面板看板）+ scripts/obs.sh（up/down/status，目标可配 LHJYPT_SCRAPE_TARGET）+ docs/observability.md；.generated/ 入 gitignore。真实验证：目标 lhjypt→host.lima.internal:8081/actuator/prometheus health=up、up{job}=1；抓取 lhjypt_*(3)/jvm_memory(8)/http_server_requests(3)/hikaricp(2) 系列；Grafana 数据源 Prometheus(uid lhjypt-prom) 与看板「lhjypt 平台总览」(uid lhjypt-overview) 均 provision 成功。"
     result: "success"

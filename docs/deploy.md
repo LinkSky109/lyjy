@@ -52,6 +52,8 @@ LHJYPT_HEALTH_WEBHOOK=<webhook-url> ./scripts/healthcheck.sh   # 异常时 POST 
 巡检项：中间件 5 容器健康 → 后端健康与子组件（PG/CH/Redis）→ 前端可达 → 数据面（关键表齐全 / bar_data 新鲜度 ≤24h / 磁盘 <90%）。
 报告输出到 stdout 并追加 `logs/healthcheck.log`；`FAIL>0` 时退出码 1。
 
+> 新鲜度口径（P4-002）：`bar_time` 以本地墙钟写入，巡检用 `now() + 本地偏移` 比较（时区可配 `LHJYPT_MARKET_TZ`，默认 `Asia/Shanghai`），因此正常态显示 `0h` 而非早先的 `-8h`。
+
 ### 定时巡检（示例）
 
 macOS（launchd，每 10 分钟）：

@@ -1,0 +1,142 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 0,
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "HTTP 请求速率（按接口）",
+      "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+          "expr": "sum by (uri) (rate(http_server_requests_seconds_count{application=\"lhjypt-core\"}[5m]))",
+          "legendFormat": "{{uri}}" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "HTTP P95 延迟（按接口）",
+      "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+          "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{application=\"lhjypt-core\"}[5m])))",
+          "legendFormat": "{{uri}}" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "回测运行数（近 1h，按状态）",
+      "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+          "expr": "sum by (status) (increase(lhjypt_backtest_runs_total[1h]))",
+          "legendFormat": "{{status}}" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "回测耗时 P95",
+      "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 7 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(lhjypt_backtest_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "行情刷新结果（近 1h）",
+      "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 7 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+          "expr": "sum by (result) (increase(lhjypt_market_refresh_total[1h]))",
+          "legendFormat": "{{result}}" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "行情新增条数（近 1h）",
+      "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 7 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+          "expr": "increase(lhjypt_market_refresh_inserted_total[1h])",
+          "legendFormat": "inserted" }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "熔断触发（近 1h，按类型）",
+      "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+          "expr": "sum by (kind) (increase(lhjypt_circuit_trips_total[1h]))",
+          "legendFormat": "{{kind}}" }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "容量水位",
+      "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+          "expr": "lhjypt_capacity_load_pct",
+          "legendFormat": "load%" }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "JVM Heap 使用",
+      "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "lhjypt-prom" },
+          "expr": "sum(jvm_memory_used_bytes{application=\"lhjypt-core\", area=\"heap\"})",
+          "legendFormat": "heap used" }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["lhjypt"],
+  "templating": { "list": [] },
+  "time": { "from": "now-3h", "to": "now" },
+  "timezone": "",
+  "title": "lhjypt 平台总览",
+  "uid": "lhjypt-overview",
+  "version": 1
+}

@@ -2,3 +2,4 @@
 logs/
 core/target/
 backups/
+config/observability/.generated/

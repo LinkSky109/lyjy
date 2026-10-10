@@ -1,0 +1,45 @@
+# lhjypt 本机观测栈（P4-003）：Prometheus 抓取后端 /actuator/prometheus，Grafana 预置数据源与看板
+#
+#   用法：./scripts/obs.sh up      # 生成 .generated/prometheus.yml 并启动（宿主机 9090/3000）
+#         ./scripts/obs.sh down
+#         ./scripts/obs.sh status
+#
+# 抓取目标默认 host.lima.internal:8081（Lima）；Docker Desktop 用 LHJYPT_SCRAPE_TARGET=host.docker.internal:8081
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: lhjypt-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./.generated/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: lhjypt-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-lhjypt}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/lhjypt-overview.json
+    volumes:
+      - grafanadata:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+volumes:
+  promdata:
+  grafanadata:

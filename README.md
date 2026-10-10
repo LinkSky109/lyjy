@@ -12,7 +12,7 @@
 | P2 三期（合规监管·多租户·自动伸缩） | 已完成 | - |
 | P2 观察期补强（多租户横切：策略/组合/风险预算） | 已完成 | - |
 | P3 单机生产化（部署常驻/备份/可观测/密钥/行情可靠/性能） | 已完成 | - |
-| P4 后续加固（行情分页回补） | 进行中 | - |
+| P4 后续加固（行情分页回补 / 时区口径 / 观测栈） | 进行中 | - |
 
 > 单人使用场景：`GLOBAL_DONE`，当前重心为开箱即用与日常可用性。
 
@@ -22,6 +22,7 @@
 ./scripts/dev.sh up      # 中间件 + 增量SQL + 后端8081 + 前端5173（幂等）
 ./scripts/demo.sh        # 上传策略→水印→沙箱运行→停止→审计 一键演示
 ./scripts/channel-demo.sh # 真实交易通道演练：策略内SDK下单→Mock成交→撤单拒绝→持仓/资金闭环
+./scripts/obs.sh up      # 可选观测栈：Prometheus(9090)+Grafana(3000) 预置看板
 ```
 
 详细指南见 **[docs/quickstart.md](docs/quickstart.md)**、**[docs/channel.md](docs/channel.md)**；常用运维见 `./scripts/dev.sh status|down|reset-db|logs`。

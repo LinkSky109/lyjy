@@ -12,7 +12,7 @@
 | P2 三期（合规监管·多租户·自动伸缩） | 已完成 | - |
 | P2 观察期补强（多租户横切：策略/组合/风险预算） | 已完成 | - |
 | P3 单机生产化（部署常驻/备份/可观测/密钥/行情可靠/性能） | 已完成 | - |
-| P4 后续加固（行情分页回补 / 时区口径 / 观测栈） | 进行中 | - |
+| P4 后续加固（行情分页回补 / 巡检时区口径 / 观测栈） | 已完成 | - |
 
 > 单人使用场景：`GLOBAL_DONE`，当前重心为开箱即用与日常可用性。
 
@@ -94,6 +94,7 @@ lhjypt/
 
 - [技术选型](docs/tech-stack.md)
 - [架构设计](docs/architecture.md)
+- [观测栈（Prometheus/Grafana）](docs/observability.md)
 - [P1.5 交易主链路闭环需求](docs/p1.5-trade-closure-requirements.md)
 - [需求规格（补充）](.workflow/requirements-supplement.md)
 - [P0任务拆解](.workflow/tasks-p0.md)

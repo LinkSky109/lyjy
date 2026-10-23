@@ -68,6 +68,10 @@ public class CashTransaction {
         return amount;
     }
 
+    public String getCurrency() {
+        return currency;
+    }
+
     public String getStatus() {
         return status;
     }
@@ -118,6 +122,10 @@ public class CashTransaction {
 
     public void setAmount(BigDecimal amount) {
         this.amount = amount;
+    }
+
+    public void setCurrency(String currency) {
+        this.currency = currency;
     }
 
     public void setStatus(String status) {

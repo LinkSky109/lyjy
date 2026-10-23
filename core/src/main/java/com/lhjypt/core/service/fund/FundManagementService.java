@@ -45,18 +45,27 @@ public class FundManagementService {
      */
     @Transactional
     public CashTransaction applyCashTransaction(CashTransaction request) {
+        if (request.getAmount() == null || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("金额必须大于 0");
+        }
+        if (request.getAccountId() == null || request.getAccountId().isBlank()) {
+            throw new IllegalArgumentException("accountId 不能为空");
+        }
+        FundAccount account = requireAccount(request.getAccountId());
+        if (request.getCurrency() != null && !request.getCurrency().isBlank()
+                && account.getCurrency() != null
+                && !request.getCurrency().equalsIgnoreCase(account.getCurrency())) {
+            throw new IllegalArgumentException("币种与账户不一致: " + request.getCurrency()
+                    + " / " + account.getCurrency());
+        }
+        if ("WITHDRAW".equals(request.getType())
+                && account.getAvailableCash().compareTo(request.getAmount()) < 0) {
+            throw new IllegalStateException("可用资金不足，无法出金 " + request.getAmount());
+        }
+
         request.setTransactionNo(generateNo("TXN"));
         request.setStatus("PENDING");
         request.setCreateTime(LocalDateTime.now());
-
-        if ("WITHDRAW".equals(request.getType())) {
-            // 出金前检查可用资金
-            FundAccount account = fundAccountMapper.selectByAccountId(request.getAccountId());
-            if (account.getAvailableCash().compareTo(request.getAmount()) < 0) {
-                throw new IllegalStateException("可用资金不足，无法出金 " + request.getAmount());
-            }
-        }
-
         cashTransactionMapper.insert(request);
         log.info("出入金申请: no={} type={} amount={}",
                 request.getTransactionNo(), request.getType(), request.getAmount());
@@ -69,15 +78,19 @@ public class FundManagementService {
     @Transactional
     public CashTransaction approve(String transactionNo, String approver, boolean approved) {
         CashTransaction tx = findTransaction(transactionNo);
-        tx.setApprover(approver);
-        tx.setApproveTime(LocalDateTime.now());
-        tx.setStatus(approved ? "COMPLETED" : "REJECTED");
-
+        if (!"PENDING".equals(tx.getStatus())) {
+            throw new IllegalStateException("出入金单已处理: " + transactionNo
+                    + " status=" + tx.getStatus());
+        }
         if (approved) {
             executeCashTransaction(tx);
+            tx.setStatus("COMPLETED");
             tx.setCompleteTime(LocalDateTime.now());
+        } else {
+            tx.setStatus("REJECTED");
         }
-
+        tx.setApprover(approver);
+        tx.setApproveTime(LocalDateTime.now());
         cashTransactionMapper.updateById(tx);
         return tx;
     }
@@ -86,7 +99,11 @@ public class FundManagementService {
      * 执行出入金，更新账户余额并记录流水
      */
     private void executeCashTransaction(CashTransaction tx) {
-        FundAccount account = fundAccountMapper.selectByAccountId(tx.getAccountId());
+        FundAccount account = requireAccount(tx.getAccountId());
+        if ("WITHDRAW".equals(tx.getType())
+                && account.getAvailableCash().compareTo(tx.getAmount()) < 0) {
+            throw new IllegalStateException("可用资金不足，无法执行出金 " + tx.getAmount());
+        }
         BigDecimal before = account.getTotalAsset();
         BigDecimal change = "DEPOSIT".equals(tx.getType())
                 ? tx.getAmount() : tx.getAmount().negate();
@@ -270,6 +287,55 @@ public class FundManagementService {
      */
     public List<FundFlow> getFlows(String accountId, LocalDateTime start, LocalDateTime end) {
         return fundFlowMapper.selectByAccountAndTime(accountId, start, end);
+    }
+
+    /**
+     * 资金账户分页。
+     */
+    public java.util.Map<String, Object> pageAccounts(int page, int size) {
+        int safePage = Math.max(1, page);
+        int safeSize = Math.min(200, Math.max(1, size));
+        long offset = (long) (safePage - 1) * safeSize;
+        List<FundAccount> items = fundAccountMapper.selectPage(offset, safeSize);
+        long total = fundAccountMapper.countAll();
+        return pageResult(items, total, safePage, safeSize);
+    }
+
+    /**
+     * 资金流水分页（accountId 必填，bizType 可选）。
+     */
+    public java.util.Map<String, Object> pageFlows(String accountId, LocalDateTime start,
+                                                   LocalDateTime end, String bizType,
+                                                   int page, int size) {
+        if (accountId == null || accountId.isBlank()) {
+            throw new IllegalArgumentException("accountId 不能为空");
+        }
+        int safePage = Math.max(1, page);
+        int safeSize = Math.min(200, Math.max(1, size));
+        long offset = (long) (safePage - 1) * safeSize;
+        String biz = bizType == null || bizType.isBlank() ? null : bizType.trim();
+        List<FundFlow> items = fundFlowMapper.selectPageFiltered(
+                accountId.trim(), start, end, biz, offset, safeSize);
+        long total = fundFlowMapper.countFiltered(accountId.trim(), start, end, biz);
+        return pageResult(items, total, safePage, safeSize);
+    }
+
+    private static java.util.Map<String, Object> pageResult(List<?> items, long total,
+                                                            int page, int size) {
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("items", items);
+        result.put("total", total);
+        result.put("page", page);
+        result.put("size", size);
+        return result;
+    }
+
+    private FundAccount requireAccount(String accountId) {
+        FundAccount account = fundAccountMapper.selectByAccountId(accountId);
+        if (account == null) {
+            throw new IllegalArgumentException("资金账户不存在: " + accountId);
+        }
+        return account;
     }
 
     private CashTransaction findTransaction(String no) {

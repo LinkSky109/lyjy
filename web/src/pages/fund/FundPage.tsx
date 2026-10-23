@@ -87,6 +87,13 @@ interface FundReconciliationView {
   createTime?: string;
 }
 
+interface PageResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+}
+
 type Notice = { tone: Tone; text: string } | null;
 
 const TRANSACTION_TYPES = ['DEPOSIT', 'WITHDRAW'];
@@ -157,6 +164,16 @@ export default function FundPage() {
     () => api.get<FundAccountView>('/api/trade/platform/account', { accountId: accountQueryId }),
     [accountQueryId],
   );
+  const [accountPage, setAccountPage] = useState(1);
+  const ACCOUNT_PAGE_SIZE = 20;
+  const accounts = useApi<PageResult<FundAccountView>>(
+    () => api.get<PageResult<FundAccountView>>('/api/fund/accounts', {
+      page: accountPage,
+      size: ACCOUNT_PAGE_SIZE,
+    }),
+    [accountPage],
+  );
+  const accountTotal = accounts.data?.total ?? 0;
 
   const validateTransaction = (): boolean => {
     setTxAmountError(null);
@@ -222,6 +239,7 @@ export default function FundPage() {
       });
       setTxConfirmOpen(false);
       accountView.reload();
+      accounts.reload();
       flows.reload();
     } catch (error) {
       setTxNotice({ tone: 'danger', text: `提交失败：${errorText(error)}` });
@@ -265,6 +283,7 @@ export default function FundPage() {
       });
       setApproveConfirmOpen(false);
       accountView.reload();
+      accounts.reload();
       flows.reload();
     } catch (error) {
       setApproveNotice({ tone: 'danger', text: `审核失败：${errorText(error)}` });
@@ -284,19 +303,24 @@ export default function FundPage() {
     end: localDateTime(now, true),
   }));
 
-  const flows = useApi(
+  const [flowBizFilter, setFlowBizFilter] = useState('');
+  const [flowPage, setFlowPage] = useState(1);
+  const FLOW_PAGE_SIZE = 20;
+  const flows = useApi<PageResult<FundFlowView>>(
     () =>
-      api.get<FundFlowView[]>('/api/fund/flows', {
+      api.get<PageResult<FundFlowView>>('/api/fund/flows', {
         accountId: flowQuery.accountId,
         start: toIso(flowQuery.start),
         end: toIso(flowQuery.end),
+        bizType: flowBizFilter || undefined,
+        page: flowPage,
+        size: FLOW_PAGE_SIZE,
       }),
-    [flowQuery.accountId, flowQuery.start, flowQuery.end],
+    [flowQuery.accountId, flowQuery.start, flowQuery.end, flowBizFilter, flowPage],
   );
 
-  const [flowBizFilter, setFlowBizFilter] = useState('');
-
   const applyFlowQuery = () => {
+    setFlowPage(1);
     setFlowQuery({
       accountId: flowAccountDraft.trim(),
       start: flowStartDraft,
@@ -304,11 +328,12 @@ export default function FundPage() {
     });
   };
 
-  const flowRows = flows.data ?? [];
-  const flowBizTypes = Array.from(new Set(flowRows.map((row) => row.bizType).filter(Boolean))) as string[];
-  const filteredFlowRows = flowBizFilter
-    ? flowRows.filter((row) => row.bizType === flowBizFilter)
-    : flowRows;
+  const flowRows = flows.data?.items ?? [];
+  const flowBizTypes = Array.from(
+    new Set(flowRows.map((row) => row.bizType).filter(Boolean)),
+  ) as string[];
+  const flowTotal = flows.data?.total ?? 0;
+  const flowPages = Math.max(1, Math.ceil(flowTotal / FLOW_PAGE_SIZE));
 
   // ---------- 资金对账 ----------
   const [reconAccountId, setReconAccountId] = useState('DEFAULT-001');
@@ -359,20 +384,20 @@ export default function FundPage() {
         padded={false}
         actions={
           <>
-            <span className="muted">{accountQueryId}</span>
-            <Button size="sm" variant="ghost" onClick={accountView.reload}>
+            <span className="muted">共 {accounts.data?.total ?? 0} 个账户</span>
+            <Button size="sm" variant="ghost" onClick={() => accounts.reload()}>
               刷新
             </Button>
           </>
         }
       >
         <AsyncState
-          loading={accountView.loading}
-          error={accountView.error}
-          onRetry={accountView.reload}
-          empty={!accountView.loading && !accountView.data && '后端未返回该账户数据，请核对账户 ID。'}
+          loading={accounts.loading}
+          error={accounts.error}
+          onRetry={accounts.reload}
+          empty={!accounts.loading && (accounts.data?.items ?? []).length === 0 && '暂无资金账户。'}
         >
-          {accountView.data && (
+          {(accounts.data?.items ?? []).length > 0 && (
             <DataTable
               columns={[
                 { key: 'accountId', title: '账户' },
@@ -404,12 +429,31 @@ export default function FundPage() {
                   render: (row: FundAccountView) => fmt(row.margin),
                 },
               ]}
-              rows={[accountView.data]}
+              rows={accounts.data?.items ?? []}
               rowKey={(row: FundAccountView) => row.accountId}
               empty="暂无账户数据"
             />
           )}
         </AsyncState>
+        {accountTotal > ACCOUNT_PAGE_SIZE && (
+          <div className="card-body">
+            <Toolbar>
+              <span className="muted">
+                第 {accountPage} / {Math.max(1, Math.ceil(accountTotal / ACCOUNT_PAGE_SIZE))} 页 · 共 {accountTotal} 个
+              </span>
+              <Button size="sm" disabled={accountPage <= 1} onClick={() => setAccountPage((v) => Math.max(1, v - 1))}>
+                上一页
+              </Button>
+              <Button
+                size="sm"
+                disabled={accountPage >= Math.ceil(accountTotal / ACCOUNT_PAGE_SIZE)}
+                onClick={() => setAccountPage((v) => v + 1)}
+              >
+                下一页
+              </Button>
+            </Toolbar>
+          </div>
+        )}
       </Card>
 
       <Card>
@@ -568,7 +612,13 @@ export default function FundPage() {
                 />
               </Field>
               <Field label="业务类型筛选">
-                <Select value={flowBizFilter} onChange={(event) => setFlowBizFilter(event.target.value)}>
+                <Select
+                  value={flowBizFilter}
+                  onChange={(event) => {
+                    setFlowBizFilter(event.target.value);
+                    setFlowPage(1);
+                  }}
+                >
                   <option value="">全部</option>
                   {flowBizTypes.map((item) => (
                     <option key={item} value={item}>
@@ -616,11 +666,22 @@ export default function FundPage() {
                   { key: 'createTime', title: '时间' },
                   { key: 'remark', title: '备注' },
                 ]}
-                rows={filteredFlowRows}
+                rows={flowRows}
                 rowKey={(row: FundFlowView) => row.flowNo ?? String(row.id ?? '')}
                 empty="暂无流水"
               />
             </AsyncState>
+            <Toolbar>
+              <span className="muted">
+                第 {flowPage} / {flowPages} 页 · 共 {flowTotal} 条
+              </span>
+              <Button size="sm" disabled={flowPage <= 1} onClick={() => setFlowPage((v) => Math.max(1, v - 1))}>
+                上一页
+              </Button>
+              <Button size="sm" disabled={flowPage >= flowPages} onClick={() => setFlowPage((v) => Math.min(flowPages, v + 1))}>
+                下一页
+              </Button>
+            </Toolbar>
           </div>
         )}
 

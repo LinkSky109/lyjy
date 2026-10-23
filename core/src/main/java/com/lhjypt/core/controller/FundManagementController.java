@@ -43,12 +43,28 @@ public class FundManagementController {
     }
 
     /**
-     * 查询资金流水
+     * 资金账户分页（P1-b）。
+     */
+    @GetMapping("/accounts")
+    public Result<java.util.Map<String, Object>> accounts(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return Result.success(fundService.pageAccounts(page, size));
+    }
+
+    /**
+     * 查询资金流水：不传 page 时保持旧列表契约；传 page 返回分页结构。
      */
     @GetMapping("/flows")
-    public Result<List<FundFlow>> getFlows(@RequestParam String accountId,
-                                           @RequestParam LocalDateTime start,
-                                           @RequestParam LocalDateTime end) {
+    public Result<?> getFlows(@RequestParam String accountId,
+                              @RequestParam LocalDateTime start,
+                              @RequestParam LocalDateTime end,
+                              @RequestParam(required = false) String bizType,
+                              @RequestParam(required = false) Integer page,
+                              @RequestParam(defaultValue = "20") int size) {
+        if (page != null) {
+            return Result.success(fundService.pageFlows(accountId, start, end, bizType, page, size));
+        }
         return Result.success(fundService.getFlows(accountId, start, end));
     }
 

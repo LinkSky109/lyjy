@@ -423,9 +423,9 @@ export default function PortfolioPage() {
 
           <Card title="设置目标持仓">
             <Notice tone="info">提交后为全量覆盖：body 为 PortfolioPosition 数组，symbol 必填，targetQty 缺省按 0 处理。</Notice>
-            <div className="mt-3">
+            <Field label="目标持仓 JSON（PortfolioPosition 数组）" hint="symbol 必填，targetQty 缺省按 0 处理">
               <Textarea value={positionsJson} onChange={(event) => setPositionsJson(event.target.value)} />
-            </div>
+            </Field>
             <div className="mt-3">
               <Button disabled={busy || !selectedId} onClick={savePositions}>
                 保存目标持仓

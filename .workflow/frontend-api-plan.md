@@ -86,7 +86,7 @@
 
 ### 3.2 合约元数据
 
-`GET /api/trade/instruments/{symbol}`
+`GET /api/trade/instruments/{symbol}` · **状态：已实现（2026-10-23）**
 
 - 角色：`TRADER` / `ADMIN` / `VIEWER`
 - 响应：
@@ -105,7 +105,7 @@
 
 ### 3.3 行情快照（统一）
 
-`GET /api/market/quote/{symbol}`
+`GET /api/market/quote/{symbol}` · **状态：已实现（2026-10-23）**
 
 - 响应：最新价、昨收、开高低、成交量/额、五档买卖价量、`tickTime`、`staleMs`
 - 现状复用 `TickData` 字段；新增 `staleMs` 用于前端提示“行情延迟”
@@ -223,7 +223,7 @@
 | 页面 | 依赖接口 | 优先级 |
 |---|---|---|
 | 仪表盘 | 3.1、3.7（已接入） | P0 ✅ |
-| 交易下单 | 3.2、3.3、3.4、3.5 | P0 |
+| 交易下单 | 3.2、3.3（已接入）、3.4、3.5 | P0 |
 | 事前风控 | 3.6、4.3 | P0/P1 |
 | 资金管理 | 4.4 | P1 |
 | 组合管理 | 4.1、4.2、4.6 | P1 |
@@ -266,7 +266,7 @@
 ## 10. 建议落地顺序
 
 1. **P0-a**：3.7 组件状态 + 3.1 仪表盘汇总（只读，低风险）· ✅ 已完成
-2. **P0-b**：3.2 合约元数据 + 3.3 行情快照（交易页真实性）
+2. **P0-b**：3.2 合约元数据 + 3.3 行情快照（交易页真实性）· ✅ 已完成
 3. **P0-c**：3.4 委托历史/可撤 + 3.5 测试挂单（撤单闭环）
 4. **P1-a**：3.6 预算禁用项 + 4.3 风控规则
 5. **P1-b**：4.4 资金账户/划转 + 4.5 分页
@@ -287,3 +287,17 @@
 - 前端 `DashboardPage` 改为消费 `/api/dashboard/summary`，请求数 7 → 4；汇总失败展示可重试错误块
 - 测试：`DashboardServiceTest`（2）+ `DashboardControllerTest`（1）
 - 验证：`mvn -pl core verify` → 307 tests / 0 fail / 1 skip，JaCoCo 通过；`npm run build` 通过
+
+### 2026-10-23 · P0-b 完成
+
+- 新增 `GET /api/trade/instruments/{symbol}`（`InstrumentService` + `InstrumentProperties`）
+  - 配置项：`lhjypt.instruments.contracts.*`（rb2410/hc2410/cu2410/au2410/IF2409）
+  - 返回乘数、最小变动、数量上下限、币种、交易状态；未配置返回 `code=404`
+- 新增 `GET /api/market/quote/{symbol}`
+  - 复用 `TickData`，补 `staleMs`（按 recvTime/tickTime 计算）；无 tick 返回 `data=null`
+- 前端交易页
+  - 行情改走 `/api/market/quote/{symbol}`
+  - 拉取合约元数据；名义价值 = 价格 × 数量 × 乘数（实测 rb2410：3500×1×10 = ¥35,000）
+  - 数量校验使用后端 `minQty/maxQty`，未知合约回退 1/200
+- 测试：`InstrumentServiceTest`（3）+ `MarketDataControllerTest`（2）
+- 说明：合约元数据当前为 YAML 配置，后续可迁移 `instrument_info` 表

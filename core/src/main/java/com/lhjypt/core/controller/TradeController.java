@@ -5,6 +5,7 @@ import com.lhjypt.core.model.Order;
 import com.lhjypt.core.model.trade.*;
 import com.lhjypt.core.service.trade.TradeApplicationService;
 import com.lhjypt.core.service.trade.TradeExecutionService;
+import com.lhjypt.core.service.trade.InstrumentService;
 import com.lhjypt.core.service.trade.TradeQueryService;
 import com.lhjypt.core.model.Position;
 import com.lhjypt.core.model.FundAccount;
@@ -24,6 +25,17 @@ public class TradeController {
     private final TradeExecutionService tradeService;
     private final TradeApplicationService tradeApplicationService;
     private final TradeQueryService tradeQueryService;
+    private final InstrumentService instrumentService;
+
+    /**
+     * 合约元数据（乘数/最小变动/数量限制）；未配置返回 code=404。
+     */
+    @GetMapping("/instruments/{symbol}")
+    public Result<InstrumentService.InstrumentView> instrument(@PathVariable String symbol) {
+        return instrumentService.find(symbol)
+                .map(Result::success)
+                .orElseGet(() -> Result.error(404, "未配置合约: " + symbol));
+    }
 
     /**
      * 连接并登录CTP柜台

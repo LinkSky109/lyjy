@@ -107,7 +107,24 @@ interface TradeStatusView {
   mode?: string;
 }
 
-/** 最新 tick（GET /api/market/tick/{symbol}），含五档盘口 */
+/** 合约元数据（GET /api/trade/instruments/{symbol}） */
+interface InstrumentView {
+  symbol: string;
+  name?: string;
+  exchange?: string;
+  instrumentType?: string;
+  priceTick?: number;
+  contractMultiplier?: number;
+  currency?: string;
+  minQty?: number;
+  maxQty?: number;
+  qtyStep?: number;
+  limitUp?: number;
+  limitDown?: number;
+  trading?: boolean;
+}
+
+/** 最新行情快照（GET /api/market/quote/{symbol}），含五档盘口 */
 interface TickView {
   symbol?: string;
   lastPrice?: number;
@@ -138,6 +155,8 @@ interface TickView {
   askVolume4?: number;
   askVolume5?: number;
   tickTime?: string;
+  recvTime?: string;
+  staleMs?: number;
 }
 
 type NoticeState = { tone: Tone; text: string } | null;
@@ -216,7 +235,17 @@ export default function TradingPage() {
   const quote = useApi<TickView | null>(
     () =>
       quoteSymbol
-        ? api.get<TickView>(`/api/market/tick/${encodeURIComponent(quoteSymbol)}`)
+        ? api.get<TickView>(`/api/market/quote/${encodeURIComponent(quoteSymbol)}`)
+        : Promise.resolve(null),
+    [quoteSymbol],
+  );
+
+  const instrument = useApi<InstrumentView | null>(
+    () =>
+      quoteSymbol
+        ? api
+            .get<InstrumentView>(`/api/trade/instruments/${encodeURIComponent(quoteSymbol)}`)
+            .catch(() => null)
         : Promise.resolve(null),
     [quoteSymbol],
   );
@@ -256,12 +285,16 @@ export default function TradingPage() {
       errors.symbol = '请填写标的代码，例如 rb2601 或 BTC_USDT。';
     }
     const qty = toNum(quantity);
+    const maxQty = instrument.data?.maxQty ?? MAX_QUANTITY;
+    const minQty = instrument.data?.minQty ?? 1;
     if (qty === undefined) {
-      errors.quantity = '请填写委托数量（整数，最少 1 手）。';
+      errors.quantity = '请填写委托数量（整数）。';
     } else if (!Number.isInteger(qty) || qty <= 0) {
       errors.quantity = '数量必须为正整数。';
-    } else if (qty > MAX_QUANTITY) {
-      errors.quantity = `单笔数量不得超过 ${MAX_QUANTITY} 手，请拆单后重试。`;
+    } else if (qty < minQty) {
+      errors.quantity = `数量不得小于 ${minQty}。`;
+    } else if (qty > maxQty) {
+      errors.quantity = `单笔数量不得超过 ${maxQty}，请拆单后重试。`;
     }
     const priceValue = toNum(price);
     if (orderType === 'MARKET') {
@@ -376,9 +409,10 @@ export default function TradingPage() {
   const diff = last !== undefined && prev !== undefined ? last - prev : undefined;
   const diffPct = diff !== undefined && prev ? (diff / prev) * 100 : undefined;
 
+  const multiplier = instrument.data?.contractMultiplier ?? 1;
   const notional =
     toNum(price) !== undefined && toNum(quantity) !== undefined
-      ? (toNum(price) as number) * (toNum(quantity) as number)
+      ? (toNum(price) as number) * (toNum(quantity) as number) * multiplier
       : undefined;
 
   const bidRows = [5, 4, 3, 2, 1]
@@ -575,7 +609,7 @@ export default function TradingPage() {
             </div>
             <div className="field">
               <label className="field-label" htmlFor="order-qty">
-                委托数量 quantity（≤ {MAX_QUANTITY} 手）
+                委托数量 quantity（≤ {instrument.data?.maxQty ?? MAX_QUANTITY}）
               </label>
               <Input
                 id="order-qty"
@@ -596,7 +630,9 @@ export default function TradingPage() {
 
           <div className="summary-box">
             <div className="summary-row">
-              <span>预估名义价值（价格 × 数量，未含合约乘数）</span>
+              <span>
+                预估名义价值（价格 × 数量{multiplier !== 1 ? ` × 乘数 ${multiplier}` : '，未配置乘数'}）
+              </span>
               <span className="num">{notional === undefined ? '-' : `¥${fmt(notional)}`}</span>
             </div>
             <div className="summary-row">
@@ -679,7 +715,12 @@ export default function TradingPage() {
                 <div className="quote-head">
                   <div>
                     <div className="quote-symbol mono">{tick.symbol ?? quoteSymbol}</div>
-                    <div className="quote-name">最新 tick · {tick.tickTime ?? '-'}</div>
+                    <div className="quote-name">
+                      最新 tick · {tick.tickTime ?? '-'}
+                      {tick.staleMs !== undefined && tick.staleMs > 3000
+                        ? ` · 延迟 ${Math.round(tick.staleMs / 1000)}s`
+                        : ''}
+                    </div>
                   </div>
                   <div className="text-right">
                     <div className={`quote-last ${diff === undefined ? '' : diff >= 0 ? 'delta-up' : 'delta-down'}`}>
@@ -755,6 +796,12 @@ export default function TradingPage() {
                   </dd>
                   <dt>成交额</dt>
                   <dd>{fmt(tick.turnover)}</dd>
+                  <dt>合约乘数</dt>
+                  <dd>{instrument.data?.contractMultiplier ?? '未配置'}</dd>
+                  <dt>最小变动 / 数量限制</dt>
+                  <dd>
+                    {instrument.data?.priceTick ?? '-'} / {instrument.data?.maxQty ?? MAX_QUANTITY}
+                  </dd>
                 </dl>
               </>
             )}

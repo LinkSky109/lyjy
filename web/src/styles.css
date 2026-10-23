@@ -1677,6 +1677,12 @@ textarea.input {
   .quote-last {
     font-size: 26px;
   }
+  .toolbar {
+    align-items: stretch;
+  }
+  .toolbar .field {
+    flex: 1 1 100%;
+  }
   .card-head,
   .card-body {
     padding-left: 16px;

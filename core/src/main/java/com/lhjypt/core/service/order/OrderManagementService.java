@@ -345,6 +345,26 @@ public class OrderManagementService {
         return orderMapper.selectActiveOrders();
     }
 
+    /**
+     * 分页查询订单历史。
+     */
+    public java.util.Map<String, Object> pageOrders(String status, String symbol,
+                                                    int page, int size) {
+        int safePage = Math.max(1, page);
+        int safeSize = Math.min(200, Math.max(1, size));
+        String statusFilter = status == null || status.isBlank() ? null : status.trim();
+        String symbolFilter = symbol == null || symbol.isBlank() ? null : symbol.trim();
+        long offset = (long) (safePage - 1) * safeSize;
+        List<Order> items = orderMapper.selectPageFiltered(statusFilter, symbolFilter, offset, safeSize);
+        long total = orderMapper.countFiltered(statusFilter, symbolFilter);
+        java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("items", items);
+        result.put("total", total);
+        result.put("page", safePage);
+        result.put("size", safeSize);
+        return result;
+    }
+
     private static String sha256(String input) {
         try {
             java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");

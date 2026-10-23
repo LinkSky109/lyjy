@@ -29,6 +29,18 @@ public class OrderManagementController {
     }
 
     /**
+     * 分页查询订单历史（P0-c）。
+     */
+    @GetMapping("/orders")
+    public Result<java.util.Map<String, Object>> listOrders(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String symbol,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return Result.success(orderService.pageOrders(status, symbol, page, size));
+    }
+
+    /**
      * 查询订单详情
      */
     @GetMapping("/orders/{orderId}")

@@ -2,6 +2,7 @@ package com.lhjypt.core.service.trade.impl;
 
 import com.lhjypt.core.model.trade.*;
 import com.lhjypt.core.service.trade.TradingGateway;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -27,6 +28,10 @@ import org.slf4j.LoggerFactory;
 @Service
 public class MockCTPGateway implements TradingGateway {
     private static final Logger log = LoggerFactory.getLogger(MockCTPGateway.class);
+
+    /** 开发/联调可关闭自动成交，用于验证待成交与撤单链路（默认 true 保持原行为）。 */
+    @Value("${lhjypt.trade.mock-fill-enabled:true}")
+    private boolean mockFillEnabled = true;
 
 
     private volatile boolean connected = false;
@@ -146,9 +151,13 @@ public class MockCTPGateway implements TradingGateway {
         // 通知订单监听器
         notifyOrderReport(report);
 
-        // 模拟成交（限价单立即全部成交，模拟高流动性）
-        simulateDelay(100);
-        simulateFill(report, request);
+        // 模拟成交（限价单立即全部成交，模拟高流动性）；关闭后保持 NOT_TRADED
+        if (mockFillEnabled) {
+            simulateDelay(100);
+            simulateFill(report, request);
+        } else {
+            log.info("[MockCTP] 自动成交已关闭，订单保持待成交: {}", exchangeOrderId);
+        }
 
         return orderRef;
     }

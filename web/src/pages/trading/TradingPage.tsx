@@ -68,6 +68,8 @@ interface OrderView {
   brokerOrderRef?: string;
   errorCode?: string;
   errorMessage?: string;
+  cancelable?: boolean;
+  gatewayAckStatus?: string;
   createTime?: string;
   submittedAt?: string;
   filledAt?: string;
@@ -159,6 +161,13 @@ interface TickView {
   staleMs?: number;
 }
 
+interface PageResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+}
+
 type NoticeState = { tone: Tone; text: string } | null;
 
 const DIRECTIONS = ['BUY', 'SELL'];
@@ -208,7 +217,18 @@ export default function TradingPage() {
     [accountId, strategyId],
   );
   const gateway = useApi(() => api.get<TradeStatusView>('/api/trade/status'), []);
-  const activeOrders = useApi(() => api.get<OrderView[]>('/api/oms/orders/active'), []);
+  const [orderStatus, setOrderStatus] = useState('');
+  const [orderPage, setOrderPage] = useState(1);
+  const ORDER_PAGE_SIZE = 10;
+  const ordersPage = useApi<PageResult<OrderView>>(
+    () =>
+      api.get<PageResult<OrderView>>('/api/oms/orders', {
+        status: orderStatus || undefined,
+        page: orderPage,
+        size: ORDER_PAGE_SIZE,
+      }),
+    [orderStatus, orderPage],
+  );
   const trades = useApi(() => api.get<TradeReportView[]>('/api/trade/trades'), []);
 
   // 下单表单
@@ -258,7 +278,7 @@ export default function TradingPage() {
   const reloadAll = () => {
     account.reload();
     positions.reload();
-    activeOrders.reload();
+    ordersPage.reload();
     trades.reload();
     quote.reload();
   };
@@ -271,7 +291,7 @@ export default function TradingPage() {
     }
     const timer = setInterval(() => {
       positions.reload();
-      activeOrders.reload();
+      ordersPage.reload();
       trades.reload();
       quote.reload();
     }, 10000);
@@ -392,7 +412,7 @@ export default function TradingPage() {
       if (queriedOrder && queriedOrder.orderId === id) {
         setQueriedOrder(order);
       }
-      activeOrders.reload();
+      ordersPage.reload();
       trades.reload();
     } catch (error) {
       setOrderNotice({ tone: 'danger', text: `撤单失败：${errorText(error)}` });
@@ -401,7 +421,9 @@ export default function TradingPage() {
 
   const accountData = account.data;
   const positionRows = positions.data ?? [];
-  const orderRows = activeOrders.data ?? [];
+  const orderRows = ordersPage.data?.items ?? [];
+  const orderTotal = ordersPage.data?.total ?? 0;
+  const orderPages = Math.max(1, Math.ceil(orderTotal / ORDER_PAGE_SIZE));
   const tradeRows = trades.data ?? [];
   const tick = quote.data;
   const last = tick?.lastPrice;
@@ -840,7 +862,7 @@ export default function TradingPage() {
                 <Button onClick={loadOrder} disabled={queryLoading}>
                   {queryLoading ? '查询中…' : '查询订单'}
                 </Button>
-                <Button onClick={() => activeOrders.reload()}>刷新在途</Button>
+                <Button onClick={() => ordersPage.reload()}>刷新列表</Button>
               </Toolbar>
 
               {queryError && <Notice tone="danger">{queryError}</Notice>}
@@ -863,14 +885,51 @@ export default function TradingPage() {
                 </Card>
               )}
 
+              <Toolbar>
+                <Field label="状态筛选">
+                  <Select
+                    value={orderStatus}
+                    onChange={(event) => {
+                      setOrderStatus(event.target.value);
+                      setOrderPage(1);
+                    }}
+                  >
+                    <option value="">全部</option>
+                    <option value="SUBMITTED">已提交</option>
+                    <option value="ACCEPTED">已接受</option>
+                    <option value="PARTIAL_FILLED">部分成交</option>
+                    <option value="FILLED">全部成交</option>
+                    <option value="CANCELED">已撤销</option>
+                    <option value="REJECTED">已拒绝</option>
+                  </Select>
+                </Field>
+                <span className="muted">
+                  第 {orderPage} / {orderPages} 页 · 共 {orderTotal} 条
+                </span>
+                <Button
+                  size="sm"
+                  disabled={orderPage <= 1}
+                  onClick={() => setOrderPage((value) => Math.max(1, value - 1))}
+                >
+                  上一页
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={orderPage >= orderPages}
+                  onClick={() => setOrderPage((value) => Math.min(orderPages, value + 1))}
+                >
+                  下一页
+                </Button>
+              </Toolbar>
+
               <AsyncState
-                loading={activeOrders.loading}
-                error={activeOrders.error}
-                onRetry={activeOrders.reload}
+                loading={ordersPage.loading}
+                error={ordersPage.error}
+                onRetry={ordersPage.reload}
                 empty={
-                  !activeOrders.loading &&
+                  !ordersPage.loading &&
                   orderRows.length === 0 &&
-                  '暂无在途委托。提交委托后，未成交部分会显示在这里。'
+                  '没有匹配的委托。调整状态筛选，或到左侧提交第一笔委托。'
                 }
               >
                 <DataTable
@@ -910,11 +969,16 @@ export default function TradingPage() {
                       key: 'action',
                       title: '操作',
                       align: 'right',
-                      render: (row: OrderView) => (
-                        <Button variant="danger" size="sm" onClick={() => cancelOrder(row.orderId)}>
-                          撤单
-                        </Button>
-                      ),
+                      render: (row: OrderView) =>
+                        row.cancelable ? (
+                          <Button variant="danger" size="sm" onClick={() => cancelOrder(row.orderId)}>
+                            撤单
+                          </Button>
+                        ) : (
+                          <span className="muted" title={`柜台状态：${row.gatewayAckStatus ?? 'NONE'}`}>
+                            -
+                          </span>
+                        ),
                     },
                   ]}
                   rows={orderRows}

@@ -83,6 +83,22 @@ public class Order {
     @TableLogic
     private Integer deleted;
 
+    /** 前端操作提示：仅非终态且已收到柜台确认的订单可撤。 */
+    public Boolean getCancelable() {
+        String current = status == null ? "" : status.toUpperCase();
+        boolean open = "SUBMITTED".equals(current) || "ACCEPTED".equals(current)
+                || "PARTIAL_FILLED".equals(current);
+        return open && exchangeOrderId != null && !exchangeOrderId.isBlank();
+    }
+
+    /** 柜台确认状态：ACKED / REJECTED / NONE。 */
+    public String getGatewayAckStatus() {
+        if (exchangeOrderId != null && !exchangeOrderId.isBlank()) {
+            return "ACKED";
+        }
+        return "REJECTED".equalsIgnoreCase(status) ? "REJECTED" : "NONE";
+    }
+
     public Long getId() {
         return id;
     }

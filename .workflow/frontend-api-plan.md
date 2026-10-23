@@ -111,7 +111,7 @@
 - 现状复用 `TickData` 字段；新增 `staleMs` 用于前端提示“行情延迟”
 - 目的：交易页与仪表盘共用同一契约，避免 `/api/market/tick` 与真实源口径分叉
 
-### 3.4 委托历史与可撤状态
+### 3.4 委托历史与可撤状态 · **状态：已实现（2026-10-23）**
 
 `GET /api/oms/orders?status=&symbol=&from=&to=&page=&size=`
 
@@ -122,13 +122,13 @@
 - `GET /api/trade/orders/{id}` 同步增加上述字段
 - 用途：前端只对 `cancelable=true` 显示撤单；明确 409 的原因分类
 
-### 3.5 测试用“待成交”能力（仅非生产）
+### 3.5 测试用“待成交”能力（仅非生产）· **状态：已实现（配置开关方式）**
 
-`POST /api/sim/orders/{orderId}/hold`（`@Profile("dev")` 或配置开关）
+实现方式：配置项 `lhjypt.trade.mock-fill-enabled=false`（环境变量 `LHJYPT_TRADE_MOCK_FILL=false`，默认 `true`）
 
-- 作用：让 MOCK 网关把订单保持在 `SUBMITTED`，供撤单链路 E2E 验证
-- 生产禁用；返回 403 或 404
-- 备选：配置项 `LHJYPT_MOCK_FILL_DELAY_MS` 支持延迟成交
+- 作用：关闭 MOCK 自动成交后，订单保持 `NOT_TRADED/SUBMITTED`，供撤单链路 E2E 验证
+- 默认 true，保持原有“即时成交”行为；生产无需该开关
+- 相比新增 `sim` 接口，无需额外攻击面与权限分支
 
 ### 3.6 风险预算包含禁用项
 
@@ -267,7 +267,7 @@
 
 1. **P0-a**：3.7 组件状态 + 3.1 仪表盘汇总（只读，低风险）· ✅ 已完成
 2. **P0-b**：3.2 合约元数据 + 3.3 行情快照（交易页真实性）· ✅ 已完成
-3. **P0-c**：3.4 委托历史/可撤 + 3.5 测试挂单（撤单闭环）
+3. **P0-c**：3.4 委托历史/可撤 + 3.5 测试挂单（撤单闭环）· ✅ 已完成
 4. **P1-a**：3.6 预算禁用项 + 4.3 风控规则
 5. **P1-b**：4.4 资金账户/划转 + 4.5 分页
 6. **P1-c**：4.1/4.2 组合净值与归因（依赖数据表）
@@ -301,3 +301,16 @@
   - 数量校验使用后端 `minQty/maxQty`，未知合约回退 1/200
 - 测试：`InstrumentServiceTest`（3）+ `MarketDataControllerTest`（2）
 - 说明：合约元数据当前为 YAML 配置，后续可迁移 `instrument_info` 表
+
+### 2026-10-23 · P0-c 完成
+
+- `GET /api/oms/orders?status=&symbol=&page=&size=` 分页（`items/total/page/size`，size 上限 200）
+- 订单响应新增 `cancelable`、`gatewayAckStatus`（ACKED/REJECTED/NONE）
+- MOCK 网关新增 `lhjypt.trade.mock-fill-enabled`（默认 true）；关闭后订单保持待成交
+- 前端交易页「委托」页签改为分页历史：状态筛选 + 上/下一页 + 总数；仅 `cancelable=true` 显示撤单按钮
+- 端到端验证（关闭自动成交）：
+  - 下单 → `SUBMITTED`，`cancelable=true`，`gatewayAckStatus=ACKED`
+  - 撤单 → `CANCELED`，`cancelable=false`
+  - UI 回执：`撤单成功 orderId=... status=CANCELED`
+- 测试：`OrderManagementServicePagingTest`（3）+ `MockCTPGatewayHoldTest`（1）
+- 验证后已将后端恢复默认（自动成交开启）

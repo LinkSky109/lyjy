@@ -308,7 +308,11 @@ export function AsyncState({
   if (error) {
     return (
       <div className="error-box" role="alert">
-        <span>{error}</span>
+        <div className="error-copy">
+          <strong>数据加载失败</strong>
+          <span className="error-detail">{error}</span>
+          <span className="error-hint">请确认后端服务与网络正常，然后重试。</span>
+        </div>
         {onRetry && (
           <Button size="sm" onClick={onRetry}>
             重试

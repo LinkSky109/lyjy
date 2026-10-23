@@ -6,7 +6,7 @@ const target = process.env.LHJYPT_API_TARGET ?? 'http://localhost:8081';
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5173,
+    port: Number(process.env.LHJYPT_WEB_PORT ?? 5173),
     host: true,
     proxy: {
       '/api': { target, changeOrigin: true },

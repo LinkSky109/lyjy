@@ -13,6 +13,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$ROOT/config/docker-compose.yaml"
 
+# 本地环境变量（.env 不入库；用于覆盖数据库端口等本机差异）
+if [ -f "$ROOT/.env" ]; then
+  set -a
+  . "$ROOT/.env"
+  set +a
+fi
+
 # Lima Docker（本机默认）；可用 LHJYPT_DOCKER_HOST 覆盖
 if [ -n "${LHJYPT_DOCKER_HOST:-}" ]; then
   export DOCKER_HOST="$LHJYPT_DOCKER_HOST"
@@ -24,6 +31,7 @@ fi
 export TESTCONTAINERS_RYUK_DISABLED=true
 
 PG="docker exec -i lhjypt-postgres psql -U lhjypt -d lhjypt"
+WEB_PORT="${LHJYPT_WEB_PORT:-5173}"
 BACKEND_PID_FILE="$ROOT/.runtime/backend.pid"
 FRONTEND_PID_FILE="$ROOT/.runtime/frontend.pid"
 
@@ -102,16 +110,16 @@ backend_up() {
 
 frontend_up() {
   rotate_logs
-  if curl -s -m 2 -o /dev/null -w '%{http_code}' http://localhost:5173/ 2>/dev/null | grep -q 200; then
-    echo "[dev] 前端已在运行 (5173)"
+  if curl -s -m 2 -o /dev/null -w '%{http_code}' http://localhost:${WEB_PORT}/ 2>/dev/null | grep -q 200; then
+    echo "[dev] 前端已在运行 (${WEB_PORT})"
     return 0
   fi
   [ -d "$ROOT/web/node_modules" ] || { echo "[dev] 安装前端依赖..."; (cd "$ROOT/web" && npm install); }
   echo "[dev] 启动前端 -> logs/frontend.log"
   (cd "$ROOT/web" && nohup npm run dev > "$ROOT/logs/frontend.log" 2>&1 & echo $! > "$FRONTEND_PID_FILE")
   for i in $(seq 1 30); do
-    if curl -s -m 2 -o /dev/null -w '%{http_code}' http://localhost:5173/ 2>/dev/null | grep -q 200; then
-      echo "[dev] 前端 UP (5173, proxy -> 8081)"
+    if curl -s -m 2 -o /dev/null -w '%{http_code}' http://localhost:${WEB_PORT}/ 2>/dev/null | grep -q 200; then
+      echo "[dev] 前端 UP (${WEB_PORT}, proxy -> 8081)"
       return 0
     fi
     sleep 1
@@ -123,7 +131,7 @@ stop_stack() {
   [ -f "$BACKEND_PID_FILE" ] && kill "$(cat "$BACKEND_PID_FILE")" 2>/dev/null || true
   [ -f "$FRONTEND_PID_FILE" ] && kill "$(cat "$FRONTEND_PID_FILE")" 2>/dev/null || true
   pkill -f 'core-0.1.0-SNAPSHOT.jar' 2>/dev/null || true
-  pkill -f 'vite' 2>/dev/null || true
+  pkill -f "$ROOT/web/node_modules/.bin/vite" 2>/dev/null || true
   echo "[dev] 前后端已停止"
 }
 
@@ -134,14 +142,14 @@ status() {
   curl -s -m 2 http://localhost:8081/actuator/health || echo "8081 未响应"
   echo
   echo "== 前端 =="
-  curl -s -m 2 -o /dev/null -w 'http=%{http_code}\n' http://localhost:5173/ || echo "5173 未响应"
+  curl -s -m 2 -o /dev/null -w 'http=%{http_code}\n' http://localhost:${WEB_PORT}/ || echo "${WEB_PORT} 未响应"
 }
 
 case "${1:-up}" in
   up)       start_middleware; apply_sql; backend_up; frontend_up; status;;
   status)   status;;
   restart)  pkill -f 'core-0.1.0-SNAPSHOT.jar' 2>/dev/null || true
-            pkill -f 'vite' 2>/dev/null || true
+            pkill -f "$ROOT/web/node_modules/.bin/vite" 2>/dev/null || true
             rm -f "$BACKEND_PID_FILE" "$FRONTEND_PID_FILE"
             sleep 2
             backend_up; frontend_up; status;;

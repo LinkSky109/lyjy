@@ -1,5 +1,9 @@
 import {
+  useEffect,
+  useId,
+  useRef,
   type InputHTMLAttributes,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
@@ -96,13 +100,62 @@ export function Badge({ tone = 'muted', children }: { tone?: Tone; children: Rea
 
 export function statusTone(value: string | undefined | null): Tone {
   const text = (value ?? '').toUpperCase();
-  if (['UP', 'READY', 'ACTIVE', 'COMPLETED', 'CLOSED', 'SUCCESS', 'FILLED', 'PASSED', 'CONFIRMED', 'ON', 'RUNNING'].includes(text)) {
+  if (
+    [
+      'UP',
+      'READY',
+      'ACTIVE',
+      'COMPLETED',
+      'CLOSED',
+      'SUCCESS',
+      'FILLED',
+      'PASSED',
+      'CONFIRMED',
+      'ON',
+      'RUNNING',
+      'HEALTHY',
+      'CONNECTED',
+      'MATCHED',
+    ].includes(text)
+  ) {
     return 'ok';
   }
-  if (['WARN', 'REVIEWING', 'PENDING', 'PARTIALLY_COMPLETED', 'ADJUSTING', 'OPEN', 'ACKED', 'DEGRADED', 'CONNECTING', 'PAUSED', 'OFFLINE', 'STOPPED', 'INFO'].includes(text)) {
+  if (
+    [
+      'WARN',
+      'REVIEWING',
+      'PENDING',
+      'PARTIALLY_COMPLETED',
+      'ADJUSTING',
+      'OPEN',
+      'ACKED',
+      'DEGRADED',
+      'PARTIAL_FILLED',
+      'PARTIALLY_FILLED',
+      'CONNECTING',
+      'PAUSED',
+      'OFFLINE',
+      'STOPPED',
+      'INFO',
+      'UNKNOWN',
+    ].includes(text)
+  ) {
     return 'warn';
   }
-  if (['CRITICAL', 'FAILED', 'DOWN', 'ERROR', 'REJECTED', 'CANCELED', 'CANCELLED', 'TIMEOUT', 'MISMATCHED'].includes(text)) {
+  if (
+    [
+      'CRITICAL',
+      'FAILED',
+      'DOWN',
+      'ERROR',
+      'REJECTED',
+      'CANCELED',
+      'CANCELLED',
+      'TIMEOUT',
+      'MISMATCHED',
+      'BLOCK',
+    ].includes(text)
+  ) {
     return 'danger';
   }
   return 'muted';
@@ -111,17 +164,25 @@ export function statusTone(value: string | undefined | null): Tone {
 export function Field({
   label,
   hint,
+  error,
   children,
 }: {
   label: string;
   hint?: string;
+  error?: string;
   children: ReactNode;
 }) {
   return (
     <label className="field">
       <span className="field-label">{label}</span>
       {children}
-      {hint && <span className="field-hint">{hint}</span>}
+      {error ? (
+        <span className="field-error" role="alert">
+          {error}
+        </span>
+      ) : (
+        hint && <span className="field-hint">{hint}</span>
+      )}
     </label>
   );
 }
@@ -160,7 +221,14 @@ export function DataTable({
   loading?: boolean;
 }) {
   if (loading) {
-    return <div className="empty">加载中…</div>;
+    return (
+      <div className="skeleton" aria-busy="true" aria-label="加载中">
+        <span className="skeleton-line" style={{ width: '38%' }} />
+        <span className="skeleton-line" />
+        <span className="skeleton-line" />
+        <span className="skeleton-line" style={{ width: '72%' }} />
+      </div>
+    );
   }
   if (!rows || rows.length === 0) {
     return <div className="empty">{empty}</div>;
@@ -171,7 +239,12 @@ export function DataTable({
         <thead>
           <tr>
             {columns.map((column) => (
-              <th key={column.key} style={{ width: column.width, textAlign: column.align ?? 'left' }}>
+              <th
+                key={column.key}
+                scope="col"
+                className={column.align === 'right' ? 'num' : undefined}
+                style={{ width: column.width }}
+              >
                 {column.title}
               </th>
             ))}
@@ -181,7 +254,11 @@ export function DataTable({
           {rows.map((row, index) => (
             <tr key={rowKey ? rowKey(row, index) : index}>
               {columns.map((column) => (
-                <td key={column.key} style={{ textAlign: column.align ?? 'left' }}>
+                <td
+                  key={column.key}
+                  data-label={column.title}
+                  className={column.align === 'right' ? 'num' : undefined}
+                >
                   {column.render ? column.render(row) : formatCell(row[column.key])}
                 </td>
               ))}
@@ -220,11 +297,17 @@ export function AsyncState({
   children?: ReactNode;
 }) {
   if (loading) {
-    return <div className="empty">加载中…</div>;
+    return (
+      <div className="skeleton" aria-busy="true" aria-label="加载中">
+        <span className="skeleton-line" style={{ width: '42%' }} />
+        <span className="skeleton-line" />
+        <span className="skeleton-line" style={{ width: '68%' }} />
+      </div>
+    );
   }
   if (error) {
     return (
-      <div className="error-box">
+      <div className="error-box" role="alert">
         <span>{error}</span>
         {onRetry && (
           <Button size="sm" onClick={onRetry}>
@@ -286,6 +369,9 @@ function pretty(value: string): string {
   }
 }
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+
 export function Modal({
   open,
   title,
@@ -301,14 +387,74 @@ export function Modal({
   footer?: ReactNode;
   wide?: boolean;
 }) {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const lastFocus = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    lastFocus.current = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    if (!dialog) {
+      return;
+    }
+    const nodes = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE));
+    const primary = nodes[nodes.length - 1];
+    (primary ?? dialog).focus();
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab') {
+        return;
+      }
+      const items = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE));
+      if (items.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      lastFocus.current?.focus();
+    };
+  }, [open]);
+
   if (!open) {
     return null;
   }
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className={`modal ${wide ? 'modal-wide' : ''}`} onClick={(event) => event.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className={`modal ${wide ? 'modal-wide' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        onClick={(event) => event.stopPropagation()}
+      >
         <header className="modal-head">
-          <h3>{title}</h3>
+          <h3 id={titleId}>{title}</h3>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="关闭">
             ×
           </button>
@@ -329,14 +475,34 @@ export function Tabs({
   active: string;
   onChange: (key: string) => void;
 }) {
+  const refs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') {
+      return;
+    }
+    event.preventDefault();
+    const delta = event.key === 'ArrowRight' ? 1 : -1;
+    const next = (index + delta + tabs.length) % tabs.length;
+    refs.current[next]?.focus();
+    onChange(tabs[next].key);
+  };
+
   return (
-    <div className="tabs">
-      {tabs.map((tab) => (
+    <div className="tabs" role="tablist">
+      {tabs.map((tab, index) => (
         <button
           key={tab.key}
+          ref={(node) => {
+            refs.current[index] = node;
+          }}
           type="button"
+          role="tab"
+          aria-selected={tab.key === active}
+          tabIndex={tab.key === active ? 0 : -1}
           className={`tab ${tab.key === active ? 'tab-active' : ''}`}
           onClick={() => onChange(tab.key)}
+          onKeyDown={(event) => onKeyDown(event, index)}
         >
           {tab.label}
         </button>
@@ -346,11 +512,8 @@ export function Tabs({
 }
 
 export function Grid({ columns = 3, children }: { columns?: number; children: ReactNode }) {
-  return (
-    <div className="grid" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
-      {children}
-    </div>
-  );
+  const safe = Math.min(4, Math.max(1, columns));
+  return <div className={`grid grid-cols-${safe}`}>{children}</div>;
 }
 
 export function Notice({ tone = 'info', children }: { tone?: Tone; children: ReactNode }) {

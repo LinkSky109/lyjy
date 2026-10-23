@@ -1,0 +1,92 @@
+/* lhjypt design tokens — see design/DESIGN-SPEC.md §5–§7 */
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f6f7f8;
+  --surface-3: #eef0f2;
+  --fg: #080808;
+  --fg-2: #363636;
+  --muted: #5a5a5a;
+  --meta: #6f747a;
+  --border: #dcdcdc;
+  --border-soft: #ebebeb;
+  --accent: #146ef5;
+  --accent-on: #ffffff;
+  --accent-hover: #0055d4;
+  --accent-tint: #eef4ff;
+  --up: #d92b2b;
+  --down: #0f8a4d;
+  --ok: #0f8a4d;
+  --warn: #9a5b00;
+  --danger: #d92b2b;
+  --ok-tint: #eaf7f0;
+  --warn-tint: #fff6e5;
+  --danger-tint: #fdeeee;
+
+  --font-body: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  --focus-ring: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 72%);
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  --elev-pop: 0 1px 2px rgba(8, 8, 8, 0.06), 0 8px 24px rgba(8, 8, 8, 0.08),
+    0 24px 64px rgba(8, 8, 8, 0.1);
+  --scrim: rgba(8, 8, 8, 0.36);
+  --thumb-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+
+  --sidebar-w: 244px;
+  --topbar-h: 56px;
+  --content-max: 1440px;
+}
+
+html[data-theme="dark"] {
+  --bg: #0b0c0e;
+  --surface: #111316;
+  --surface-2: #171a1e;
+  --surface-3: #1f2329;
+  --fg: #f3f4f6;
+  --fg-2: #c9cdd3;
+  --muted: #9aa1a9;
+  --meta: #868d95;
+  --border: #2a2f36;
+  --border-soft: #23272d;
+  --accent: #5a9bff;
+  --accent-on: #06101f;
+  --accent-hover: #7db1ff;
+  --accent-tint: #16243b;
+  --up: #ff6b6b;
+  --down: #35c988;
+  --ok: #35c988;
+  --warn: #e0a33a;
+  --danger: #ff6b6b;
+  --ok-tint: #142a21;
+  --warn-tint: #2c2415;
+  --danger-tint: #2f1a1a;
+  --focus-ring: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 65%);
+  --elev-pop: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 40px rgba(0, 0, 0, 0.55);
+  --scrim: rgba(0, 0, 0, 0.62);
+}

@@ -1,8 +1,11 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/http';
 import { useApi } from '../../hooks/useApi';
 import {
   AsyncState,
   Badge,
+  Button,
   Card,
   DataTable,
   Grid,
@@ -11,72 +14,449 @@ import {
   statusTone,
 } from '../../components/ui';
 
+interface HealthComponent {
+  status: string;
+  components?: Record<string, HealthComponent>;
+}
+
 interface Health {
   status: string;
-  components?: Record<string, { status: string }>;
+  components?: Record<string, HealthComponent>;
+}
+
+interface MarketStatus {
+  running?: boolean;
+  subscribed?: string[];
+}
+
+interface FundAccountView {
+  accountId: string;
+  accountName?: string;
+  currency?: string;
+  totalAsset?: number;
+  availableCash?: number;
+  frozenCash?: number;
+  margin?: number;
+  unrealizedPnl?: number;
+  realizedPnl?: number;
+}
+
+interface PositionView {
+  id?: number;
+  accountId: string;
+  strategyId?: string;
+  symbol: string;
+  direction: string;
+  quantity?: number;
+  avgCost?: number;
+  unrealizedPnl?: number;
+}
+
+interface OrderView {
+  orderId: string;
+  symbol?: string;
+  direction?: string;
+  offsetFlag?: string;
+  price?: number;
+  quantity?: number;
+  filledQuantity?: number;
+  status?: string;
+  createTime?: string;
+}
+
+interface AlertEvent {
+  eventId: string;
+  metricKey?: string;
+  value?: string;
+  severity?: string;
+  message?: string;
+  status?: string;
+  createTime?: string;
+}
+
+function money(value: number | undefined | null, digits = 2): string {
+  if (value === undefined || value === null) {
+    return '-';
+  }
+  return `¥${value.toLocaleString('zh-CN', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })}`;
+}
+
+function qty(value: number | undefined | null): string {
+  if (value === undefined || value === null) {
+    return '-';
+  }
+  return value.toLocaleString('zh-CN', { maximumFractionDigits: 0 });
+}
+
+function pct(value: number | undefined | null): string {
+  if (value === undefined || value === null || !Number.isFinite(value)) {
+    return '-';
+  }
+  return `${value.toFixed(1)}%`;
+}
+
+function dotClass(ok: boolean | undefined): string {
+  if (ok === undefined) {
+    return 'dot';
+  }
+  return ok ? 'dot dot-ok' : 'dot dot-danger';
 }
 
 export default function DashboardPage() {
-  const health = useApi(() => api.get<Health>('/actuator/health'), []);
-  const metrics = useApi(() => api.get<Record<string, unknown>>('/api/monitor/metrics/latest'), []);
-  const alerts = useApi(() => api.get<any[]>('/api/monitor/alerts', { status: 'OPEN' }), []);
+  const navigate = useNavigate();
+  const [refreshedAt, setRefreshedAt] = useState(() => new Date());
 
-  const dbStatus = health.data?.components?.db?.status ?? '-';
+  const health = useApi(() => api.get<Health>('/actuator/health'), []);
+  const market = useApi(() => api.get<MarketStatus>('/api/market/status'), []);
+  const metrics = useApi(() => api.get<Record<string, unknown>>('/api/monitor/metrics/latest'), []);
+  const alerts = useApi(() => api.get<AlertEvent[]>('/api/monitor/alerts', { status: 'OPEN' }), []);
+  const account = useApi(
+    () => api.get<FundAccountView>('/api/trade/platform/account', { accountId: 'DEFAULT-001' }),
+    [],
+  );
+  const positions = useApi(
+    () => api.get<PositionView[]>('/api/trade/platform/positions', { accountId: 'DEFAULT-001' }),
+    [],
+  );
+  const orders = useApi(() => api.get<OrderView[]>('/api/oms/orders/active'), []);
+
+  const components = health.data?.components ?? {};
+  const serviceOk = health.data?.status === 'UP';
+  const marketOk = market.data?.running;
+  const dbOk = components.db?.components?.primaryDataSource?.status === 'UP';
+  const kafkaStatus = components.kafka?.status;
   const openAlerts = alerts.data ?? [];
+  const accountData = account.data;
+  const positionRows = positions.data ?? [];
+  const orderRows = orders.data ?? [];
   const metricEntries = Object.entries(metrics.data ?? {});
 
+  const equity = accountData?.totalAsset;
+  const pnl =
+    accountData?.unrealizedPnl !== undefined || accountData?.realizedPnl !== undefined
+      ? (accountData?.unrealizedPnl ?? 0) + (accountData?.realizedPnl ?? 0)
+      : undefined;
+  const available = accountData?.availableCash;
+  const margin = accountData?.margin;
+  const marginRatio =
+    equity !== undefined && equity > 0 && margin !== undefined ? (margin / equity) * 100 : undefined;
+
+  const reloadAll = () => {
+    health.reload();
+    market.reload();
+    metrics.reload();
+    alerts.reload();
+    account.reload();
+    positions.reload();
+    orders.reload();
+    setRefreshedAt(new Date());
+  };
+
   return (
-    <Page title="仪表盘" subtitle="系统健康、实时指标与未闭环告警总览">
+    <Page
+      title="仪表盘"
+      subtitle={`系统健康、资金与未闭环告警总览 · 最近刷新 ${refreshedAt.toLocaleTimeString(
+        'zh-CN',
+        { hour12: false },
+      )}`}
+      actions={
+        <>
+          <Button onClick={reloadAll}>刷新</Button>
+          <Button variant="primary" onClick={() => navigate('/trading')}>
+            新建委托
+          </Button>
+        </>
+      }
+    >
+      <div className="status-strip">
+        <div className="status-item">
+          <span className="status-label">核心服务</span>
+          <span className="status-value">
+            <span className={dotClass(serviceOk)} />
+            {health.data ? (serviceOk ? '健康' : '异常') : '未上报'}
+            {health.error && <span className="num">{health.error}</span>}
+          </span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">行情服务</span>
+          <span className="status-value">
+            <span className={dotClass(marketOk)} />
+            {market.data ? (marketOk ? '运行中' : '已停止') : '未上报'}
+            <span className="num">
+              {market.data?.subscribed ? `${market.data.subscribed.length} 个订阅` : ''}
+            </span>
+          </span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">PostgreSQL</span>
+          <span className="status-value">
+            <span className={dotClass(components.db?.components?.primaryDataSource ? dbOk : undefined)} />
+            {components.db?.components?.primaryDataSource?.status ?? '未上报'}
+          </span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">Kafka</span>
+          <span className="status-value">
+            <span className={dotClass(kafkaStatus ? kafkaStatus === 'UP' : undefined)} />
+            {kafkaStatus ?? '未上报'}
+          </span>
+        </div>
+      </div>
+
       <Grid columns={4}>
         <Stat
-          label="服务健康"
-          value={health.data?.status ?? '-'}
-          tone={health.data?.status === 'UP' ? 'ok' : 'danger'}
-          hint={health.error ?? undefined}
+          label="总权益"
+          value={money(equity)}
+          tone="info"
+          hint={accountData ? `${accountData.accountName ?? accountData.accountId} · 模拟盘` : '后端未返回账户聚合'}
         />
-        <Stat label="数据源" value={dbStatus} tone={dbStatus === 'UP' ? 'ok' : 'warn'} />
         <Stat
-          label="未闭环告警"
-          value={openAlerts.length}
-          tone={openAlerts.length > 0 ? 'warn' : 'ok'}
+          label="浮动 + 已实现盈亏"
+          value={money(pnl)}
+          tone={pnl === undefined ? 'muted' : pnl >= 0 ? 'ok' : 'danger'}
+          hint={accountData ? '后端无当日聚合，按账户累计展示' : '后端未返回账户数据'}
         />
-        <Stat label="指标项" value={metricEntries.length} tone="info" />
+        <Stat
+          label="可用资金"
+          value={money(available)}
+          tone="ok"
+          hint={
+            available !== undefined && equity
+              ? `占总权益 ${pct((available / equity) * 100)}`
+              : '后端未返回账户数据'
+          }
+        />
+        <Stat
+          label="保证金占用"
+          value={pct(marginRatio)}
+          tone={marginRatio !== undefined && marginRatio >= 70 ? 'danger' : 'warn'}
+          hint={margin !== undefined ? `保证金 ${money(margin)} · 预警线 70%` : '后端未返回账户数据'}
+        />
       </Grid>
 
-      <Card title="最新指标快照">
-        <AsyncState loading={metrics.loading} error={metrics.error} onRetry={metrics.reload} empty={metricEntries.length === 0 && '暂无指标'}>
-          <DataTable
-            columns={[
-              { key: 'metric', title: '指标', render: (row) => row[0] },
-              { key: 'value', title: '值', render: (row) => String(row[1]) },
-            ]}
-            rows={metricEntries}
-            rowKey={(row) => String(row[0])}
-          />
-        </AsyncState>
-      </Card>
+      <div className="split">
+        <div className="col">
+          <Card
+            title="待处理告警"
+            padded={false}
+            actions={
+              <>
+                <span className="muted">{openAlerts.length} 条未确认</span>
+                <Button size="sm" variant="ghost" onClick={() => navigate('/monitor')}>
+                  全部告警
+                </Button>
+              </>
+            }
+          >
+            <AsyncState
+              loading={alerts.loading}
+              error={alerts.error}
+              onRetry={alerts.reload}
+              empty={
+                !alerts.loading &&
+                openAlerts.length === 0 &&
+                '暂无未确认告警：阈值正常，或告警规则尚未配置。可到「监控告警」补充规则。'
+              }
+            >
+              <DataTable
+                columns={[
+                  { key: 'createTime', title: '时间' },
+                  {
+                    key: 'severity',
+                    title: '级别',
+                    render: (row: AlertEvent) => (
+                      <Badge tone={statusTone(row.severity)}>{row.severity ?? '-'}</Badge>
+                    ),
+                  },
+                  { key: 'metricKey', title: '指标' },
+                  { key: 'message', title: '说明' },
+                ]}
+                rows={openAlerts.slice(0, 4)}
+                rowKey={(row: AlertEvent) => row.eventId}
+                empty="暂无未确认告警"
+              />
+            </AsyncState>
+          </Card>
 
-      <Card title="未闭环告警">
-        <AsyncState loading={alerts.loading} error={alerts.error} onRetry={alerts.reload} empty={openAlerts.length === 0 && '暂无未闭环告警'}>
+          <Card
+            title="持仓"
+            padded={false}
+            actions={
+              <>
+                <span className="muted">按浮动盈亏排序</span>
+                <Button size="sm" variant="ghost" onClick={() => navigate('/portfolio')}>
+                  组合视图
+                </Button>
+              </>
+            }
+          >
+            <AsyncState
+              loading={positions.loading}
+              error={positions.error}
+              onRetry={positions.reload}
+              empty={
+                !positions.loading &&
+                positionRows.length === 0 &&
+                '当前账户没有持仓。可到「交易下单」提交第一笔委托。'
+              }
+            >
+              <DataTable
+                columns={[
+                  { key: 'symbol', title: '合约' },
+                  {
+                    key: 'direction',
+                    title: '方向',
+                    render: (row: PositionView) => (
+                      <Badge tone={row.direction === 'BUY' || row.direction === 'LONG' ? 'ok' : 'danger'}>
+                        {row.direction}
+                      </Badge>
+                    ),
+                  },
+                  { key: 'quantity', title: '数量', align: 'right', render: (row: PositionView) => qty(row.quantity) },
+                  { key: 'avgCost', title: '均价', align: 'right', render: (row: PositionView) => money(row.avgCost) },
+                  {
+                    key: 'unrealizedPnl',
+                    title: '浮动盈亏',
+                    align: 'right',
+                    render: (row: PositionView) => (
+                      <span className={(row.unrealizedPnl ?? 0) >= 0 ? 'delta-up' : 'delta-down'}>
+                        {money(row.unrealizedPnl)}
+                      </span>
+                    ),
+                  },
+                ]}
+                rows={[...positionRows].sort(
+                  (a, b) => (b.unrealizedPnl ?? 0) - (a.unrealizedPnl ?? 0),
+                )}
+                rowKey={(row: PositionView) =>
+                  `${row.accountId}-${row.symbol}-${row.direction}-${row.id ?? ''}`
+                }
+                empty="暂无持仓"
+              />
+            </AsyncState>
+          </Card>
+        </div>
+
+        <div className="col">
+          <Card title="账户与风险" actions={<span className="muted">实时</span>}>
+            <AsyncState
+              loading={account.loading}
+              error={account.error}
+              onRetry={account.reload}
+              empty={!account.loading && !accountData && '后端未返回账户数据'}
+            >
+              <dl className="kv kv-single">
+                <div className="kv-row">
+                  <dt>总权益</dt>
+                  <dd>{money(equity)}</dd>
+                </div>
+                <div className="kv-row">
+                  <dt>可用 / 冻结</dt>
+                  <dd>
+                    {money(available)} / {money(accountData?.frozenCash)}
+                  </dd>
+                </div>
+                <div className="kv-row">
+                  <dt>浮动 / 已实现</dt>
+                  <dd>
+                    {money(accountData?.unrealizedPnl)} / {money(accountData?.realizedPnl)}
+                  </dd>
+                </div>
+              </dl>
+              <div className="meter mt-4">
+                <div className="meter-head">
+                  <span>保证金占用</span>
+                  <strong>{pct(marginRatio)}</strong>
+                </div>
+                <div className="meter-track">
+                  <div
+                    className={`meter-fill ${
+                      marginRatio !== undefined && marginRatio >= 70
+                        ? 'danger'
+                        : marginRatio !== undefined && marginRatio >= 60
+                          ? 'warn'
+                          : ''
+                    }`}
+                    style={{ width: `${Math.min(100, marginRatio ?? 0)}%` }}
+                  />
+                </div>
+                <span className="field-hint">预警线 70% · 以账户聚合值计算</span>
+              </div>
+            </AsyncState>
+          </Card>
+
+          <Card title="快捷操作">
+            <div className="quick-list">
+              <button type="button" className="quick-item" onClick={() => navigate('/trading')}>
+                新建委托<span className="chev">→</span>
+              </button>
+              <button type="button" className="quick-item" onClick={() => navigate('/fund')}>
+                资金划转<span className="chev">→</span>
+              </button>
+              <button type="button" className="quick-item" onClick={() => navigate('/risk')}>
+                风控规则<span className="chev">→</span>
+              </button>
+              <button type="button" className="quick-item" onClick={() => navigate('/monitor')}>
+                告警中心<span className="chev">→</span>
+              </button>
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      <Card
+        title="在途委托"
+        padded={false}
+        actions={
+          <>
+            <span className="muted">
+              {orderRows.length} 笔在途
+              {metricEntries.length > 0 ? ` · ${metricEntries.length} 项指标已上报` : ''}
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => navigate('/trading')}>
+              委托列表
+            </Button>
+          </>
+        }
+      >
+        <AsyncState
+          loading={orders.loading}
+          error={orders.error}
+          onRetry={orders.reload}
+          empty={
+            !orders.loading &&
+            orderRows.length === 0 &&
+            '暂无在途委托。提交委托后，未成交部分会显示在这里。'
+          }
+        >
           <DataTable
             columns={[
-              { key: 'eventId', title: '事件号' },
-              { key: 'metricKey', title: '指标' },
-              { key: 'value', title: '值' },
+              { key: 'createTime', title: '时间' },
+              { key: 'orderId', title: '委托号' },
+              { key: 'symbol', title: '合约' },
+              { key: 'direction', title: '方向' },
+              { key: 'price', title: '价格', align: 'right', render: (row: OrderView) => money(row.price) },
+              { key: 'quantity', title: '数量', align: 'right', render: (row: OrderView) => qty(row.quantity) },
               {
-                key: 'severity',
-                title: '级别',
-                render: (row) => <Badge tone={statusTone(row.severity)}>{row.severity}</Badge>,
+                key: 'filledQuantity',
+                title: '已成交',
+                align: 'right',
+                render: (row: OrderView) => qty(row.filledQuantity),
               },
               {
                 key: 'status',
                 title: '状态',
-                render: (row) => <Badge tone={statusTone(row.status)}>{row.status}</Badge>,
+                render: (row: OrderView) => (
+                  <Badge tone={statusTone(row.status)}>{row.status ?? '-'}</Badge>
+                ),
               },
-              { key: 'message', title: '说明' },
             ]}
-            rows={openAlerts}
-            rowKey={(row) => row.eventId}
+            rows={orderRows.slice(0, 5)}
+            rowKey={(row: OrderView) => row.orderId}
+            empty="暂无在途委托"
           />
         </AsyncState>
       </Card>

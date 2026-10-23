@@ -11,6 +11,7 @@ import {
   Input,
   JsonBlock,
   KeyValue,
+  Modal,
   Notice,
   Page,
   Select,
@@ -111,6 +112,7 @@ export default function PortfolioPage() {
   const [jobId, setJobId] = useState('');
   const [job, setJob] = useState<RebalanceJob | null>(null);
   const [preview, setPreview] = useState<RebalancePreview | null>(null);
+  const [executeConfirmOpen, setExecuteConfirmOpen] = useState(false);
 
   const list = useApi(() => api.get<Portfolio[]>('/api/portfolio/list'), []);
   const detail = useApi<PortfolioDetail | null>(
@@ -224,6 +226,7 @@ export default function PortfolioPage() {
       );
       setJob(result);
       setOkMsg(`再平衡执行完成，状态：${result.status ?? '-'}`);
+      setExecuteConfirmOpen(false);
       detail.reload();
     });
 
@@ -364,25 +367,67 @@ export default function PortfolioPage() {
                   />
                 )}
 
-                <h3 style={{ margin: '16px 0 8px', fontSize: 14 }}>当前持仓</h3>
+                <h3 className="subsection-title">当前持仓</h3>
                 <DataTable columns={positionColumns} rows={positions} empty="暂无持仓" rowKey={(row) => `${row.symbol}-${row.direction}`} />
 
-                <h3 style={{ margin: '16px 0 8px', fontSize: 14 }}>目标偏差</h3>
+                <h3 className="subsection-title">目标偏差</h3>
                 <DataTable columns={deviationColumns} rows={deviations} empty="暂无偏差" rowKey={(row, index) => `${row.symbol}-${row.direction}-${index}`} />
 
-                <h3 style={{ margin: '16px 0 8px', fontSize: 14 }}>再平衡预览</h3>
+                <h3 className="subsection-title">再平衡预览</h3>
                 <DataTable columns={instructionColumns} rows={detailData?.preview?.instructions ?? []} empty="暂无预览" rowKey={(row, index) => `${row.symbol}-${index}`} />
               </AsyncState>
             )}
           </Card>
 
+          <Card title="持仓分布" actions={<span className="muted">按当前数量占比</span>}>
+            {positions.length === 0 ? (
+              <div className="empty">
+                暂无持仓分布。请先在「组合列表」选择组合并设置目标持仓。
+              </div>
+            ) : (
+              <div className="bar-list">
+                {(() => {
+                  const weighted = positions.map((row) => ({
+                    label: `${row.symbol} · ${row.direction ?? '-'}`,
+                    value: Math.abs(Number(row.curQty ?? row.targetQty ?? 0)),
+                  }));
+                  const total = weighted.reduce((sum, item) => sum + item.value, 0);
+                  return weighted
+                    .sort((a, b) => b.value - a.value)
+                    .slice(0, 8)
+                    .map((item) => {
+                      const ratio = total > 0 ? (item.value / total) * 100 : 0;
+                      return (
+                        <div className="bar-item" key={item.label}>
+                          <div className="bar-item-head">
+                            <span>{item.label}</span>
+                            <span className="num">
+                              {item.value.toLocaleString('zh-CN')} · {ratio.toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="bar-track">
+                            <div className="bar-fill" style={{ width: `${ratio}%` }} />
+                          </div>
+                        </div>
+                      );
+                    });
+                })()}
+              </div>
+            )}
+            <div className="mt-3">
+              <Notice tone="info">
+                后端未提供组合净值历史与策略贡献接口，本轮不绘制净值曲线；分布按持仓当前数量计算。
+              </Notice>
+            </div>
+          </Card>
+
           <Card title="设置目标持仓">
             <Notice tone="info">提交后为全量覆盖：body 为 PortfolioPosition 数组，symbol 必填，targetQty 缺省按 0 处理。</Notice>
-            <div style={{ marginTop: 12 }}>
+            <div className="mt-3">
               <Textarea value={positionsJson} onChange={(event) => setPositionsJson(event.target.value)} />
             </div>
-            <div style={{ marginTop: 12 }}>
-              <Button variant="primary" disabled={busy || !selectedId} onClick={savePositions}>
+            <div className="mt-3">
+              <Button disabled={busy || !selectedId} onClick={savePositions}>
                 保存目标持仓
               </Button>
             </div>
@@ -433,7 +478,7 @@ export default function PortfolioPage() {
             </Toolbar>
 
             {job && (
-              <div style={{ marginTop: 12 }}>
+              <div className="mt-3">
                 <KeyValue
                   items={[
                     { label: '任务 ID', value: job.jobId },
@@ -452,7 +497,7 @@ export default function PortfolioPage() {
             )}
 
             {(preview || job) && (
-              <div style={{ marginTop: 12 }}>
+              <div className="mt-3">
                 <DataTable
                   columns={instructionColumns}
                   rows={instructions}
@@ -465,8 +510,12 @@ export default function PortfolioPage() {
             <Notice tone="warn">
               确认执行是敏感操作：将签发一次性确认令牌（30s）后提交真实报单，不可撤销。
             </Notice>
-            <div style={{ marginTop: 12 }}>
-              <Button variant="danger" disabled={busy || !jobId.trim()} onClick={confirmExecute}>
+            <div className="mt-3">
+              <Button
+                variant="danger"
+                disabled={busy || !jobId.trim()}
+                onClick={() => setExecuteConfirmOpen(true)}
+              >
                 确认执行再平衡
               </Button>
             </div>
@@ -477,6 +526,33 @@ export default function PortfolioPage() {
           </Card>
         </>
       )}
+      <Modal
+        open={executeConfirmOpen}
+        title="确认执行再平衡"
+        onClose={() => setExecuteConfirmOpen(false)}
+        footer={
+          <>
+            <Button onClick={() => setExecuteConfirmOpen(false)} disabled={busy}>
+              取消
+            </Button>
+            <Button variant="danger" onClick={confirmExecute} disabled={busy}>
+              {busy ? '执行中…' : '确认执行'}
+            </Button>
+          </>
+        }
+      >
+        <Notice tone="danger">
+          该操作会签发一次性确认令牌并提交真实报单，不可撤销。请核对任务与指令。
+        </Notice>
+        <KeyValue
+          items={[
+            { label: '任务 ID', value: jobId.trim() || '-' },
+            { label: '组合', value: selectedId || '-' },
+            { label: '指令数', value: String(instructions.length) },
+            { label: '预估成本', value: String(preview?.costEst ?? job?.costEst ?? '-') },
+          ]}
+        />
+      </Modal>
     </Page>
   );
 }

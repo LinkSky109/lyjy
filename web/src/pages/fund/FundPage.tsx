@@ -12,6 +12,7 @@ import {
   Input,
   JsonBlock,
   KeyValue,
+  Modal,
   Notice,
   Page,
   Select,
@@ -20,6 +21,20 @@ import {
   Toolbar,
   type Tone,
 } from '../../components/ui';
+
+/** 平台资金账户（/api/trade/platform/account） */
+interface FundAccountView {
+  accountId: string;
+  accountName?: string;
+  accountType?: string;
+  currency?: string;
+  totalAsset?: number;
+  availableCash?: number;
+  frozenCash?: number;
+  margin?: number;
+  unrealizedPnl?: number;
+  realizedPnl?: number;
+}
 
 /** 出入金申请（/api/fund/transaction） */
 interface CashTransactionView {
@@ -134,19 +149,61 @@ export default function FundPage() {
   const [txSubmitting, setTxSubmitting] = useState(false);
   const [txNotice, setTxNotice] = useState<Notice>(null);
   const [txResult, setTxResult] = useState<CashTransactionView | null>(null);
+  const [txAmountError, setTxAmountError] = useState<string | null>(null);
+  const [txConfirmOpen, setTxConfirmOpen] = useState(false);
+  const [accountQueryId, setAccountQueryId] = useState('DEFAULT-001');
 
-  const submitTransaction = async () => {
-    setTxNotice(null);
+  const accountView = useApi(
+    () => api.get<FundAccountView>('/api/trade/platform/account', { accountId: accountQueryId }),
+    [accountQueryId],
+  );
+
+  const validateTransaction = (): boolean => {
+    setTxAmountError(null);
     const account = txAccountId.trim();
     const amount = toNum(txAmount);
     if (!account) {
       setTxNotice({ tone: 'danger', text: '请填写账户 ID accountId' });
-      return;
+      return false;
     }
     if (amount === undefined || amount <= 0) {
-      setTxNotice({ tone: 'danger', text: '请填写大于 0 的金额 amount' });
+      setTxAmountError('请填写大于 0 的金额，例如 100000。');
+      return false;
+    }
+    if (accountView.data && accountView.data.accountId !== account) {
+      setTxNotice({
+        tone: 'danger',
+        text: `账户数据尚未切换到 ${account}，请先刷新账户概览后再提交。`,
+      });
+      setAccountQueryId(account);
+      accountView.reload();
+      return false;
+    }
+    if (txType === 'WITHDRAW') {
+      const available = accountView.data?.availableCash;
+      if (available === undefined) {
+        setTxNotice({
+          tone: 'danger',
+          text: '无法读取该账户的可用资金，暂不能出金。请先确认账户 ID 并刷新账户数据。',
+        });
+        return false;
+      }
+      if (amount > available) {
+        setTxAmountError(`出金不得超过可用资金 ¥${fmt(available)}，请调整金额或先入金。`);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const submitTransaction = async () => {
+    setTxNotice(null);
+    if (!validateTransaction()) {
+      setTxConfirmOpen(false);
       return;
     }
+    const account = txAccountId.trim();
+    const amount = toNum(txAmount) as number;
     setTxSubmitting(true);
     try {
       const result = await api.post<CashTransactionView>('/api/fund/transaction', {
@@ -163,6 +220,9 @@ export default function FundPage() {
         tone: 'ok',
         text: `申请已提交 流水号=${result.transactionNo ?? '-'} 状态=${result.status ?? '-'}`,
       });
+      setTxConfirmOpen(false);
+      accountView.reload();
+      flows.reload();
     } catch (error) {
       setTxNotice({ tone: 'danger', text: `提交失败：${errorText(error)}` });
     } finally {
@@ -177,6 +237,7 @@ export default function FundPage() {
   const [approveSubmitting, setApproveSubmitting] = useState(false);
   const [approveNotice, setApproveNotice] = useState<Notice>(null);
   const [approveResult, setApproveResult] = useState<CashTransactionView | null>(null);
+  const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
 
   const submitApprove = async () => {
     setApproveNotice(null);
@@ -202,6 +263,9 @@ export default function FundPage() {
         tone: 'ok',
         text: `审核完成 流水号=${result.transactionNo ?? no} 状态=${result.status ?? '-'}`,
       });
+      setApproveConfirmOpen(false);
+      accountView.reload();
+      flows.reload();
     } catch (error) {
       setApproveNotice({ tone: 'danger', text: `审核失败：${errorText(error)}` });
     } finally {
@@ -230,6 +294,8 @@ export default function FundPage() {
     [flowQuery.accountId, flowQuery.start, flowQuery.end],
   );
 
+  const [flowBizFilter, setFlowBizFilter] = useState('');
+
   const applyFlowQuery = () => {
     setFlowQuery({
       accountId: flowAccountDraft.trim(),
@@ -237,6 +303,12 @@ export default function FundPage() {
       end: flowEndDraft,
     });
   };
+
+  const flowRows = flows.data ?? [];
+  const flowBizTypes = Array.from(new Set(flowRows.map((row) => row.bizType).filter(Boolean))) as string[];
+  const filteredFlowRows = flowBizFilter
+    ? flowRows.filter((row) => row.bizType === flowBizFilter)
+    : flowRows;
 
   // ---------- 资金对账 ----------
   const [reconAccountId, setReconAccountId] = useState('DEFAULT-001');
@@ -282,6 +354,36 @@ export default function FundPage() {
 
   return (
     <Page title="资金管理" subtitle="出入金申请审核、资金流水查询与柜台对账">
+      <Card title="账户概览" actions={<span className="muted">{accountQueryId}</span>}>
+        <AsyncState
+          loading={accountView.loading}
+          error={accountView.error}
+          onRetry={accountView.reload}
+          empty={!accountView.loading && !accountView.data && '后端未返回该账户数据，请核对账户 ID。'}
+        >
+          {accountView.data && (
+            <>
+              <Grid columns={4}>
+                <Stat label="总资产" value={fmt(accountView.data.totalAsset)} tone="info" />
+                <Stat label="可用资金" value={fmt(accountView.data.availableCash)} tone="ok" />
+                <Stat label="冻结资金" value={fmt(accountView.data.frozenCash)} tone="warn" />
+                <Stat label="保证金" value={fmt(accountView.data.margin)} tone="warn" />
+              </Grid>
+              <div className="mt-3">
+                <KeyValue
+                  items={[
+                    { label: 'accountId', value: accountView.data.accountId },
+                    { label: 'accountName', value: accountView.data.accountName ?? '-' },
+                    { label: 'accountType', value: accountView.data.accountType ?? '-' },
+                    { label: 'currency', value: accountView.data.currency ?? '-' },
+                  ]}
+                />
+              </div>
+            </>
+          )}
+        </AsyncState>
+      </Card>
+
       <Card>
         <Tabs
           active={tab}
@@ -294,13 +396,14 @@ export default function FundPage() {
         />
 
         {tab === 'transaction' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="stack-sm">
             {txNotice && <Notice tone={txNotice.tone}>{txNotice.text}</Notice>}
             <Grid columns={3}>
               <Field label="账户 ID accountId">
                 <Input
                   value={txAccountId}
                   onChange={(event) => setTxAccountId(event.target.value)}
+                  onBlur={() => setAccountQueryId(txAccountId.trim() || 'DEFAULT-001')}
                   placeholder="DEFAULT-001"
                 />
               </Field>
@@ -313,11 +416,16 @@ export default function FundPage() {
                   ))}
                 </Select>
               </Field>
-              <Field label="金额 amount">
+              <Field label="金额 amount" error={txAmountError ?? undefined}>
                 <Input
                   value={txAmount}
-                  onChange={(event) => setTxAmount(event.target.value)}
+                  onChange={(event) => {
+                    setTxAmount(event.target.value);
+                    setTxAmountError(null);
+                  }}
                   placeholder="100000"
+                  inputMode="decimal"
+                  aria-invalid={txAmountError ? 'true' : undefined}
                 />
               </Field>
               <Field label="银行账户 bankAccount（可选）">
@@ -343,9 +451,20 @@ export default function FundPage() {
               </Field>
             </Grid>
             <Toolbar>
-              <Button variant="primary" onClick={submitTransaction} disabled={txSubmitting}>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setTxNotice(null);
+                  setAccountQueryId(txAccountId.trim() || 'DEFAULT-001');
+                  if (validateTransaction()) {
+                    setTxConfirmOpen(true);
+                  }
+                }}
+                disabled={txSubmitting}
+              >
                 {txSubmitting ? '提交中…' : '提交出入金申请'}
               </Button>
+              <span className="muted">出金不得超过账户可用资金；提交前需二次确认。</span>
             </Toolbar>
 
             {txResult && (
@@ -379,15 +498,15 @@ export default function FundPage() {
                   </Select>
                 </Field>
                 <Button
-                  variant={approved === 'true' ? 'primary' : 'danger'}
-                  onClick={submitApprove}
+                  variant={approved === 'true' ? 'default' : 'danger'}
+                  onClick={() => setApproveConfirmOpen(true)}
                   disabled={approveSubmitting}
                 >
                   {approveSubmitting ? '提交中…' : '提交审核'}
                 </Button>
               </Toolbar>
               {approveResult && (
-                <div style={{ marginTop: 12 }}>
+                <div className="mt-3">
                   <TransactionFields tx={approveResult} />
                   <JsonBlock value={approveResult} />
                 </div>
@@ -397,7 +516,7 @@ export default function FundPage() {
         )}
 
         {tab === 'flows' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="stack-sm">
             <Toolbar>
               <Field label="账户 ID accountId">
                 <Input
@@ -420,13 +539,30 @@ export default function FundPage() {
                   onChange={(event) => setFlowEndDraft(event.target.value)}
                 />
               </Field>
-              <Button variant="primary" onClick={applyFlowQuery}>
-                查询流水
-              </Button>
+              <Field label="业务类型筛选">
+                <Select value={flowBizFilter} onChange={(event) => setFlowBizFilter(event.target.value)}>
+                  <option value="">全部</option>
+                  {flowBizTypes.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Button onClick={applyFlowQuery}>查询流水</Button>
               <Button onClick={flows.reload}>刷新</Button>
             </Toolbar>
 
-            <AsyncState loading={flows.loading} error={flows.error} onRetry={flows.reload}>
+            <AsyncState
+              loading={flows.loading}
+              error={flows.error}
+              onRetry={flows.reload}
+              empty={
+                !flows.loading &&
+                flowRows.length === 0 &&
+                '所选区间没有资金流水。请放宽时间范围或确认该账户已发生出入金/成交。'
+              }
+            >
               <DataTable
                 columns={[
                   { key: 'flowNo', title: '流水号' },
@@ -442,7 +578,7 @@ export default function FundPage() {
                     title: '变动金额',
                     align: 'right',
                     render: (row: FundFlowView) => (
-                      <span style={{ color: (row.changeAmount ?? 0) >= 0 ? 'var(--ok)' : 'var(--danger)' }}>
+                      <span className={(row.changeAmount ?? 0) >= 0 ? 'delta-up' : 'delta-down'}>
                         {fmt(row.changeAmount)}
                       </span>
                     ),
@@ -452,7 +588,7 @@ export default function FundPage() {
                   { key: 'createTime', title: '时间' },
                   { key: 'remark', title: '备注' },
                 ]}
-                rows={flows.data ?? []}
+                rows={filteredFlowRows}
                 rowKey={(row: FundFlowView) => row.flowNo ?? String(row.id ?? '')}
                 empty="暂无流水"
               />
@@ -461,7 +597,7 @@ export default function FundPage() {
         )}
 
         {tab === 'reconcile' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="stack-sm">
             {reconNotice && <Notice tone={reconNotice.tone}>{reconNotice.text}</Notice>}
             <Field label="账户 ID accountId">
               <Input
@@ -522,6 +658,69 @@ export default function FundPage() {
           </div>
         )}
       </Card>
+
+      <Modal
+        open={txConfirmOpen}
+        title="确认出入金申请"
+        onClose={() => setTxConfirmOpen(false)}
+        footer={
+          <>
+            <Button onClick={() => setTxConfirmOpen(false)} disabled={txSubmitting}>
+              取消
+            </Button>
+            <Button variant="primary" onClick={submitTransaction} disabled={txSubmitting}>
+              {txSubmitting ? '提交中…' : '确认提交'}
+            </Button>
+          </>
+        }
+      >
+        {txType === 'WITHDRAW' && (
+          <Notice tone="warn">
+            出金不得超过可用资金（当前 ¥{fmt(accountView.data?.availableCash)}），提交后需审核。
+          </Notice>
+        )}
+        <KeyValue
+          items={[
+            { label: '账户', value: txAccountId.trim() || '-' },
+            { label: '类型', value: txType === 'DEPOSIT' ? '入金' : '出金' },
+            { label: '金额', value: `¥${fmt(toNum(txAmount))}` },
+            { label: '币种', value: 'CNY' },
+            { label: '银行账户', value: txBankAccount.trim() || '-' },
+            { label: '申请人', value: txApplicant.trim() || '-' },
+          ]}
+        />
+      </Modal>
+
+      <Modal
+        open={approveConfirmOpen}
+        title="确认出入金审核"
+        onClose={() => setApproveConfirmOpen(false)}
+        footer={
+          <>
+            <Button onClick={() => setApproveConfirmOpen(false)} disabled={approveSubmitting}>
+              取消
+            </Button>
+            <Button
+              variant={approved === 'true' ? 'primary' : 'danger'}
+              onClick={submitApprove}
+              disabled={approveSubmitting}
+            >
+              {approveSubmitting ? '提交中…' : '确认审核'}
+            </Button>
+          </>
+        }
+      >
+        <Notice tone="warn">
+          审核结果不可撤销；通过后将更新账户资金，驳回则终止该笔申请。
+        </Notice>
+        <KeyValue
+          items={[
+            { label: '流水号', value: approveNo.trim() || '-' },
+            { label: '审核人', value: approver.trim() || '-' },
+            { label: '审核结论', value: approved === 'true' ? '通过' : '拒绝' },
+          ]}
+        />
+      </Modal>
     </Page>
   );
 }

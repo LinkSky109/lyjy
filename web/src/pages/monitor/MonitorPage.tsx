@@ -132,7 +132,18 @@ export default function MonitorPage() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const [statusFilter, setStatusFilter] = useState('OPEN');
+  const [severityFilter, setSeverityFilter] = useState('');
   const [ackBy, setAckBy] = useState('admin');
+  const health = useApi(
+    () =>
+      api.get<{
+        status: string;
+        components?: Record<string, { status: string; components?: Record<string, { status: string }> }>;
+      }>(
+        '/actuator/health',
+      ),
+    [],
+  );
   const alerts = useApi(
     () =>
       api.get<AlertEvent[]>('/api/monitor/alerts', {
@@ -255,6 +266,39 @@ export default function MonitorPage() {
   const historyRows = history.data ?? [];
   const alertRows = alerts.data ?? [];
   const openAlerts = alertRows.filter((row) => row.status === 'OPEN').length;
+  const filteredAlertRows = severityFilter
+    ? alertRows.filter((row) => row.severity === severityFilter)
+    : alertRows;
+  const activeFilter =
+    statusFilter === 'OPEN' && !severityFilter
+      ? 'open'
+      : !statusFilter && severityFilter === 'CRITICAL'
+        ? 'critical'
+        : !statusFilter && severityFilter === 'WARN'
+          ? 'warn'
+          : !statusFilter && !severityFilter
+            ? 'all'
+            : 'custom';
+
+  const chooseFilter = (key: string) => {
+    if (key === 'all') {
+      setStatusFilter('');
+      setSeverityFilter('');
+    } else if (key === 'open') {
+      setStatusFilter('OPEN');
+      setSeverityFilter('');
+    } else if (key === 'critical') {
+      setStatusFilter('');
+      setSeverityFilter('CRITICAL');
+    } else {
+      setStatusFilter('');
+      setSeverityFilter('WARN');
+    }
+  };
+
+  const alertsEmpty = !alerts.loading && filteredAlertRows.length === 0 &&
+    '当前筛选没有告警事件。切换筛选或到「告警规则」确认阈值是否已配置。';
+  const components = health.data?.components ?? {};
 
   return (
     <Page title="监控告警" subtitle="运行指标、告警规则与告警事件闭环">
@@ -459,7 +503,16 @@ export default function MonitorPage() {
                     key: 'enabled',
                     title: '启用',
                     render: (row) => (
-                      <Badge tone={row.enabled ? 'ok' : 'muted'}>{row.enabled ? '启用' : '禁用'}</Badge>
+                      <label className="switch">
+                        <input
+                          type="checkbox"
+                          aria-label={`${row.ruleId} 启用开关`}
+                          checked={row.enabled ?? false}
+                          disabled={togglingId === row.ruleId}
+                          onChange={() => toggleRule(row)}
+                        />
+                        <span className="switch-track" />
+                      </label>
                     ),
                   },
                   {
@@ -467,19 +520,9 @@ export default function MonitorPage() {
                     title: '操作',
                     align: 'right',
                     render: (row) => (
-                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                        <Button size="sm" onClick={() => editRule(row)}>
-                          编辑
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={row.enabled ? 'danger' : 'primary'}
-                          disabled={togglingId === row.ruleId}
-                          onClick={() => toggleRule(row)}
-                        >
-                          {row.enabled ? '禁用' : '启用'}
-                        </Button>
-                      </div>
+                      <Button size="sm" onClick={() => editRule(row)}>
+                        编辑
+                      </Button>
                     ),
                   },
                 ]}
@@ -494,26 +537,87 @@ export default function MonitorPage() {
       {tab === 'alerts' && (
         <Card title="告警事件">
           <Toolbar>
-            <Field label="状态">
-              <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-                {ALERT_STATUS.map((item) => (
-                  <option key={item || 'ALL'} value={item}>
-                    {item || '全部'}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+            <div className="filter-bar" role="group" aria-label="告警筛选">
+              {[
+                { key: 'all', label: '全部' },
+                { key: 'open', label: '未确认' },
+                { key: 'critical', label: '严重' },
+                { key: 'warn', label: '警告' },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className="chip"
+                  aria-pressed={activeFilter === item.key}
+                  onClick={() => chooseFilter(item.key)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
             <Field label="确认人">
               <Input value={ackBy} onChange={(event) => setAckBy(event.target.value)} placeholder="admin" />
             </Field>
-            <Button onClick={alerts.reload}>刷新</Button>
+            <Button onClick={() => alerts.reload()}>刷新</Button>
           </Toolbar>
+
+          <div className="status-strip mt-1 mb-3">
+            <div className="status-item">
+              <span className="status-label">核心服务</span>
+              <span className="status-value">
+                <span
+                  className={`dot ${health.data?.status === 'UP' ? 'dot-ok' : health.data ? 'dot-danger' : ''}`}
+                />
+                {health.data?.status ?? '未上报'}
+              </span>
+            </div>
+            <div className="status-item">
+              <span className="status-label">PostgreSQL</span>
+              <span className="status-value">
+                <span
+                  className={`dot ${
+                    components.db?.components?.primaryDataSource?.status === 'UP'
+                      ? 'dot-ok'
+                      : components.db
+                        ? 'dot-danger'
+                        : ''
+                  }`}
+                />
+                {components.db?.components?.primaryDataSource?.status ?? '未上报'}
+              </span>
+            </div>
+            <div className="status-item">
+              <span className="status-label">ClickHouse</span>
+              <span className="status-value">
+                <span
+                  className={`dot ${
+                    components.db?.components?.clickHouseDataSource?.status === 'UP'
+                      ? 'dot-ok'
+                      : components.db
+                        ? 'dot-danger'
+                        : ''
+                  }`}
+                />
+                {components.db?.components?.clickHouseDataSource?.status ?? '未上报'}
+              </span>
+            </div>
+            <div className="status-item">
+              <span className="status-label">Redis</span>
+              <span className="status-value">
+                <span
+                  className={`dot ${components.redis?.status === 'UP' ? 'dot-ok' : components.redis ? 'dot-danger' : ''}`}
+                />
+                {components.redis?.status ?? '未上报'}
+              </span>
+            </div>
+          </div>
+
           {alertError && <Notice tone="danger">{alertError}</Notice>}
           <AsyncState
             loading={alerts.loading}
             error={alerts.error}
             onRetry={alerts.reload}
-            empty={alertRows.length === 0 && '暂无告警事件'}
+            empty={alertsEmpty}
           >
             <DataTable
               columns={[
@@ -537,29 +641,30 @@ export default function MonitorPage() {
                   key: 'actions',
                   title: '操作',
                   align: 'right',
-                  render: (row) => (
-                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                  render: (row) =>
+                    row.status === 'OPEN' ? (
                       <Button
                         size="sm"
-                        variant="primary"
-                        disabled={actingId === row.eventId || row.status !== 'OPEN'}
+                        disabled={actingId === row.eventId}
                         onClick={() => ackAlert(row)}
                       >
                         确认
                       </Button>
+                    ) : row.status !== 'CLOSED' ? (
                       <Button
                         size="sm"
                         variant="danger"
-                        disabled={actingId === row.eventId || row.status === 'CLOSED'}
+                        disabled={actingId === row.eventId}
                         onClick={() => closeAlert(row)}
                       >
                         关闭
                       </Button>
-                    </div>
-                  ),
+                    ) : (
+                      <span className="muted">-</span>
+                    ),
                 },
               ]}
-              rows={alertRows}
+              rows={filteredAlertRows}
               rowKey={(row) => String(row.eventId)}
             />
           </AsyncState>

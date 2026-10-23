@@ -12,6 +12,7 @@ import {
   Input,
   JsonBlock,
   KeyValue,
+  Modal,
   Notice,
   Page,
   Select,
@@ -73,6 +74,20 @@ interface OrderView {
   canceledAt?: string;
 }
 
+/** 成交回报（/api/trade/trades） */
+interface TradeReportView {
+  tradeId?: string;
+  clientOrderId?: string;
+  symbol?: string;
+  direction?: string;
+  offsetFlag?: string;
+  price?: number;
+  volume?: number;
+  turnover?: number;
+  tradeTime?: string;
+  tradingDay?: string;
+}
+
 /** 统一下单结果（POST /api/trade/orders） */
 interface TradeSubmissionView {
   orderId: string;
@@ -92,11 +107,45 @@ interface TradeStatusView {
   mode?: string;
 }
 
-type Notice = { tone: Tone; text: string } | null;
+/** 最新 tick（GET /api/market/tick/{symbol}），含五档盘口 */
+interface TickView {
+  symbol?: string;
+  lastPrice?: number;
+  preClose?: number;
+  open?: number;
+  high?: number;
+  low?: number;
+  volume?: number;
+  turnover?: number;
+  bidPrice1?: number;
+  bidPrice2?: number;
+  bidPrice3?: number;
+  bidPrice4?: number;
+  bidPrice5?: number;
+  bidVolume1?: number;
+  bidVolume2?: number;
+  bidVolume3?: number;
+  bidVolume4?: number;
+  bidVolume5?: number;
+  askPrice1?: number;
+  askPrice2?: number;
+  askPrice3?: number;
+  askPrice4?: number;
+  askPrice5?: number;
+  askVolume1?: number;
+  askVolume2?: number;
+  askVolume3?: number;
+  askVolume4?: number;
+  askVolume5?: number;
+  tickTime?: string;
+}
+
+type NoticeState = { tone: Tone; text: string } | null;
 
 const DIRECTIONS = ['BUY', 'SELL'];
 const OFFSET_FLAGS = ['OPEN', 'CLOSE', 'CLOSE_TODAY', 'CLOSE_YESTERDAY'];
 const ORDER_TYPES = ['LIMIT', 'MARKET', 'FAK', 'FOK'];
+const MAX_QUANTITY = 200;
 
 function toNum(value: string): number | undefined {
   const text = value.trim();
@@ -118,8 +167,12 @@ function genKey(): string {
   return `ui-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function directionLabel(value: string): string {
+  return value === 'BUY' ? '买入' : value === 'SELL' ? '卖出' : value;
+}
+
 export default function TradingPage() {
-  const [tab, setTab] = useState('order');
+  const [tab, setTab] = useState('orders');
 
   // 查询条件：草稿 + 已应用
   const [accountDraft, setAccountDraft] = useState('DEFAULT-001');
@@ -132,15 +185,16 @@ export default function TradingPage() {
     [accountId],
   );
   const positions = useApi(
-    () =>
-      api.get<PositionView[]>('/api/trade/platform/positions', { accountId, strategyId }),
+    () => api.get<PositionView[]>('/api/trade/platform/positions', { accountId, strategyId }),
     [accountId, strategyId],
   );
   const gateway = useApi(() => api.get<TradeStatusView>('/api/trade/status'), []);
   const activeOrders = useApi(() => api.get<OrderView[]>('/api/oms/orders/active'), []);
+  const trades = useApi(() => api.get<TradeReportView[]>('/api/trade/trades'), []);
 
   // 下单表单
   const [symbol, setSymbol] = useState('');
+  const [quoteSymbol, setQuoteSymbol] = useState('');
   const [exchange, setExchange] = useState('');
   const [direction, setDirection] = useState('BUY');
   const [offsetFlag, setOffsetFlag] = useState('OPEN');
@@ -150,8 +204,22 @@ export default function TradingPage() {
   const [idempotencyKey, setIdempotencyKey] = useState(genKey);
   const [remark, setRemark] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [orderNotice, setOrderNotice] = useState<Notice>(null);
+  const [orderNotice, setOrderNotice] = useState<NoticeState>(null);
   const [lastOrder, setLastOrder] = useState<TradeSubmissionView | null>(null);
+  const [formErrors, setFormErrors] = useState<{
+    symbol?: string;
+    price?: string;
+    quantity?: string;
+  }>({});
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const quote = useApi<TickView | null>(
+    () =>
+      quoteSymbol
+        ? api.get<TickView>(`/api/market/tick/${encodeURIComponent(quoteSymbol)}`)
+        : Promise.resolve(null),
+    [quoteSymbol],
+  );
 
   const applyQuery = () => {
     setAccountId(accountDraft.trim());
@@ -162,6 +230,8 @@ export default function TradingPage() {
     account.reload();
     positions.reload();
     activeOrders.reload();
+    trades.reload();
+    quote.reload();
   };
 
   // 持仓/订单自动刷新（10s），方便盯盘
@@ -173,24 +243,49 @@ export default function TradingPage() {
     const timer = setInterval(() => {
       positions.reload();
       activeOrders.reload();
+      trades.reload();
+      quote.reload();
     }, 10000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoTradeRefresh, accountId, strategyId]);
+  }, [autoTradeRefresh, accountId, strategyId, quoteSymbol]);
 
-  const submitOrder = async () => {
-    setOrderNotice(null);
+  const validate = (): boolean => {
+    const errors: typeof formErrors = {};
     if (!symbol.trim()) {
-      setOrderNotice({ tone: 'danger', text: '请填写标的代码 symbol' });
-      return;
+      errors.symbol = '请填写标的代码，例如 rb2601 或 BTC_USDT。';
     }
     const qty = toNum(quantity);
-    if (qty === undefined || qty <= 0) {
-      setOrderNotice({ tone: 'danger', text: '请填写大于 0 的委托数量 quantity' });
-      return;
+    if (qty === undefined) {
+      errors.quantity = '请填写委托数量（整数，最少 1 手）。';
+    } else if (!Number.isInteger(qty) || qty <= 0) {
+      errors.quantity = '数量必须为正整数。';
+    } else if (qty > MAX_QUANTITY) {
+      errors.quantity = `单笔数量不得超过 ${MAX_QUANTITY} 手，请拆单后重试。`;
     }
+    const priceValue = toNum(price);
+    if (orderType === 'MARKET') {
+      if (price.trim() !== '' && (priceValue === undefined || priceValue <= 0)) {
+        errors.price = '市价单价格可留空；如填写必须大于 0。';
+      }
+    } else if (priceValue === undefined || priceValue <= 0) {
+      errors.price = '限价单必须填写大于 0 的委托价格。';
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const openConfirm = () => {
+    setOrderNotice(null);
+    if (validate()) {
+      setConfirmOpen(true);
+    }
+  };
+
+  const submitOrder = async () => {
     setSubmitting(true);
     try {
+      const qty = toNum(quantity) as number;
       const orderPrice = toNum(price);
       const result = await api.post<TradeSubmissionView>('/api/trade/orders', {
         accountId: accountId.trim() || undefined,
@@ -213,9 +308,12 @@ export default function TradingPage() {
         }${result.replay ? '（幂等重放）' : ''}`,
       });
       setIdempotencyKey(genKey());
+      setConfirmOpen(false);
+      setQuoteSymbol(symbol.trim());
       reloadAll();
     } catch (error) {
       setOrderNotice({ tone: 'danger', text: `下单失败：${errorText(error)}` });
+      setConfirmOpen(false);
     } finally {
       setSubmitting(false);
     }
@@ -251,10 +349,9 @@ export default function TradingPage() {
   const cancelOrder = async (id: string) => {
     setOrderNotice(null);
     try {
-      const order = await api.del<OrderView>(
-        `/api/trade/orders/${encodeURIComponent(id)}`,
-        { reason: cancelReason.trim() || '用户撤单' },
-      );
+      const order = await api.del<OrderView>(`/api/trade/orders/${encodeURIComponent(id)}`, {
+        reason: cancelReason.trim() || '用户撤单',
+      });
       setOrderNotice({
         tone: 'ok',
         text: `撤单成功 orderId=${order.orderId} status=${order.status}`,
@@ -263,6 +360,7 @@ export default function TradingPage() {
         setQueriedOrder(order);
       }
       activeOrders.reload();
+      trades.reload();
     } catch (error) {
       setOrderNotice({ tone: 'danger', text: `撤单失败：${errorText(error)}` });
     }
@@ -271,29 +369,84 @@ export default function TradingPage() {
   const accountData = account.data;
   const positionRows = positions.data ?? [];
   const orderRows = activeOrders.data ?? [];
+  const tradeRows = trades.data ?? [];
+  const tick = quote.data;
+  const last = tick?.lastPrice;
+  const prev = tick?.preClose;
+  const diff = last !== undefined && prev !== undefined ? last - prev : undefined;
+  const diffPct = diff !== undefined && prev ? (diff / prev) * 100 : undefined;
+
+  const notional =
+    toNum(price) !== undefined && toNum(quantity) !== undefined
+      ? (toNum(price) as number) * (toNum(quantity) as number)
+      : undefined;
+
+  const bidRows = [5, 4, 3, 2, 1]
+    .map((level) => ({
+      level,
+      price: tick?.[`bidPrice${level}` as keyof TickView] as number | undefined,
+      volume: tick?.[`bidVolume${level}` as keyof TickView] as number | undefined,
+    }))
+    .filter((row) => row.price !== undefined);
+
+  const askRows = [1, 2, 3, 4, 5]
+    .map((level) => ({
+      level,
+      price: tick?.[`askPrice${level}` as keyof TickView] as number | undefined,
+      volume: tick?.[`askVolume${level}` as keyof TickView] as number | undefined,
+    }))
+    .filter((row) => row.price !== undefined);
 
   return (
     <Page
-      title="交易与资金"
-      subtitle="统一下单、平台持仓与 OMS 活跃订单管理"
+      title="交易下单"
+      subtitle="限价 / 市价委托，提交前经过事前风控校验；模拟环境不触达真实柜台。"
       actions={<Button onClick={reloadAll}>刷新全部</Button>}
     >
-      <Grid columns={3}>
-        <Stat
-          label="网关连接"
-          value={gateway.data ? (gateway.data.connected ? '已连接' : '未连接') : '-'}
-          tone={gateway.data?.connected ? 'ok' : 'danger'}
-          hint={gateway.error ?? undefined}
-        />
-        <Stat
-          label="柜台认证"
-          value={gateway.data ? (gateway.data.authenticated ? '已认证' : '未认证') : '-'}
-          tone={gateway.data?.authenticated ? 'ok' : 'warn'}
-        />
-        <Stat label="运行模式" value={gateway.data?.mode ?? '-'} tone="info" />
-      </Grid>
+      <div className="status-strip">
+        <div className="status-item">
+          <span className="status-label">网关连接</span>
+          <span className="status-value">
+            <span
+              className={`dot ${
+                gateway.data?.connected === undefined
+                  ? ''
+                  : gateway.data.connected
+                    ? 'dot-ok'
+                    : 'dot-danger'
+              }`}
+            />
+            {gateway.data ? (gateway.data.connected ? '已连接' : '未连接') : '-'}
+          </span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">柜台认证</span>
+          <span className="status-value">
+            <span
+              className={`dot ${
+                gateway.data?.authenticated === undefined
+                  ? ''
+                  : gateway.data.authenticated
+                    ? 'dot-ok'
+                    : 'dot-warn'
+              }`}
+            />
+            {gateway.data ? (gateway.data.authenticated ? '已认证' : '未认证') : '-'}
+          </span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">运行模式</span>
+          <span className="status-value">{gateway.data?.mode ?? '-'}</span>
+        </div>
+        <div className="status-item">
+          <span className="status-label">可用资金</span>
+          <span className="status-value num">
+            {accountData ? `¥${fmt(accountData.availableCash)}` : '-'}
+          </span>
+        </div>
+      </div>
 
-      <Card title="查询条件">
+      <Card title="账户上下文" actions={<span className="muted">查询条件</span>}>
         <Toolbar>
           <Field label="账户 ID（accountId）">
             <Input
@@ -309,10 +462,8 @@ export default function TradingPage() {
               placeholder="留空查询全部"
             />
           </Field>
-          <Button variant="primary" onClick={applyQuery}>
-            查询
-          </Button>
-          <label className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Button onClick={applyQuery}>查询</Button>
+          <label className="checkline">
             <input
               type="checkbox"
               checked={autoTradeRefresh}
@@ -323,89 +474,147 @@ export default function TradingPage() {
         </Toolbar>
       </Card>
 
-      <Card>
-        <Tabs
-          active={tab}
-          onChange={setTab}
-          tabs={[
-            { key: 'order', label: '下单' },
-            { key: 'positions', label: '持仓' },
-            { key: 'orders', label: '订单' },
-          ]}
-        />
+      <div className="split">
+        <Card title="委托下单" actions={<span className="muted">事前风控已启用</span>}>
+          {orderNotice && <Notice tone={orderNotice.tone}>{orderNotice.text}</Notice>}
+          <div className="field">
+            <label className="field-label" htmlFor="order-symbol">
+              标的代码
+            </label>
+            <Input
+              id="order-symbol"
+              value={symbol}
+              onChange={(event) => setSymbol(event.target.value)}
+              onBlur={() => setQuoteSymbol(symbol.trim())}
+              placeholder="rb2601 / BTC_USDT"
+              aria-invalid={formErrors.symbol ? 'true' : undefined}
+              aria-describedby="order-symbol-error"
+            />
+            {formErrors.symbol && (
+              <span className="field-error" id="order-symbol-error" role="alert">
+                {formErrors.symbol}
+              </span>
+            )}
+          </div>
 
-        {tab === 'order' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {orderNotice && <Notice tone={orderNotice.tone}>{orderNotice.text}</Notice>}
-            <Grid columns={3}>
-              <Field label="标的代码 symbol">
-                <Input
-                  value={symbol}
-                  onChange={(event) => setSymbol(event.target.value)}
-                  placeholder="rb2601"
-                />
-              </Field>
-              <Field label="交易所 exchange（可选）">
-                <Input
-                  value={exchange}
-                  onChange={(event) => setExchange(event.target.value)}
-                  placeholder="SHFE"
-                />
-              </Field>
-              <Field label="方向 direction">
-                <Select value={direction} onChange={(event) => setDirection(event.target.value)}>
-                  {DIRECTIONS.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="开平标志 offsetFlag">
-                <Select
-                  value={offsetFlag}
-                  onChange={(event) => setOffsetFlag(event.target.value)}
-                >
-                  {OFFSET_FLAGS.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="订单类型 orderType">
-                <Select value={orderType} onChange={(event) => setOrderType(event.target.value)}>
-                  {ORDER_TYPES.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="委托价格 price（市价可留空）">
-                <Input
-                  value={price}
-                  onChange={(event) => setPrice(event.target.value)}
-                  placeholder="3500"
-                />
-              </Field>
-              <Field label="委托数量 quantity">
-                <Input
-                  value={quantity}
-                  onChange={(event) => setQuantity(event.target.value)}
-                  placeholder="1"
-                />
-              </Field>
-              <Field label="幂等键 idempotencyKey">
-                <Input
-                  value={idempotencyKey}
-                  onChange={(event) => setIdempotencyKey(event.target.value)}
-                />
-              </Field>
-              <Field label="账户 ID accountId（来自查询区）">
-                <Input value={accountId} readOnly />
-              </Field>
-            </Grid>
+          <Grid columns={2}>
+            <Field label="交易所 exchange（可选）">
+              <Input
+                value={exchange}
+                onChange={(event) => setExchange(event.target.value)}
+                placeholder="SHFE"
+              />
+            </Field>
+            <Field label="订单类型 orderType">
+              <Select value={orderType} onChange={(event) => setOrderType(event.target.value)}>
+                {ORDER_TYPES.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </Grid>
+
+          <Grid columns={2}>
+            <div className="field">
+              <span className="field-label" id="direction-label">
+                方向
+              </span>
+              <div
+                className={`segmented ${direction === 'BUY' ? 'seg-buy' : 'seg-sell'}`}
+                role="radiogroup"
+                aria-labelledby="direction-label"
+              >
+                {DIRECTIONS.map((item) => (
+                  <span key={item} style={{ display: 'contents' }}>
+                    <input
+                      type="radio"
+                      id={`dir-${item}`}
+                      name="direction"
+                      value={item}
+                      checked={direction === item}
+                      onChange={() => setDirection(item)}
+                    />
+                    <label htmlFor={`dir-${item}`}>{directionLabel(item)}</label>
+                  </span>
+                ))}
+              </div>
+            </div>
+            <Field label="开平标志 offsetFlag">
+              <Select value={offsetFlag} onChange={(event) => setOffsetFlag(event.target.value)}>
+                {OFFSET_FLAGS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </Grid>
+
+          <Grid columns={2}>
+            <div className="field">
+              <label className="field-label" htmlFor="order-price">
+                委托价格 price{orderType === 'MARKET' ? '（市价可留空）' : ''}
+              </label>
+              <Input
+                id="order-price"
+                value={price}
+                onChange={(event) => setPrice(event.target.value)}
+                placeholder="3500"
+                inputMode="decimal"
+                aria-invalid={formErrors.price ? 'true' : undefined}
+                aria-describedby="order-price-error"
+              />
+              {formErrors.price && (
+                <span className="field-error" id="order-price-error" role="alert">
+                  {formErrors.price}
+                </span>
+              )}
+            </div>
+            <div className="field">
+              <label className="field-label" htmlFor="order-qty">
+                委托数量 quantity（≤ {MAX_QUANTITY} 手）
+              </label>
+              <Input
+                id="order-qty"
+                value={quantity}
+                onChange={(event) => setQuantity(event.target.value)}
+                placeholder="1"
+                inputMode="numeric"
+                aria-invalid={formErrors.quantity ? 'true' : undefined}
+                aria-describedby="order-qty-error"
+              />
+              {formErrors.quantity && (
+                <span className="field-error" id="order-qty-error" role="alert">
+                  {formErrors.quantity}
+                </span>
+              )}
+            </div>
+          </Grid>
+
+          <div className="summary-box">
+            <div className="summary-row">
+              <span>预估名义价值（价格 × 数量，未含合约乘数）</span>
+              <span className="num">{notional === undefined ? '-' : `¥${fmt(notional)}`}</span>
+            </div>
+            <div className="summary-row">
+              <span>可用资金</span>
+              <span className="num">{accountData ? `¥${fmt(accountData.availableCash)}` : '-'}</span>
+            </div>
+            <div className="summary-row">
+              <span>账户</span>
+              <span className="num">{accountId || '-'}</span>
+            </div>
+          </div>
+
+          <Grid columns={2}>
+            <Field label="幂等键 idempotencyKey">
+              <Input
+                value={idempotencyKey}
+                onChange={(event) => setIdempotencyKey(event.target.value)}
+              />
+            </Field>
             <Field label="备注 remark（可选）">
               <Input
                 value={remark}
@@ -413,176 +622,229 @@ export default function TradingPage() {
                 placeholder="手工下单"
               />
             </Field>
-            <Toolbar>
-              <Button variant="primary" onClick={submitOrder} disabled={submitting}>
-                {submitting ? '提交中…' : '提交下单'}
-              </Button>
-              <Button onClick={() => setIdempotencyKey(genKey())}>重新生成幂等键</Button>
-            </Toolbar>
-            {lastOrder && (
-              <Card title="最近下单结果">
-                <KeyValue
-                  items={[
-                    { label: 'orderId', value: lastOrder.orderId },
-                    { label: 'status', value: <Badge tone={statusToneOf(lastOrder.status)}>{lastOrder.status}</Badge> },
-                    { label: 'mode', value: lastOrder.mode ?? '-' },
-                    { label: 'gatewayId', value: lastOrder.gatewayId ?? '-' },
-                    { label: 'brokerOrderRef', value: lastOrder.brokerOrderRef ?? '-' },
-                    { label: '幂等重放', value: lastOrder.replay ? '是' : '否' },
-                    { label: '降级切换', value: lastOrder.fallbackUsed ? lastOrder.switchedFrom ?? '是' : '否' },
-                  ]}
-                />
-                <JsonBlock value={lastOrder} />
-              </Card>
-            )}
-          </div>
-        )}
+          </Grid>
 
-        {tab === 'positions' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <AsyncState
-              loading={account.loading}
-              error={account.error}
-              onRetry={account.reload}
-            >
-              {accountData && (
-                <>
-                  <Grid columns={4}>
-                    <Stat label="总资产 totalAsset" value={fmt(accountData.totalAsset)} tone="info" />
-                    <Stat
-                      label="可用资金 availableCash"
-                      value={fmt(accountData.availableCash)}
-                      tone="ok"
-                    />
-                    <Stat
-                      label="冻结资金 frozenCash"
-                      value={fmt(accountData.frozenCash)}
-                      tone="warn"
-                    />
-                    <Stat label="保证金 margin" value={fmt(accountData.margin)} tone="warn" />
-                    <Stat
-                      label="浮动盈亏 unrealizedPnl"
-                      value={fmt(accountData.unrealizedPnl)}
-                      tone={(accountData.unrealizedPnl ?? 0) >= 0 ? 'ok' : 'danger'}
-                    />
-                    <Stat
-                      label="已实现盈亏 realizedPnl"
-                      value={fmt(accountData.realizedPnl)}
-                      tone={(accountData.realizedPnl ?? 0) >= 0 ? 'ok' : 'danger'}
-                    />
-                    <Stat label="账户名称" value={accountData.accountName ?? '-'} tone="muted" />
-                    <Stat label="币种" value={accountData.currency ?? '-'} tone="muted" />
-                  </Grid>
-                  <KeyValue
-                    items={[
-                      { label: 'accountId', value: accountData.accountId },
-                      { label: 'accountType', value: accountData.accountType ?? '-' },
-                    ]}
-                  />
-                </>
-              )}
-            </AsyncState>
+          <Toolbar>
+            <Button variant="primary" onClick={openConfirm} disabled={submitting}>
+              {submitting ? '提交中…' : '提交下单'}
+            </Button>
+            <Button onClick={() => setIdempotencyKey(genKey())}>重新生成幂等键</Button>
+          </Toolbar>
 
-            <AsyncState
-              loading={positions.loading}
-              error={positions.error}
-              onRetry={positions.reload}
-            >
-              <DataTable
-                columns={[
-                  { key: 'symbol', title: '标的' },
-                  { key: 'strategyId', title: '策略' },
+          {lastOrder && (
+            <Card title="最近下单结果">
+              <KeyValue
+                items={[
+                  { label: 'orderId', value: lastOrder.orderId },
                   {
-                    key: 'direction',
-                    title: '方向',
-                    render: (row: PositionView) => (
-                      <Badge tone={row.direction === 'BUY' || row.direction === 'LONG' ? 'ok' : 'danger'}>
-                        {row.direction}
-                      </Badge>
-                    ),
+                    label: 'status',
+                    value: <Badge tone={statusToneOf(lastOrder.status)}>{lastOrder.status}</Badge>,
                   },
-                  { key: 'quantity', title: '数量', align: 'right', render: (row: PositionView) => fmt(row.quantity) },
+                  { label: 'mode', value: lastOrder.mode ?? '-' },
+                  { label: 'gatewayId', value: lastOrder.gatewayId ?? '-' },
+                  { label: 'brokerOrderRef', value: lastOrder.brokerOrderRef ?? '-' },
+                  { label: '幂等重放', value: lastOrder.replay ? '是' : '否' },
                   {
-                    key: 'availableQuantity',
-                    title: '可用数量',
-                    align: 'right',
-                    render: (row: PositionView) => fmt(row.availableQuantity),
-                  },
-                  { key: 'avgCost', title: '持仓均价', align: 'right', render: (row: PositionView) => fmt(row.avgCost) },
-                  {
-                    key: 'unrealizedPnl',
-                    title: '浮动盈亏',
-                    align: 'right',
-                    render: (row: PositionView) => (
-                      <span style={{ color: (row.unrealizedPnl ?? 0) >= 0 ? 'var(--ok)' : 'var(--danger)' }}>
-                        {fmt(row.unrealizedPnl)}
-                      </span>
-                    ),
+                    label: '降级切换',
+                    value: lastOrder.fallbackUsed ? lastOrder.switchedFrom ?? '是' : '否',
                   },
                 ]}
-                rows={positionRows}
-                rowKey={(row: PositionView) =>
-                  `${row.accountId}-${row.strategyId ?? ''}-${row.symbol}-${row.direction}-${row.id ?? ''}`
-                }
-                empty="暂无持仓"
               />
-            </AsyncState>
-          </div>
-        )}
+              <JsonBlock value={lastOrder} />
+            </Card>
+          )}
+        </Card>
 
-        {tab === 'orders' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Toolbar>
-              <Field label="平台订单号 orderId">
-                <Input
-                  value={queryOrderId}
-                  onChange={(event) => setQueryOrderId(event.target.value)}
-                  placeholder="输入订单号查询"
-                />
-              </Field>
-              <Field label="撤单原因 reason">
-                <Input
-                  value={cancelReason}
-                  onChange={(event) => setCancelReason(event.target.value)}
-                />
-              </Field>
-              <Button variant="primary" onClick={loadOrder} disabled={queryLoading}>
-                {queryLoading ? '查询中…' : '查询订单'}
-              </Button>
-              <Button onClick={() => activeOrders.reload()}>刷新活跃订单</Button>
-            </Toolbar>
+        <Card
+          title="合约行情"
+          actions={
+            <Button size="sm" variant="ghost" onClick={() => setQuoteSymbol(symbol.trim())}>
+              刷新行情
+            </Button>
+          }
+        >
+          <AsyncState
+            loading={quote.loading}
+            error={quote.error}
+            onRetry={quote.reload}
+            empty={
+              !quoteSymbol
+                ? '输入标的代码并离开输入框，或点击「刷新行情」加载五档盘口。'
+                : '该标的暂无 tick 数据。确认行情服务已启动且标的已订阅。'
+            }
+          >
+            {tick && (
+              <>
+                <div className="quote-head">
+                  <div>
+                    <div className="quote-symbol mono">{tick.symbol ?? quoteSymbol}</div>
+                    <div className="quote-name">最新 tick · {tick.tickTime ?? '-'}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`quote-last ${diff === undefined ? '' : diff >= 0 ? 'delta-up' : 'delta-down'}`}>
+                      {fmt(last)}
+                    </div>
+                    <div className="quote-sub">
+                      <span className={diff === undefined ? '' : diff >= 0 ? 'delta-up' : 'delta-down'}>
+                        {diff === undefined ? '-' : `${diff >= 0 ? '▲' : '▼'} ${fmt(Math.abs(diff))}`}
+                      </span>
+                      <span className={diff === undefined ? '' : diff >= 0 ? 'delta-up' : 'delta-down'}>
+                        {diffPct === undefined ? '-' : `${diffPct >= 0 ? '+' : ''}${diffPct.toFixed(2)}%`}
+                      </span>
+                      <span>昨收 {fmt(prev)}</span>
+                    </div>
+                  </div>
+                </div>
 
-            {queryError && <Notice tone="danger">{queryError}</Notice>}
-
-            {queriedOrder && (
-              <Card
-                title="订单详情"
-                actions={
-                  <Button variant="danger" size="sm" onClick={() => cancelOrder(queriedOrder.orderId)}>
-                    撤单
-                  </Button>
-                }
-              >
-                <OrderFields order={queriedOrder} />
-                <JsonBlock value={queriedOrder} />
-              </Card>
+                <div className="meter mt-4">
+                  <div className="meter-head">
+                    <span>五档盘口</span>
+                    <strong>{tick.volume !== undefined ? `成交量 ${fmt(tick.volume)}` : ''}</strong>
+                  </div>
+                </div>
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th scope="col">档位</th>
+                        <th scope="col" className="num">
+                          价格
+                        </th>
+                        <th scope="col" className="num">
+                          数量
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...askRows].reverse().map((row) => (
+                        <tr key={`ask-${row.level}`}>
+                          <td data-label="档位" className="muted">
+                            卖 {row.level}
+                          </td>
+                          <td data-label="价格" className="num delta-up">
+                            {fmt(row.price)}
+                          </td>
+                          <td data-label="数量" className="num">
+                            {fmt(row.volume)}
+                          </td>
+                        </tr>
+                      ))}
+                      {[...bidRows].map((row) => (
+                        <tr key={`bid-${row.level}`}>
+                          <td data-label="档位" className="muted">
+                            买 {row.level}
+                          </td>
+                          <td data-label="价格" className="num delta-down">
+                            {fmt(row.price)}
+                          </td>
+                          <td data-label="数量" className="num">
+                            {fmt(row.volume)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <dl className="quote-grid">
+                  <dt>今开</dt>
+                  <dd>{fmt(tick.open)}</dd>
+                  <dt>最高 / 最低</dt>
+                  <dd>
+                    {fmt(tick.high)} / {fmt(tick.low)}
+                  </dd>
+                  <dt>成交额</dt>
+                  <dd>{fmt(tick.turnover)}</dd>
+                </dl>
+              </>
             )}
+          </AsyncState>
+        </Card>
+      </div>
 
-            <Card title="活跃订单">
+      <Card padded={false}>
+        <Tabs
+          active={tab}
+          onChange={setTab}
+          tabs={[
+            { key: 'orders', label: '委托' },
+            { key: 'trades', label: '成交' },
+            { key: 'positions', label: '持仓' },
+          ]}
+        />
+
+        <div className="card-body">
+          {tab === 'orders' && (
+            <div className="stack">
+              <Toolbar>
+                <Field label="平台订单号 orderId">
+                  <Input
+                    value={queryOrderId}
+                    onChange={(event) => setQueryOrderId(event.target.value)}
+                    placeholder="输入订单号查询"
+                  />
+                </Field>
+                <Field label="撤单原因 reason">
+                  <Input
+                    value={cancelReason}
+                    onChange={(event) => setCancelReason(event.target.value)}
+                  />
+                </Field>
+                <Button variant="primary" onClick={loadOrder} disabled={queryLoading}>
+                  {queryLoading ? '查询中…' : '查询订单'}
+                </Button>
+                <Button onClick={() => activeOrders.reload()}>刷新在途</Button>
+              </Toolbar>
+
+              {queryError && <Notice tone="danger">{queryError}</Notice>}
+
+              {queriedOrder && (
+                <Card
+                  title="订单详情"
+                  actions={
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => cancelOrder(queriedOrder.orderId)}
+                    >
+                      撤单
+                    </Button>
+                  }
+                >
+                  <OrderFields order={queriedOrder} />
+                  <JsonBlock value={queriedOrder} />
+                </Card>
+              )}
+
               <AsyncState
                 loading={activeOrders.loading}
                 error={activeOrders.error}
                 onRetry={activeOrders.reload}
+                empty={
+                  !activeOrders.loading &&
+                  orderRows.length === 0 &&
+                  '暂无在途委托。提交委托后，未成交部分会显示在这里。'
+                }
               >
                 <DataTable
                   columns={[
+                    { key: 'createTime', title: '时间' },
                     { key: 'orderId', title: '订单号' },
                     { key: 'symbol', title: '标的' },
                     { key: 'direction', title: '方向' },
                     { key: 'offsetFlag', title: '开平' },
                     { key: 'orderType', title: '类型' },
-                    { key: 'price', title: '价格', align: 'right', render: (row: OrderView) => fmt(row.price) },
-                    { key: 'quantity', title: '数量', align: 'right', render: (row: OrderView) => fmt(row.quantity) },
+                    {
+                      key: 'price',
+                      title: '价格',
+                      align: 'right',
+                      render: (row: OrderView) => fmt(row.price),
+                    },
+                    {
+                      key: 'quantity',
+                      title: '数量',
+                      align: 'right',
+                      render: (row: OrderView) => fmt(row.quantity),
+                    },
                     {
                       key: 'filledQuantity',
                       title: '已成交',
@@ -599,6 +861,7 @@ export default function TradingPage() {
                     {
                       key: 'action',
                       title: '操作',
+                      align: 'right',
                       render: (row: OrderView) => (
                         <Button variant="danger" size="sm" onClick={() => cancelOrder(row.orderId)}>
                           撤单
@@ -608,13 +871,192 @@ export default function TradingPage() {
                   ]}
                   rows={orderRows}
                   rowKey={(row: OrderView) => row.orderId}
-                  empty="暂无活跃订单"
+                  empty="暂无在途委托"
                 />
               </AsyncState>
-            </Card>
-          </div>
-        )}
+            </div>
+          )}
+
+          {tab === 'trades' && (
+            <AsyncState
+              loading={trades.loading}
+              error={trades.error}
+              onRetry={trades.reload}
+              empty={
+                !trades.loading &&
+                tradeRows.length === 0 &&
+                '暂无成交回报。委托成交后由柜台回报写入，页面不本地伪造成交。'
+              }
+            >
+              <DataTable
+                columns={[
+                  { key: 'tradeTime', title: '成交时间' },
+                  { key: 'tradeId', title: '成交号' },
+                  { key: 'clientOrderId', title: '委托号' },
+                  { key: 'symbol', title: '合约' },
+                  { key: 'direction', title: '方向' },
+                  {
+                    key: 'price',
+                    title: '成交价',
+                    align: 'right',
+                    render: (row: TradeReportView) => fmt(row.price),
+                  },
+                  {
+                    key: 'volume',
+                    title: '数量',
+                    align: 'right',
+                    render: (row: TradeReportView) => fmt(row.volume),
+                  },
+                  {
+                    key: 'turnover',
+                    title: '成交额',
+                    align: 'right',
+                    render: (row: TradeReportView) => fmt(row.turnover),
+                  },
+                ]}
+                rows={tradeRows}
+                rowKey={(row: TradeReportView) => String(row.tradeId ?? row.clientOrderId)}
+                empty="暂无成交回报"
+              />
+            </AsyncState>
+          )}
+
+          {tab === 'positions' && (
+            <div className="stack">
+              <AsyncState loading={account.loading} error={account.error} onRetry={account.reload}>
+                {accountData && (
+                  <>
+                    <Grid columns={4}>
+                      <Stat label="总资产 totalAsset" value={fmt(accountData.totalAsset)} tone="info" />
+                      <Stat
+                        label="可用资金 availableCash"
+                        value={fmt(accountData.availableCash)}
+                        tone="ok"
+                      />
+                      <Stat
+                        label="冻结资金 frozenCash"
+                        value={fmt(accountData.frozenCash)}
+                        tone="warn"
+                      />
+                      <Stat label="保证金 margin" value={fmt(accountData.margin)} tone="warn" />
+                      <Stat
+                        label="浮动盈亏 unrealizedPnl"
+                        value={fmt(accountData.unrealizedPnl)}
+                        tone={(accountData.unrealizedPnl ?? 0) >= 0 ? 'ok' : 'danger'}
+                      />
+                      <Stat
+                        label="已实现盈亏 realizedPnl"
+                        value={fmt(accountData.realizedPnl)}
+                        tone={(accountData.realizedPnl ?? 0) >= 0 ? 'ok' : 'danger'}
+                      />
+                      <Stat label="账户名称" value={accountData.accountName ?? '-'} tone="muted" />
+                      <Stat label="币种" value={accountData.currency ?? '-'} tone="muted" />
+                    </Grid>
+                    <KeyValue
+                      items={[
+                        { label: 'accountId', value: accountData.accountId },
+                        { label: 'accountType', value: accountData.accountType ?? '-' },
+                      ]}
+                    />
+                  </>
+                )}
+              </AsyncState>
+
+              <AsyncState
+                loading={positions.loading}
+                error={positions.error}
+                onRetry={positions.reload}
+                empty={
+                  !positions.loading &&
+                  positionRows.length === 0 &&
+                  '当前账户没有持仓。可到「委托」页签提交第一笔委托。'
+                }
+              >
+                <DataTable
+                  columns={[
+                    { key: 'symbol', title: '标的' },
+                    { key: 'strategyId', title: '策略' },
+                    {
+                      key: 'direction',
+                      title: '方向',
+                      render: (row: PositionView) => (
+                        <Badge
+                          tone={row.direction === 'BUY' || row.direction === 'LONG' ? 'ok' : 'danger'}
+                        >
+                          {row.direction}
+                        </Badge>
+                      ),
+                    },
+                    {
+                      key: 'quantity',
+                      title: '数量',
+                      align: 'right',
+                      render: (row: PositionView) => fmt(row.quantity),
+                    },
+                    {
+                      key: 'availableQuantity',
+                      title: '可用数量',
+                      align: 'right',
+                      render: (row: PositionView) => fmt(row.availableQuantity),
+                    },
+                    {
+                      key: 'avgCost',
+                      title: '持仓均价',
+                      align: 'right',
+                      render: (row: PositionView) => fmt(row.avgCost),
+                    },
+                    {
+                      key: 'unrealizedPnl',
+                      title: '浮动盈亏',
+                      align: 'right',
+                      render: (row: PositionView) => (
+                        <span className={(row.unrealizedPnl ?? 0) >= 0 ? 'delta-up' : 'delta-down'}>
+                          {fmt(row.unrealizedPnl)}
+                        </span>
+                      ),
+                    },
+                  ]}
+                  rows={positionRows}
+                  rowKey={(row: PositionView) =>
+                    `${row.accountId}-${row.strategyId ?? ''}-${row.symbol}-${row.direction}-${row.id ?? ''}`
+                  }
+                  empty="暂无持仓"
+                />
+              </AsyncState>
+            </div>
+          )}
+        </div>
       </Card>
+
+      <Modal
+        open={confirmOpen}
+        title="确认提交委托"
+        onClose={() => setConfirmOpen(false)}
+        footer={
+          <>
+            <Button onClick={() => setConfirmOpen(false)} disabled={submitting}>
+              取消
+            </Button>
+            <Button variant="primary" onClick={submitOrder} disabled={submitting}>
+              {submitting ? '提交中…' : '确认提交'}
+            </Button>
+          </>
+        }
+      >
+        <Notice tone="warn">提交后将进入柜台报单流程；模拟环境不会触达真实柜台。</Notice>
+        <KeyValue
+          items={[
+            { label: '账户', value: accountId || '-' },
+            { label: '合约', value: symbol.trim() || '-' },
+            { label: '方向', value: directionLabel(direction) },
+            { label: '开平', value: offsetFlag },
+            { label: '类型', value: orderType },
+            { label: '价格', value: orderType === 'MARKET' && !price.trim() ? '市价' : fmt(toNum(price)) },
+            { label: '数量', value: fmt(toNum(quantity)) },
+            { label: '名义价值', value: notional === undefined ? '-' : `¥${fmt(notional)}` },
+          ]}
+        />
+      </Modal>
     </Page>
   );
 }
@@ -624,7 +1066,10 @@ function OrderFields({ order }: { order: OrderView }) {
     <KeyValue
       items={[
         { label: 'orderId', value: order.orderId },
-        { label: 'status', value: <Badge tone={statusToneOf(order.status)}>{order.status ?? '-'}</Badge> },
+        {
+          label: 'status',
+          value: <Badge tone={statusToneOf(order.status)}>{order.status ?? '-'}</Badge>,
+        },
         { label: 'symbol', value: order.symbol ?? '-' },
         { label: 'direction', value: order.direction ?? '-' },
         { label: 'offsetFlag', value: order.offsetFlag ?? '-' },

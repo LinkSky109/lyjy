@@ -1,4 +1,5 @@
-import { NavLink, Navigate, Outlet } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { Badge } from './ui';
 
@@ -40,16 +41,89 @@ const NAV: Array<{ group: string; items: Array<{ to: string; label: string }> }>
   },
 ];
 
+function currentCrumb(pathname: string): { group: string; page: string } {
+  for (const group of NAV) {
+    const match = group.items.find((item) => pathname === item.to);
+    if (match) {
+      return { group: group.group, page: match.label };
+    }
+  }
+  return { group: '控制台', page: '仪表盘' };
+}
+
 export default function Layout() {
   const { session, logout } = useAuth();
+  const location = useLocation();
+  const [navOpen, setNavOpen] = useState(false);
+  const [dark, setDark] = useState(
+    () => document.documentElement.dataset.theme === 'dark',
+  );
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    setNavOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!navOpen) {
+      return;
+    }
+    const main = document.querySelector<HTMLElement>('.main');
+    main?.setAttribute('inert', '');
+    document.body.style.overflow = 'hidden';
+    const firstLink = sidebarRef.current?.querySelector<HTMLElement>('a[href]');
+    firstLink?.focus();
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setNavOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      main?.removeAttribute('inert');
+      document.body.style.overflow = '';
+      menuBtnRef.current?.focus();
+    };
+  }, [navOpen]);
+
   if (!session) {
     return <Navigate to="/login" replace />;
   }
+
+  function toggleTheme() {
+    const next = dark ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('lhjypt.theme', next);
+    setDark(!dark);
+  }
+
+  const crumb = currentCrumb(location.pathname);
+
   return (
     <div className="shell">
-      <aside className="sidebar">
+      <a className="skip-link" href="#main">
+        跳到主内容
+      </a>
+      {navOpen && (
+        <button
+          type="button"
+          className="scrim-nav"
+          aria-label="关闭导航"
+          onClick={() => setNavOpen(false)}
+        />
+      )}
+      <aside
+        ref={sidebarRef}
+        className={`sidebar ${navOpen ? 'is-open' : ''}`}
+        aria-label="主导航"
+      >
         <div className="brand">
-          <span className="brand-mark">LH</span>
+          <span className="brand-mark" aria-hidden="true">
+            LH
+          </span>
           <div>
             <strong>lhjypt</strong>
             <small>量化交易管理平台</small>
@@ -63,6 +137,7 @@ export default function Layout() {
                 <NavLink
                   key={item.to}
                   to={item.to}
+                  onClick={() => setNavOpen(false)}
                   className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                 >
                   {item.label}
@@ -75,7 +150,34 @@ export default function Layout() {
       </aside>
       <div className="main">
         <header className="topbar">
-          <div className="topbar-title">企业管理控制台</div>
+          <button
+            ref={menuBtnRef}
+            type="button"
+            className="icon-btn menu-btn"
+            aria-label="打开导航"
+            aria-expanded={navOpen}
+            onClick={() => setNavOpen(true)}
+          >
+            ☰
+          </button>
+          <div className="topbar-crumbs" aria-label="面包屑">
+            <span className="crumb-group">{crumb.group}</span>
+            <span className="crumb-sep" aria-hidden="true">
+              /
+            </span>
+            <span className="crumb-page">{crumb.page}</span>
+          </div>
+          <div className="topbar-spacer" />
+          <span className="env-pill">模拟盘</span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            aria-pressed={dark}
+            aria-label={dark ? '切换到浅色主题' : '切换到深色主题'}
+            onClick={toggleTheme}
+          >
+            {dark ? '浅色' : '深色'}
+          </button>
           <div className="topbar-user">
             <Badge tone="info">{session.role}</Badge>
             <span className="muted">{session.userId}</span>
@@ -84,7 +186,7 @@ export default function Layout() {
             </button>
           </div>
         </header>
-        <main className="content">
+        <main className="content" id="main" tabIndex={-1}>
           <Outlet />
         </main>
       </div>

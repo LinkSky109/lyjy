@@ -10,6 +10,7 @@ import {
   Field,
   Grid,
   Input,
+  Modal,
   Notice,
   Page,
   Select,
@@ -45,6 +46,19 @@ interface RiskInterceptLog {
   createTime?: string;
 }
 
+interface RiskBudget {
+  id?: number;
+  budgetId: string;
+  scopeType?: string;
+  scopeId?: string;
+  budgetType?: string;
+  limitValue?: number;
+  currentValue?: number;
+  usageRate?: number;
+  status?: string;
+  enabled?: boolean;
+}
+
 interface TradeForm {
   symbol: string;
   exchange: string;
@@ -76,6 +90,15 @@ const EMPTY_FORM: TradeForm = {
 export default function RiskPage() {
   const intercepts = useApi(() => api.get<RiskInterceptLog[]>('/api/risk/intercepts'), []);
   const blacklist = useApi(() => api.get<string[]>('/api/risk/blacklist'), []);
+  const budgets = useApi(() => api.get<RiskBudget[]>('/api/risk/budget/list'), []);
+
+  const [editingBudget, setEditingBudget] = useState<RiskBudget | null>(null);
+  const [budgetLimit, setBudgetLimit] = useState('');
+  const [budgetEnabled, setBudgetEnabled] = useState(true);
+  const [budgetError, setBudgetError] = useState<string | null>(null);
+  const [budgetNotice, setBudgetNotice] = useState<string | null>(null);
+  const [budgetBusy, setBudgetBusy] = useState(false);
+  const [disabledBudgets, setDisabledBudgets] = useState<Record<string, RiskBudget>>({});
 
   const [form, setForm] = useState<TradeForm>(EMPTY_FORM);
   const [checking, setChecking] = useState(false);
@@ -145,12 +168,88 @@ export default function RiskPage() {
     }
   };
 
+  const saveBudget = async (budget: RiskBudget, limit: number, enabled: boolean) => {
+    setBudgetBusy(true);
+    setBudgetError(null);
+    setBudgetNotice(null);
+    try {
+      await api.post<RiskBudget>('/api/risk/budget/save', {
+        ...budget,
+        limitValue: limit,
+        enabled,
+      });
+      setBudgetNotice(`风险预算 ${budget.budgetId} 已更新`);
+      setEditingBudget(null);
+      budgets.reload();
+      return true;
+    } catch (err) {
+      setBudgetError(errorText(err));
+      return false;
+    } finally {
+      setBudgetBusy(false);
+    }
+  };
+
+  const toggleBudget = async (budget: RiskBudget, enabled: boolean) => {
+    if (budget.limitValue == null) {
+      setBudgetError('该预算缺少上限值，无法通过开关保存。请先编辑阈值。');
+      return;
+    }
+    setDisabledBudgets((prev) => {
+      const next = { ...prev };
+      if (enabled) {
+        delete next[budget.budgetId];
+      } else {
+        next[budget.budgetId] = { ...budget, enabled: false };
+      }
+      return next;
+    });
+    const ok = await saveBudget(budget, budget.limitValue, enabled);
+    if (!ok) {
+      setDisabledBudgets((prev) => {
+        const next = { ...prev };
+        if (enabled) {
+          next[budget.budgetId] = { ...budget, enabled: false };
+        } else {
+          delete next[budget.budgetId];
+        }
+        return next;
+      });
+      budgets.reload();
+    }
+  };
+
+  const openBudget = (budget: RiskBudget) => {
+    setEditingBudget(budget);
+    setBudgetLimit(budget.limitValue != null ? String(budget.limitValue) : '');
+    setBudgetEnabled(budget.enabled ?? true);
+    setBudgetError(null);
+  };
+
+  const submitBudget = () => {
+    if (!editingBudget) {
+      return;
+    }
+    const limit = Number(budgetLimit);
+    if (!Number.isFinite(limit) || limit <= 0) {
+      setBudgetError('预算上限必须为大于 0 的数值。');
+      return;
+    }
+    saveBudget(editingBudget, limit, budgetEnabled);
+  };
+
   const blacklistRows = (blacklist.data ?? []).map((symbol) => ({ symbol }));
   const violations = result?.violations ?? [];
+  const budgetRows = [
+    ...(budgets.data ?? []),
+    ...Object.values(disabledBudgets).filter(
+      (row) => !(budgets.data ?? []).some((item) => item.budgetId === row.budgetId),
+    ),
+  ];
 
   return (
     <Page title="事前风控" subtitle="下单前风控试算、黑名单管理与拦截日志">
-      <Grid columns={3}>
+      <Grid columns={4}>
         <Stat
           label="黑名单标的"
           value={blacklistRows.length}
@@ -158,11 +257,105 @@ export default function RiskPage() {
         />
         <Stat label="拦截记录" value={intercepts.data?.length ?? 0} tone="info" />
         <Stat
+          label="风险预算规则"
+          value={budgetRows.length}
+          tone={budgetRows.some((row) => row.status === 'BLOCK') ? 'danger' : 'muted'}
+        />
+        <Stat
           label="最近试算"
           value={result ? (result.passed ? '通过' : '拦截') : '-'}
           tone={result ? (result.passed ? 'ok' : 'danger') : 'muted'}
         />
       </Grid>
+
+      <Card
+        title="风险预算规则"
+        actions={
+          <>
+            <span className="muted">开关即时生效 · 阈值弹窗修改</span>
+            <Button size="sm" onClick={() => budgets.reload()} disabled={budgetBusy}>
+              刷新
+            </Button>
+          </>
+        }
+      >
+        {budgetError && <Notice tone="danger">{budgetError}</Notice>}
+        {budgetNotice && <Notice tone="ok">{budgetNotice}</Notice>}
+        <AsyncState
+          loading={budgets.loading}
+          error={budgets.error}
+          onRetry={budgets.reload}
+          empty={
+            !budgets.loading &&
+            budgetRows.length === 0 &&
+            '暂无风险预算规则。可先通过 VaR 页刷新预算，或调用后端预算保存接口创建。'
+          }
+        >
+          <DataTable
+            columns={[
+              { key: 'budgetId', title: '预算 ID' },
+              { key: 'scopeType', title: '范围类型' },
+              { key: 'scopeId', title: '范围' },
+              { key: 'budgetType', title: '类型' },
+              {
+                key: 'limitValue',
+                title: '上限',
+                align: 'right',
+                render: (row: RiskBudget) => (row.limitValue != null ? row.limitValue.toLocaleString('zh-CN') : '-'),
+              },
+              {
+                key: 'currentValue',
+                title: '当前占用',
+                align: 'right',
+                render: (row: RiskBudget) => (row.currentValue != null ? row.currentValue.toLocaleString('zh-CN') : '-'),
+              },
+              {
+                key: 'usageRate',
+                title: '占用率',
+                align: 'right',
+                render: (row: RiskBudget) =>
+                  row.usageRate != null ? `${(row.usageRate * 100).toFixed(1)}%` : '-',
+              },
+              {
+                key: 'status',
+                title: '状态',
+                render: (row: RiskBudget) => (
+                  <Badge tone={statusTone(row.status)}>{row.status ?? '-'}</Badge>
+                ),
+              },
+              {
+                key: 'enabled',
+                title: '启用',
+                render: (row: RiskBudget) => (
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      aria-label={`${row.budgetId} 启用开关`}
+                      checked={row.enabled ?? false}
+                      disabled={budgetBusy}
+                      onChange={(event) => toggleBudget(row, event.target.checked)}
+                    />
+                    <span className="switch-track" />
+                  </label>
+                ),
+              },
+              {
+                key: 'actions',
+                title: '阈值',
+                align: 'right',
+                render: (row: RiskBudget) => (
+                  <Button size="sm" onClick={() => openBudget(row)} disabled={budgetBusy}>
+                    编辑
+                  </Button>
+                ),
+              },
+            ]}
+            rows={budgetRows}
+            rowKey={(row: RiskBudget) => row.budgetId}
+            empty="暂无风险预算规则"
+          />
+        </AsyncState>
+      </Card>
 
       <Card title="风控试算" actions={<span className="muted">POST /api/risk/check</span>}>
         <Toolbar>
@@ -243,10 +436,10 @@ export default function RiskPage() {
         {checkError && <Notice tone="danger">{checkError}</Notice>}
 
         {result && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ marginBottom: 8 }}>
+          <div className="mt-3">
+            <div className="mb-2">
               <Badge tone={result.passed ? 'ok' : 'danger'}>{result.passed ? '通过' : '拦截'}</Badge>
-              <span className="muted" style={{ marginLeft: 8 }}>
+              <span className="muted ml-2">
                 违规 {violations.length} 项
               </span>
             </div>
@@ -338,6 +531,46 @@ export default function RiskPage() {
           />
         </AsyncState>
       </Card>
+
+      <Modal
+        open={!!editingBudget}
+        title={`编辑风险预算${editingBudget ? ` · ${editingBudget.budgetId}` : ''}`}
+        onClose={() => setEditingBudget(null)}
+        footer={
+          <>
+            <Button onClick={() => setEditingBudget(null)} disabled={budgetBusy}>
+              取消
+            </Button>
+            <Button variant="primary" onClick={submitBudget} disabled={budgetBusy}>
+              {budgetBusy ? '保存中…' : '保存'}
+            </Button>
+          </>
+        }
+      >
+        <Field label="预算上限 limitValue" error={budgetError ?? undefined}>
+          <Input
+            value={budgetLimit}
+            onChange={(event) => {
+              setBudgetLimit(event.target.value);
+              setBudgetError(null);
+            }}
+            inputMode="decimal"
+            aria-invalid={budgetError ? 'true' : undefined}
+          />
+        </Field>
+        <Field label="启用状态">
+          <label className="switch mt-1">
+            <input
+              type="checkbox"
+              aria-label="启用风险预算"
+              checked={budgetEnabled}
+              onChange={(event) => setBudgetEnabled(event.target.checked)}
+            />
+            <span className="switch-track" />
+          </label>
+        </Field>
+        <Notice tone="info">保存后立即影响事中风险预算校验，变更记录由后端审计。</Notice>
+      </Modal>
     </Page>
   );
 }

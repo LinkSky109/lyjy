@@ -57,6 +57,16 @@ LHJYPT_TRADE_MOCK_FILL=false ./scripts/dev.sh restart
 ./scripts/dev.sh restart
 ```
 
+## 3.5 v1.1 功能入口
+
+- **交易工作台** `/trading`：合约输入支持搜索/下拉（`rb2410` 等已配置合约）；下单前展示名义价值、预计保证金与下单后可用；委托页支持批量撤单；成交页支持分页与合约筛选；快捷键 `/`、`Alt+B`、`Alt+S`、`Ctrl/Cmd+Enter`。
+- **决策首页** `/dashboard`：待办中心（待审出入金、未确认/严重告警、可撤委托）、今日盈亏与手续费、最近动态时间线。
+- **风控** `/risk`：事前规则阈值在线编辑（`POSITION_LIMIT` / `FUND_CHECK` / `FREQ_LIMIT`），保存后立即生效；风险预算占用率进度条。
+- **资金** `/fund`：新增「账户互转」页签与待审批队列；划转写双边流水，支持幂等键。账户互转至少需要两个资金账户。
+- **组合** `/portfolio`：目标持仓支持向导模式；再平衡按「触发/加载 → 预览 → 确认执行」三步推进。
+
+新增表 `fund_transfer` 由 `scripts/migration/p6_001_fund_transfer.sql` 创建；`./scripts/dev.sh up` 会自动应用 `scripts/migration/*.sql`。
+
 ## 4. 策略开发与回测
 
 ```bash
@@ -102,7 +112,7 @@ curl -X POST http://localhost:8081/api/strategy/S-1/code \
 ## 6. 回归测试
 
 ```bash
-cd /Users/link/myApp/lhjypt && mvn -pl core verify   # 331 tests
+cd /Users/link/myApp/lhjypt && mvn -pl core verify   # 345 tests
 cd strategy-sdk && python -m pytest tests -q          # 29 passed
 cd web && npm run build                               # 类型检查 + 构建
 ```

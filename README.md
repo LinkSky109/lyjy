@@ -13,6 +13,7 @@
 | P4 | 行情分页回补、巡检时区、Prometheus/Grafana/Alertmanager | 已完成 |
 | P5 | 前端改版（设计令牌、深浅主题、15 页统一交互） | 已完成 |
 | P5 API | 仪表盘聚合、合约/行情、委托分页、风控规则、资金分页、组合净值/归因 | 已完成 |
+| v1.1 | 交易工作台、决策首页、风控阈值在线编辑、账户互转、再平衡向导 | 已完成 |
 
 > 单人使用场景：`GLOBAL_DONE`。当前重心：开箱即用、日常可用与前端一致性。
 
@@ -63,17 +64,17 @@ design/         前端规范与静态原型（只读参考，不入库）
 | 域 | 能力 |
 |---|---|
 | 行情 | Gate.io / Binance Vision、真实 K 线、分页回补、质量巡检、多源容灾 |
-| 交易 | OMS 全生命周期、Mock/CTP 网关、委托分页、可撤状态、成交回报 |
-| 风控 | 事前规则（持仓/资金/频率/自成交/黑名单）、运行时开关、风险预算、VaR、事中限制 |
-| 资金 | 出入金申请/审核、账户与流水分页、服务端余额二次校验、对账 |
+| 交易 | OMS 全生命周期、Mock/CTP 网关、合约搜索、下单预检、委托/成交分页、批量撤单、键盘快捷键 |
+| 风控 | 事前规则（持仓/资金/频率/自成交/黑名单）、运行时开关、阈值在线编辑、风险预算预警、VaR、事中限制 |
+| 资金 | 出入金申请/审核、待审批队列、账户互转与双边流水、账户与流水分页、服务端余额二次校验、对账 |
 | 组合 | 组合定义、再平衡、净值快照、策略贡献归因 |
 | 治理 | 多租户、监管报送、异常交易、策略加密/水印/沙箱、降级开关、审计 |
-| 前端 | 仪表盘聚合、交易下单、告警闭环、深浅主题、移动端抽屉与表格堆叠 |
+| 前端 | 决策首页（待办/今日盈亏/动态）、交易工作台、审批时间线、深浅主题、移动端抽屉与表格堆叠 |
 
 ## 验证
 
 ```bash
-mvn -pl core verify                              # 331 tests / 0 fail / 1 skip + JaCoCo
+mvn -pl core verify                              # 345 tests / 0 fail / 1 skip + JaCoCo
 cd strategy-sdk && python -m pytest tests -q     # 29 passed
 cd web && npm run build                          # tsc --noEmit + vite build
 ```
@@ -88,6 +89,7 @@ cd web && npm run build                          # tsc --noEmit + vite build
 - [交易通道](docs/channel.md)
 - [真实行情](docs/market-real.md) · [行情可靠性](docs/market-reliability.md)
 - [指标口径](docs/metrics.md) · [安全](docs/security.md) · [备份](docs/backup.md)
+- [v1.1 功能优化设计](docs/optimization-design.md)
 - [前端改版规范](design/DESIGN-SPEC.md) · [后端接口规划](.workflow/frontend-api-plan.md)
 
 ## 开发约定

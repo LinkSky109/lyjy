@@ -363,3 +363,19 @@
   - 净值暂以账户权益表示，未引入份额/单位净值
   - 策略贡献基于成交记录的 `strategy_id` 与 `realized_pnl`
 - 测试：`PortfolioAnalyticsServiceTest`（5）
+
+---
+
+## 12. v1.1 实施记录（2026-10-24）
+
+| 能力 | 状态 | 说明 |
+|---|---|---|
+| 合约搜索 `GET /api/trade/instruments` | 已实现 | 支持 exchange/keyword 过滤，前端 datalist |
+| 成交分页 `GET /api/trade/trades?page=` | 已实现 | 不传 page 保持旧数组契约 |
+| 批量撤单 `POST /api/trade/orders/batch-cancel` | 已实现 | 逐单结果，单次最多 50 笔 |
+| 首页今日盈亏/待办 `summary` | 已实现 | 只增字段，旧前端兼容 |
+| 首页时间线 `GET /api/dashboard/timeline` | 已实现 | 委托/成交/告警混合 |
+| 风控阈值编辑 `PUT /api/risk/rules/{code}` | 已实现 | POSITION_LIMIT/FUND_CHECK/FREQ_LIMIT 动态注入 |
+| 账户互转 `POST /api/fund/transfer` | 已实现 | 新表 fund_transfer、双边流水、幂等键 |
+| 审批分页 `GET /api/fund/transactions` | 已实现 | 待审批队列与时间线 |
+| 再平衡向导 | 已实现（前端） | 目标持仓向导 + 三步任务流程 |

@@ -4,3 +4,8 @@ core/target/
 backups/
 .env
 config/observability/.generated/
+.DS_Store
+.idea/
+__pycache__/
+*.pyc
+.pytest_cache/

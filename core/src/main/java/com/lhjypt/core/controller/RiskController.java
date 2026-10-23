@@ -45,6 +45,23 @@ public class RiskController {
     }
 
     /**
+     * 更新规则阈值与动作，立即生效。
+     */
+    @PutMapping("/rules/{ruleCode}")
+    public Result<RiskRuleConfigService.RuleView> updateRule(
+            @PathVariable String ruleCode,
+            @RequestBody UpdateRuleRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("请求体不能为空");
+        }
+        return Result.success(ruleConfigService.update(
+                ruleCode, request.thresholdParams(), request.action(), request.operator()));
+    }
+
+    public record UpdateRuleRequest(String thresholdParams, String action, String operator) {
+    }
+
+    /**
      * 风控检查（下单前调用）
      */
     @PostMapping("/check")

@@ -2,7 +2,8 @@ package com.lhjypt.core.service.risk.impl;
 
 import com.lhjypt.core.model.risk.RiskCheckResult;
 import com.lhjypt.core.model.trade.TradeRequest;
-import com.lhjypt.core.service.risk.RiskRule;
+import com.lhjypt.core.service.risk.DynamicRiskRule;
+import com.lhjypt.core.service.risk.RiskThresholds;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -12,7 +13,10 @@ import org.springframework.stereotype.Component;
  * - 默认：每秒最多5笔，每分钟最多60笔
  */
 @Component
-public class OrderFrequencyRule implements RiskRule {
+public class OrderFrequencyRule implements DynamicRiskRule {
+
+    private static final int DEFAULT_MAX_PER_SECOND = 5;
+    private static final int DEFAULT_MAX_PER_MINUTE = 60;
 
     @Value("${risk.freq.per-second:5}")
     private int maxPerSecond;
@@ -30,6 +34,21 @@ public class OrderFrequencyRule implements RiskRule {
 
     @Override
     public boolean isEnabled() { return enabled; }
+
+    @Override
+    public String getDefaultThresholds() {
+        return String.format("{\"maxPerSecond\":%d,\"maxPerMinute\":%d}",
+                DEFAULT_MAX_PER_SECOND, DEFAULT_MAX_PER_MINUTE);
+    }
+
+    @Override
+    public void applyThresholds(String thresholdParams) {
+        var node = RiskThresholds.parse(thresholdParams);
+        int perSecond = RiskThresholds.positiveInt(node, "maxPerSecond", maxPerSecond);
+        int perMinute = RiskThresholds.positiveInt(node, "maxPerMinute", maxPerMinute);
+        this.maxPerSecond = perSecond;
+        this.maxPerMinute = perMinute;
+    }
 
     @Override
     public void check(TradeRequest request, RiskContext context, RiskCheckResult result) {

@@ -4,6 +4,7 @@ import com.lhjypt.core.common.Result;
 import com.lhjypt.core.model.fund.CashTransaction;
 import com.lhjypt.core.model.fund.FundFlow;
 import com.lhjypt.core.model.fund.FundReconciliation;
+import com.lhjypt.core.model.fund.FundTransfer;
 import com.lhjypt.core.model.trade.AccountInfo;
 import com.lhjypt.core.service.fund.FundManagementService;
 import com.lhjypt.core.service.fund.ReconciliationService;
@@ -40,6 +41,33 @@ public class FundManagementController {
                                            @RequestParam String approver,
                                            @RequestParam boolean approved) {
         return Result.success(fundService.approve(no, approver, approved));
+    }
+
+    /**
+     * 账户间资金划转。
+     */
+    @PostMapping("/transfer")
+    public Result<FundTransfer> transfer(@RequestBody FundTransfer request) {
+        return Result.success(fundService.transfer(request));
+    }
+
+    /**
+     * 划转详情。
+     */
+    @GetMapping("/transfer/{transferNo}")
+    public Result<FundTransfer> transferDetail(@PathVariable String transferNo) {
+        return Result.success(fundService.getTransfer(transferNo));
+    }
+
+    /**
+     * 审批列表分页：status 可选 PENDING/COMPLETED/REJECTED。
+     */
+    @GetMapping("/transactions")
+    public Result<java.util.Map<String, Object>> transactions(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return Result.success(fundService.pageTransactions(status, page, size));
     }
 
     /**

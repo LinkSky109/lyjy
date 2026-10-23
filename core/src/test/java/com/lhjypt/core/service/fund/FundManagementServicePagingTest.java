@@ -3,6 +3,7 @@ package com.lhjypt.core.service.fund;
 import com.lhjypt.core.mapper.CashTransactionMapper;
 import com.lhjypt.core.mapper.FundAccountMapper;
 import com.lhjypt.core.mapper.FundFlowMapper;
+import com.lhjypt.core.mapper.FundTransferMapper;
 import com.lhjypt.core.model.FundAccount;
 import com.lhjypt.core.model.fund.CashTransaction;
 import com.lhjypt.core.model.fund.FundFlow;
@@ -36,7 +37,8 @@ class FundManagementServicePagingTest {
         txMapper = mock(CashTransactionMapper.class);
         flowMapper = mock(FundFlowMapper.class);
         accountMapper = mock(FundAccountMapper.class);
-        service = new FundManagementService(txMapper, flowMapper, accountMapper);
+        service = new FundManagementService(txMapper, flowMapper, accountMapper,
+                mock(FundTransferMapper.class));
     }
 
     @Test

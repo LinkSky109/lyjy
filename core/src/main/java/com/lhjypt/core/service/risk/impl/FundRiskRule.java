@@ -2,7 +2,8 @@ package com.lhjypt.core.service.risk.impl;
 
 import com.lhjypt.core.model.risk.RiskCheckResult;
 import com.lhjypt.core.model.trade.TradeRequest;
-import com.lhjypt.core.service.risk.RiskRule;
+import com.lhjypt.core.service.risk.DynamicRiskRule;
+import com.lhjypt.core.service.risk.RiskThresholds;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -16,7 +17,10 @@ import java.math.RoundingMode;
  * - 保证金比例（杠杆）限制
  */
 @Component
-public class FundRiskRule implements RiskRule {
+public class FundRiskRule implements DynamicRiskRule {
+
+    private static final double DEFAULT_MARGIN_RATIO = 0.1;
+    private static final double DEFAULT_MIN_CASH_RATIO = 0.1;
 
     @Value("${risk.fund.margin-ratio:0.1}")
     private double marginRatio;
@@ -34,6 +38,22 @@ public class FundRiskRule implements RiskRule {
 
     @Override
     public boolean isEnabled() { return enabled; }
+
+    @Override
+    public String getDefaultThresholds() {
+        return String.format("{\"marginRatio\":%s,\"minCashRatio\":%s}",
+                BigDecimal.valueOf(DEFAULT_MARGIN_RATIO).stripTrailingZeros().toPlainString(),
+                BigDecimal.valueOf(DEFAULT_MIN_CASH_RATIO).stripTrailingZeros().toPlainString());
+    }
+
+    @Override
+    public void applyThresholds(String thresholdParams) {
+        var node = RiskThresholds.parse(thresholdParams);
+        double margin = RiskThresholds.ratio(node, "marginRatio", marginRatio);
+        double minCash = RiskThresholds.ratio(node, "minCashRatio", minCashRatio);
+        this.marginRatio = margin;
+        this.minCashRatio = minCash;
+    }
 
     @Override
     public void check(TradeRequest request, RiskContext context, RiskCheckResult result) {

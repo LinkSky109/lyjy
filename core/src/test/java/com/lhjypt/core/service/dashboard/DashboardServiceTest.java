@@ -1,8 +1,10 @@
 package com.lhjypt.core.service.dashboard;
 
 import com.lhjypt.core.mapper.AlertEventMapper;
+import com.lhjypt.core.mapper.CashTransactionMapper;
 import com.lhjypt.core.mapper.FundAccountMapper;
 import com.lhjypt.core.mapper.OrderMapper;
+import com.lhjypt.core.mapper.TradeRecordMapper;
 import com.lhjypt.core.model.FundAccount;
 import com.lhjypt.core.model.Order;
 import com.lhjypt.core.model.monitor.AlertEvent;
@@ -29,6 +31,8 @@ class DashboardServiceTest {
     private FundAccountMapper fundAccountMapper;
     private OrderMapper orderMapper;
     private AlertEventMapper alertEventMapper;
+    private CashTransactionMapper cashTransactionMapper;
+    private TradeRecordMapper tradeRecordMapper;
     private MarketDataService marketDataService;
     private HealthEndpoint healthEndpoint;
     private DashboardService service;
@@ -38,10 +42,12 @@ class DashboardServiceTest {
         fundAccountMapper = mock(FundAccountMapper.class);
         orderMapper = mock(OrderMapper.class);
         alertEventMapper = mock(AlertEventMapper.class);
+        cashTransactionMapper = mock(CashTransactionMapper.class);
+        tradeRecordMapper = mock(TradeRecordMapper.class);
         marketDataService = mock(MarketDataService.class);
         healthEndpoint = mock(HealthEndpoint.class);
         service = new DashboardService(fundAccountMapper, orderMapper, alertEventMapper,
-                marketDataService, healthEndpoint);
+                cashTransactionMapper, tradeRecordMapper, marketDataService, healthEndpoint);
     }
 
     @Test
@@ -55,6 +61,8 @@ class DashboardServiceTest {
         when(orderMapper.selectActiveOrders()).thenReturn(List.of(new Order(), new Order()));
         when(orderMapper.selectCreatedSince(any())).thenReturn(List.of(
                 order("FILLED"), order("PENDING"), order("FILLED")));
+        when(cashTransactionMapper.selectCount(any())).thenReturn(2L);
+        when(tradeRecordMapper.selectByTradeTimeRange(any(), any())).thenReturn(List.of());
         when(marketDataService.isRunning()).thenReturn(true);
         when(marketDataService.getSubscribedSymbols()).thenReturn(Set.of("BTC_USDT", "ETH_USDT"));
         HealthComponent up = component(Status.UP);
@@ -92,6 +100,9 @@ class DashboardServiceTest {
         assertThat(((Map<?, ?>) summary.get("alerts")).get("critical")).isEqualTo(1L);
         assertThat(((Map<?, ?>) summary.get("orders")).get("active")).isEqualTo(2);
         assertThat(((Map<?, ?>) summary.get("orders")).get("filledToday")).isEqualTo(2L);
+        assertThat(((Map<?, ?>) summary.get("todos")).get("pendingCash")).isEqualTo(2L);
+        assertThat(((Map<?, ?>) summary.get("todos")).get("openAlerts")).isEqualTo(2);
+        assertThat(((Map<?, ?>) summary.get("todos")).get("criticalAlerts")).isEqualTo(1L);
         assertThat(summary.get("asOf")).isNotNull();
     }
 
@@ -102,6 +113,8 @@ class DashboardServiceTest {
         when(alertEventMapper.selectByStatus("OPEN")).thenReturn(List.of());
         when(orderMapper.selectActiveOrders()).thenReturn(List.of());
         when(orderMapper.selectCreatedSince(any())).thenReturn(List.of());
+        when(cashTransactionMapper.selectCount(any())).thenReturn(0L);
+        when(tradeRecordMapper.selectByTradeTimeRange(any(), any())).thenReturn(List.of());
         when(marketDataService.isRunning()).thenReturn(false);
         when(marketDataService.getSubscribedSymbols()).thenReturn(Set.of());
         when(healthEndpoint.health()).thenThrow(new IllegalStateException("down"));

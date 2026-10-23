@@ -2,11 +2,15 @@ package com.lhjypt.core.service.dashboard;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.lhjypt.core.mapper.AlertEventMapper;
+import com.lhjypt.core.mapper.CashTransactionMapper;
 import com.lhjypt.core.mapper.FundAccountMapper;
 import com.lhjypt.core.mapper.OrderMapper;
+import com.lhjypt.core.mapper.TradeRecordMapper;
 import com.lhjypt.core.model.FundAccount;
 import com.lhjypt.core.model.Order;
+import com.lhjypt.core.model.fund.CashTransaction;
 import com.lhjypt.core.model.monitor.AlertEvent;
+import com.lhjypt.core.model.trade.TradeRecord;
 import com.lhjypt.core.service.market.MarketDataService;
 import com.lhjypt.core.service.order.OrderStatus;
 import org.springframework.boot.actuate.health.HealthComponent;
@@ -17,6 +21,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,17 +37,23 @@ public class DashboardService {
     private final FundAccountMapper fundAccountMapper;
     private final OrderMapper orderMapper;
     private final AlertEventMapper alertEventMapper;
+    private final CashTransactionMapper cashTransactionMapper;
+    private final TradeRecordMapper tradeRecordMapper;
     private final MarketDataService marketDataService;
     private final HealthEndpoint healthEndpoint;
 
     public DashboardService(FundAccountMapper fundAccountMapper,
                             OrderMapper orderMapper,
                             AlertEventMapper alertEventMapper,
+                            CashTransactionMapper cashTransactionMapper,
+                            TradeRecordMapper tradeRecordMapper,
                             MarketDataService marketDataService,
                             HealthEndpoint healthEndpoint) {
         this.fundAccountMapper = fundAccountMapper;
         this.orderMapper = orderMapper;
         this.alertEventMapper = alertEventMapper;
+        this.cashTransactionMapper = cashTransactionMapper;
+        this.tradeRecordMapper = tradeRecordMapper;
         this.marketDataService = marketDataService;
         this.healthEndpoint = healthEndpoint;
     }
@@ -55,6 +67,7 @@ public class DashboardService {
         result.put("pnl", pnl());
         result.put("alerts", alertCounts());
         result.put("orders", orderCounts());
+        result.put("todos", todos());
         result.put("asOf", LocalDateTime.now());
         return result;
     }
@@ -114,12 +127,110 @@ public class DashboardService {
             unrealized = unrealized.add(nullSafe(account.getUnrealizedPnl()));
             realized = realized.add(nullSafe(account.getRealizedPnl()));
         }
+        LocalDateTime todayStart = LocalDate.now().atStartOfDay();
+        List<TradeRecord> todayTrades = tradeRecordMapper.selectByTradeTimeRange(
+                todayStart, todayStart.plusDays(1));
+        BigDecimal todayRealized = todayTrades.stream()
+                .map(TradeRecord::getRealizedPnl)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal todayCommission = todayTrades.stream()
+                .map(TradeRecord::getCommission)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         Map<String, Object> pnl = new LinkedHashMap<>();
         pnl.put("unrealized", unrealized);
         pnl.put("realized", realized);
         pnl.put("combined", unrealized.add(realized));
         pnl.put("basis", "CUMULATIVE");
+        pnl.put("todayRealized", todayRealized);
+        pnl.put("todayCommission", todayCommission);
+        pnl.put("todayCombined", todayRealized.subtract(todayCommission));
+        pnl.put("todayTrades", todayTrades.size());
         return pnl;
+    }
+
+    private Map<String, Object> todos() {
+        long pendingCash = cashTransactionMapper.selectCount(
+                new QueryWrapper<CashTransaction>().eq("status", "PENDING"));
+        List<AlertEvent> open = alertEventMapper.selectByStatus("OPEN");
+        long critical = open.stream()
+                .filter(event -> "CRITICAL".equalsIgnoreCase(event.getSeverity()))
+                .count();
+        long cancelable = orderMapper.selectActiveOrders().stream()
+                .filter(order -> order.getExchangeOrderId() != null
+                        && !order.getExchangeOrderId().isBlank())
+                .count();
+
+        Map<String, Object> todos = new LinkedHashMap<>();
+        todos.put("pendingCash", pendingCash);
+        todos.put("openAlerts", open.size());
+        todos.put("criticalAlerts", critical);
+        todos.put("cancelableOrders", cancelable);
+        return todos;
+    }
+
+    /**
+     * 最近动态：委托、成交、告警混合，按时间倒序。
+     */
+    public Map<String, Object> timeline(int limit) {
+        int safeLimit = Math.min(50, Math.max(1, limit));
+        List<Map<String, Object>> items = new ArrayList<>();
+
+        List<Order> orders = orderMapper.selectList(
+                new QueryWrapper<Order>().orderByDesc("create_time").last("LIMIT " + safeLimit));
+        for (Order order : orders) {
+            String title = String.format("%s %s %s",
+                    order.getDirection() == null ? "" : order.getDirection(),
+                    order.getSymbol() == null ? "" : order.getSymbol(),
+                    order.getQuantity() == null ? "" : order.getQuantity().stripTrailingZeros().toPlainString());
+            BigDecimal orderAmount = order.getPrice() != null && order.getQuantity() != null
+                    ? order.getPrice().multiply(order.getQuantity())
+                    : order.getPrice();
+            items.add(timelineItem("ORDER", order.getOrderId(), title.trim(),
+                    order.getStatus(), null, orderAmount, order.getCreateTime()));
+        }
+
+        List<TradeRecord> trades = tradeRecordMapper.selectPageFiltered(
+                null, null, null, null, 0, safeLimit);
+        for (TradeRecord trade : trades) {
+            String title = String.format("%s %s %s",
+                    trade.getDirection() == null ? "" : trade.getDirection(),
+                    trade.getSymbol() == null ? "" : trade.getSymbol(),
+                    trade.getQuantity() == null ? "" : trade.getQuantity().stripTrailingZeros().toPlainString());
+            items.add(timelineItem("TRADE", trade.getTradeId(), title.trim(),
+                    "FILLED", null, trade.getTurnover(), trade.getTradeTime()));
+        }
+
+        List<AlertEvent> alerts = alertEventMapper.selectRecent();
+        for (AlertEvent alert : alerts) {
+            items.add(timelineItem("ALERT", alert.getEventId(),
+                    alert.getMessage() == null ? alert.getMetricKey() : alert.getMessage(),
+                    alert.getStatus(), alert.getSeverity(), null, alert.getCreateTime()));
+        }
+
+        items.sort(Comparator.comparing(
+                (Map<String, Object> item) -> (LocalDateTime) item.get("at"),
+                Comparator.nullsLast(Comparator.reverseOrder())));
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("items", items.stream().limit(safeLimit).toList());
+        return result;
+    }
+
+    private static Map<String, Object> timelineItem(String type, String id, String title,
+                                                    String status, String severity,
+                                                    BigDecimal amount, LocalDateTime at) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("type", type);
+        item.put("id", id);
+        item.put("title", title);
+        item.put("status", status);
+        item.put("severity", severity);
+        item.put("amount", amount);
+        item.put("at", at);
+        return item;
     }
 
     private Map<String, Object> alertCounts() {

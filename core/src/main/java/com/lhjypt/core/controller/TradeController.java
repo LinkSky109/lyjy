@@ -12,6 +12,7 @@ import com.lhjypt.core.model.FundAccount;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -35,6 +36,16 @@ public class TradeController {
         return instrumentService.find(symbol)
                 .map(Result::success)
                 .orElseGet(() -> Result.error(404, "未配置合约: " + symbol));
+    }
+
+    /**
+     * 合约搜索：按交易所/代码/名称过滤，供下单页下拉使用。
+     */
+    @GetMapping("/instruments")
+    public Result<List<InstrumentService.InstrumentView>> instruments(
+            @RequestParam(required = false) String exchange,
+            @RequestParam(required = false) String keyword) {
+        return Result.success(instrumentService.search(exchange, keyword));
     }
 
     /**
@@ -102,6 +113,18 @@ public class TradeController {
     }
 
     /**
+     * 批量撤单：逐单返回结果，单笔失败不影响其他订单。
+     */
+    @PostMapping("/orders/batch-cancel")
+    public Result<List<BatchCancelResult>> batchCancel(@RequestBody BatchCancelRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("请求体不能为空");
+        }
+        return Result.success(tradeApplicationService.batchCancel(
+                request.orderIds(), request.reason()));
+    }
+
+    /**
      * 平台账本持仓。
      */
     @GetMapping("/platform/positions")
@@ -137,10 +160,20 @@ public class TradeController {
     }
 
     /**
-     * 查询成交记录
+     * 查询成交记录。传 page 时返回分页结构；不传保持旧数组契约。
      */
     @GetMapping("/trades")
-    public Result<List<TradeReport>> queryTrades() {
+    public Result<?> queryTrades(
+            @RequestParam(required = false) String accountId,
+            @RequestParam(required = false) String symbol,
+            @RequestParam(required = false) LocalDateTime from,
+            @RequestParam(required = false) LocalDateTime to,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(defaultValue = "20") int size) {
+        if (page != null) {
+            return Result.success(tradeQueryService.pageTrades(
+                    accountId, symbol, from, to, page, size));
+        }
         return Result.success(tradeService.queryTrades());
     }
 

@@ -26,9 +26,24 @@ interface DashboardSummary {
     marginRatio: number;
     accounts: number;
   };
-  pnl: { unrealized: number; realized: number; combined: number; basis: string };
+  pnl: {
+    unrealized: number;
+    realized: number;
+    combined: number;
+    basis: string;
+    todayRealized?: number;
+    todayCommission?: number;
+    todayCombined?: number;
+    todayTrades?: number;
+  };
   alerts: { open: number; critical: number };
   orders: { active: number; filledToday: number };
+  todos?: {
+    pendingCash: number;
+    openAlerts: number;
+    criticalAlerts: number;
+    cancelableOrders: number;
+  };
   asOf?: string;
 }
 
@@ -53,6 +68,16 @@ interface OrderView {
   filledQuantity?: number;
   status?: string;
   createTime?: string;
+}
+
+interface TimelineItem {
+  type: string;
+  id: string;
+  title: string;
+  status?: string;
+  severity?: string;
+  amount?: number;
+  at?: string;
 }
 
 interface AlertEvent {
@@ -114,6 +139,10 @@ export default function DashboardPage() {
     [],
   );
   const orders = useApi(() => api.get<OrderView[]>('/api/oms/orders/active'), []);
+  const timeline = useApi(
+    () => api.get<{ items: TimelineItem[] }>('/api/dashboard/timeline', { limit: 12 }),
+    [],
+  );
 
   const data = summary.data;
   const components = data?.components ?? {};
@@ -125,6 +154,9 @@ export default function DashboardPage() {
 
   const equity = data?.equity.total;
   const pnl = data?.pnl.combined;
+  const todayPnl = data?.pnl.todayCombined;
+  const todos = data?.todos;
+  const timelineRows = timeline.data?.items ?? [];
   const available = data?.equity.available;
   const margin = data?.equity.margin;
   const marginRatio = data?.equity.marginRatio;
@@ -135,6 +167,7 @@ export default function DashboardPage() {
     alerts.reload();
     positions.reload();
     orders.reload();
+    timeline.reload();
     setRefreshedAt(new Date());
   };
 
@@ -200,6 +233,47 @@ export default function DashboardPage() {
           </span>
         </div>
       </div>
+
+      <Card
+        title="待办中心"
+        actions={
+          <span className="muted">
+            {todos ? `${todos.pendingCash + todos.openAlerts + todos.cancelableOrders} 项待处理` : '汇总中'}
+          </span>
+        }
+      >
+        <div className="todo-grid">
+          <button type="button" className="todo-item" onClick={() => navigate('/fund')}>
+            <span className="todo-label">待审出入金</span>
+            <strong className={todos?.pendingCash ? 'todo-count-warn' : ''}>
+              {todos?.pendingCash ?? '-'}
+            </strong>
+          </button>
+          <button type="button" className="todo-item" onClick={() => navigate('/monitor')}>
+            <span className="todo-label">未确认告警</span>
+            <strong className={todos?.criticalAlerts ? 'todo-count-danger' : ''}>
+              {todos?.openAlerts ?? '-'}
+            </strong>
+          </button>
+          <button type="button" className="todo-item" onClick={() => navigate('/monitor')}>
+            <span className="todo-label">严重告警</span>
+            <strong className={todos?.criticalAlerts ? 'todo-count-danger' : ''}>
+              {todos?.criticalAlerts ?? '-'}
+            </strong>
+          </button>
+          <button type="button" className="todo-item" onClick={() => navigate('/trading')}>
+            <span className="todo-label">可撤委托</span>
+            <strong>{todos?.cancelableOrders ?? '-'}</strong>
+          </button>
+        </div>
+      </Card>
+
+      <Grid columns={4}>
+        <Stat label="今日综合盈亏" value={money(todayPnl)} tone={todayPnl === undefined ? 'muted' : todayPnl >= 0 ? 'ok' : 'danger'} hint="已实现盈亏 − 手续费" />
+        <Stat label="今日已实现" value={money(data?.pnl.todayRealized)} tone={(data?.pnl.todayRealized ?? 0) >= 0 ? 'ok' : 'danger'} hint="当日成交记录聚合" />
+        <Stat label="今日手续费" value={money(data?.pnl.todayCommission)} tone="warn" hint="当日成交手续费" />
+        <Stat label="今日成交" value={`${data?.pnl.todayTrades ?? '-'} 笔`} tone="info" hint="当日成交记录数" />
+      </Grid>
 
       <Grid columns={4}>
         <Stat
@@ -447,6 +521,44 @@ export default function DashboardPage() {
             rowKey={(row: OrderView) => row.orderId}
             empty="暂无在途委托"
           />
+        </AsyncState>
+      </Card>
+
+      <Card
+        title="最近动态"
+        padded={false}
+        actions={
+          <>
+            <span className="muted">委托 / 成交 / 告警</span>
+            <Button size="sm" variant="ghost" onClick={timeline.reload}>
+              刷新
+            </Button>
+          </>
+        }
+      >
+        <AsyncState
+          loading={timeline.loading}
+          error={timeline.error}
+          onRetry={timeline.reload}
+          empty={!timeline.loading && timelineRows.length === 0 && '暂无动态。'}
+        >
+          <ol className="timeline">
+            {timelineRows.map((item) => (
+              <li className="timeline-item" key={`${item.type}-${item.id}`}>
+                <span className="timeline-dot" aria-hidden="true" />
+                <div>
+                  <div className="timeline-title">
+                    <Badge tone={statusTone(item.status)}>{item.type}</Badge>
+                    <span>{item.title}</span>
+                  </div>
+                  <div className="timeline-time">
+                    {item.at ?? '-'} · {item.status ?? '-'}
+                    {item.severity ? ` · ${item.severity}` : ''}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
         </AsyncState>
       </Card>
     </Page>

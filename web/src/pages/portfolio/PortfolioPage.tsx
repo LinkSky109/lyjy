@@ -8,6 +8,7 @@ import {
   Card,
   DataTable,
   Field,
+  Grid,
   Input,
   JsonBlock,
   KeyValue,
@@ -124,8 +125,58 @@ export default function PortfolioPage() {
   const [configJson, setConfigJson] = useState('{\n  "accountId": "DEFAULT-001"\n}');
 
   const [positionsJson, setPositionsJson] = useState(
-    '[\n  { "symbol": "rb2401", "exchange": "SHFE", "direction": "LONG", "targetQty": 10 }\n]',
+    '[\n  { "symbol": "rb2410", "exchange": "SHFE", "direction": "LONG", "targetQty": 10 }\n]',
   );
+  const [targetMode, setTargetMode] = useState<'wizard' | 'json'>('wizard');
+  const [targetRows, setTargetRows] = useState<
+    Array<{ symbol: string; exchange: string; direction: string; targetQty: string }>
+  >([{ symbol: 'rb2410', exchange: 'SHFE', direction: 'LONG', targetQty: '10' }]);
+
+  const syncTargetRows = (
+    rows: Array<{ symbol: string; exchange: string; direction: string; targetQty: string }>,
+  ) => {
+    setTargetRows(rows);
+    setPositionsJson(
+      JSON.stringify(
+        rows.map((row) => ({
+          symbol: row.symbol.trim(),
+          exchange: row.exchange.trim() || undefined,
+          direction: row.direction,
+          targetQty: Number(row.targetQty) || 0,
+        })),
+        null,
+        2,
+      ),
+    );
+  };
+
+  const updateTargetRow = (index: number, key: 'symbol' | 'exchange' | 'direction' | 'targetQty', value: string) => {
+    const next = targetRows.map((row, i) => (i === index ? { ...row, [key]: value } : row));
+    syncTargetRows(next);
+  };
+
+  const switchTargetMode = (mode: 'wizard' | 'json') => {
+    if (mode === 'wizard') {
+      try {
+        const parsed = JSON.parse(positionsJson) as Array<Record<string, unknown>>;
+        if (!Array.isArray(parsed)) {
+          throw new Error('目标持仓必须是数组');
+        }
+        setTargetRows(
+          parsed.map((row) => ({
+            symbol: String(row.symbol ?? ''),
+            exchange: String(row.exchange ?? ''),
+            direction: String(row.direction ?? 'LONG'),
+            targetQty: String(row.targetQty ?? '0'),
+          })),
+        );
+      } catch (error) {
+        setActionError(`目标持仓 JSON 无法解析：${errorText(error)}`);
+        return;
+      }
+    }
+    setTargetMode(mode);
+  };
 
   const [triggerType, setTriggerType] = useState('MANUAL');
   const [executeMode, setExecuteMode] = useState('MANUAL');
@@ -523,10 +574,79 @@ export default function PortfolioPage() {
           </Card>
 
           <Card title="设置目标持仓">
-            <Notice tone="info">提交后为全量覆盖：body 为 PortfolioPosition 数组，symbol 必填，targetQty 缺省按 0 处理。</Notice>
-            <Field label="目标持仓 JSON（PortfolioPosition 数组）" hint="symbol 必填，targetQty 缺省按 0 处理">
-              <Textarea value={positionsJson} onChange={(event) => setPositionsJson(event.target.value)} />
-            </Field>
+            <Notice tone="info">提交后为全量覆盖：symbol 必填，targetQty 缺省按 0 处理。</Notice>
+            <Toolbar>
+              <Button
+                size="sm"
+                variant={targetMode === 'wizard' ? 'primary' : 'default'}
+                onClick={() => switchTargetMode('wizard')}
+              >
+                向导模式
+              </Button>
+              <Button
+                size="sm"
+                variant={targetMode === 'json' ? 'primary' : 'default'}
+                onClick={() => switchTargetMode('json')}
+              >
+                JSON 模式
+              </Button>
+            </Toolbar>
+            {targetMode === 'wizard' ? (
+              <div className="stack-sm">
+                {targetRows.map((row, index) => (
+                  <Grid columns={4} key={index}>
+                    <Field label="合约 symbol">
+                      <Input
+                        value={row.symbol}
+                        onChange={(event) => updateTargetRow(index, 'symbol', event.target.value)}
+                        placeholder="rb2410"
+                      />
+                    </Field>
+                    <Field label="交易所 exchange">
+                      <Input
+                        value={row.exchange}
+                        onChange={(event) => updateTargetRow(index, 'exchange', event.target.value)}
+                        placeholder="SHFE"
+                      />
+                    </Field>
+                    <Field label="方向 direction">
+                      <Select
+                        value={row.direction}
+                        onChange={(event) => updateTargetRow(index, 'direction', event.target.value)}
+                      >
+                        <option value="LONG">LONG</option>
+                        <option value="SHORT">SHORT</option>
+                      </Select>
+                    </Field>
+                    <Field label="目标数量 targetQty">
+                      <Input
+                        value={row.targetQty}
+                        onChange={(event) => updateTargetRow(index, 'targetQty', event.target.value)}
+                        inputMode="numeric"
+                      />
+                    </Field>
+                  </Grid>
+                ))}
+                <Toolbar>
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      syncTargetRows([
+                        ...targetRows,
+                        { symbol: '', exchange: '', direction: 'LONG', targetQty: '0' },
+                      ])
+                    }
+                  >
+                    添加一行
+                  </Button>
+                  <span className="muted">保存时全量覆盖现有目标持仓。</span>
+                </Toolbar>
+              </div>
+            ) : (
+              <Field label="目标持仓 JSON（PortfolioPosition 数组）" hint="symbol 必填，targetQty 缺省按 0 处理">
+                <Textarea value={positionsJson} onChange={(event) => setPositionsJson(event.target.value)} />
+              </Field>
+            )}
             <div className="mt-3">
               <Button disabled={busy || !selectedId} onClick={savePositions}>
                 保存目标持仓
@@ -538,6 +658,17 @@ export default function PortfolioPage() {
 
       {tab === 'rebalance' && (
         <>
+          <ol className="steps">
+            <li className={jobId ? 'done' : 'active'}>
+              <span className="step-no">1</span>触发或加载任务
+            </li>
+            <li className={preview ? 'done' : jobId ? 'active' : ''}>
+              <span className="step-no">2</span>预览差异
+            </li>
+            <li className={job?.status === 'COMPLETED' ? 'done' : ''}>
+              <span className="step-no">3</span>确认执行
+            </li>
+          </ol>
           <Card title="触发再平衡">
             {!selectedId && <Notice tone="warn">请先在「组合」页签选择一个组合。</Notice>}
             <Toolbar>

@@ -54,6 +54,24 @@ interface CashTransactionView {
   completeTime?: string;
 }
 
+/** 账户划转（/api/fund/transfer） */
+interface FundTransferView {
+  transferNo?: string;
+  fromAccountId?: string;
+  toAccountId?: string;
+  amount?: number;
+  currency?: string;
+  status?: string;
+  operator?: string;
+  remark?: string;
+  fromBalanceBefore?: number;
+  fromBalanceAfter?: number;
+  toBalanceBefore?: number;
+  toBalanceAfter?: number;
+  createTime?: string;
+  completeTime?: string;
+}
+
 /** 资金流水（/api/fund/flows） */
 interface FundFlowView {
   id?: number;
@@ -174,6 +192,14 @@ export default function FundPage() {
     [accountPage],
   );
   const accountTotal = accounts.data?.total ?? 0;
+  const transactions = useApi<PageResult<CashTransactionView>>(
+    () => api.get<PageResult<CashTransactionView>>('/api/fund/transactions', {
+      status: 'PENDING',
+      page: 1,
+      size: 20,
+    }),
+    [],
+  );
 
   const validateTransaction = (): boolean => {
     setTxAmountError(null);
@@ -241,6 +267,7 @@ export default function FundPage() {
       accountView.reload();
       accounts.reload();
       flows.reload();
+      transactions.reload();
     } catch (error) {
       setTxNotice({ tone: 'danger', text: `提交失败：${errorText(error)}` });
     } finally {
@@ -285,10 +312,75 @@ export default function FundPage() {
       accountView.reload();
       accounts.reload();
       flows.reload();
+      transactions.reload();
     } catch (error) {
       setApproveNotice({ tone: 'danger', text: `审核失败：${errorText(error)}` });
     } finally {
       setApproveSubmitting(false);
+    }
+  };
+
+  // ---------- 账户互转 ----------
+  const [transferFrom, setTransferFrom] = useState('DEFAULT-001');
+  const [transferTo, setTransferTo] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
+  const [transferCurrency, setTransferCurrency] = useState('CNY');
+  const [transferOperator, setTransferOperator] = useState('operator');
+  const [transferRemark, setTransferRemark] = useState('');
+  const [transferKey, setTransferKey] = useState(() => `trf-${Date.now()}`);
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [transferNotice, setTransferNotice] = useState<Notice>(null);
+  const [transferResult, setTransferResult] = useState<FundTransferView | null>(null);
+  const [transferConfirmOpen, setTransferConfirmOpen] = useState(false);
+  const [transferAmountError, setTransferAmountError] = useState<string | null>(null);
+
+  const submitTransfer = async () => {
+    setTransferNotice(null);
+    setTransferAmountError(null);
+    const from = transferFrom.trim();
+    const to = transferTo.trim();
+    const amount = toNum(transferAmount);
+    if (!from || !to) {
+      setTransferNotice({ tone: 'danger', text: '请填写转出与转入账户。' });
+      return;
+    }
+    if (from === to) {
+      setTransferNotice({ tone: 'danger', text: '转出与转入账户不能相同。' });
+      return;
+    }
+    if (amount === undefined || amount <= 0) {
+      setTransferAmountError('划转金额必须大于 0。');
+      return;
+    }
+    const source = (accounts.data?.items ?? []).find((item) => item.accountId === from);
+    if (source?.availableCash !== undefined && amount > source.availableCash) {
+      setTransferAmountError(`不得超过转出账户可用资金 ¥${fmt(source.availableCash)}。`);
+      return;
+    }
+    setTransferSubmitting(true);
+    try {
+      const result = await api.post<FundTransferView>('/api/fund/transfer', {
+        fromAccountId: from,
+        toAccountId: to,
+        amount,
+        currency: transferCurrency.trim() || undefined,
+        idempotencyKey: transferKey.trim() || undefined,
+        operator: transferOperator.trim() || undefined,
+        remark: transferRemark.trim() || undefined,
+      });
+      setTransferResult(result);
+      setTransferNotice({
+        tone: 'ok',
+        text: `划转完成 ${result.transferNo ?? '-'}，状态 ${result.status ?? '-'}`,
+      });
+      setTransferConfirmOpen(false);
+      setTransferKey(`trf-${Date.now()}`);
+      accounts.reload();
+      flows.reload();
+    } catch (error) {
+      setTransferNotice({ tone: 'danger', text: `划转失败：${errorText(error)}` });
+    } finally {
+      setTransferSubmitting(false);
     }
   };
 
@@ -462,6 +554,7 @@ export default function FundPage() {
           onChange={setTab}
           tabs={[
             { key: 'transaction', label: '出入金' },
+            { key: 'transfer', label: '账户互转' },
             { key: 'flows', label: '流水' },
             { key: 'reconcile', label: '对账' },
           ]}
@@ -546,6 +639,58 @@ export default function FundPage() {
               </Card>
             )}
 
+            <Card
+              title="待审批队列"
+              padded={false}
+              actions={
+                <>
+                  <span className="muted">{transactions.data?.total ?? 0} 笔待处理</span>
+                  <Button size="sm" variant="ghost" onClick={transactions.reload}>
+                    刷新
+                  </Button>
+                </>
+              }
+            >
+              <AsyncState
+                loading={transactions.loading}
+                error={transactions.error}
+                onRetry={transactions.reload}
+                empty={!transactions.loading && (transactions.data?.items ?? []).length === 0 && '暂无待审批出入金。'}
+              >
+                <DataTable
+                  columns={[
+                    { key: 'createTime', title: '申请时间' },
+                    { key: 'transactionNo', title: '流水号' },
+                    { key: 'accountId', title: '账户' },
+                    { key: 'type', title: '类型' },
+                    { key: 'amount', title: '金额', align: 'right', render: (row: CashTransactionView) => fmt(row.amount) },
+                    { key: 'applicant', title: '申请人' },
+                    { key: 'status', title: '状态', render: (row: CashTransactionView) => <Badge tone={row.status === 'PENDING' ? 'warn' : 'muted'}>{row.status ?? '-'}</Badge> },
+                    {
+                      key: 'action',
+                      title: '操作',
+                      align: 'right',
+                      render: (row: CashTransactionView) => (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setApproveNo(row.transactionNo ?? '');
+                            setApproved('true');
+                            setApproveConfirmOpen(true);
+                          }}
+                        >
+                          审核
+                        </Button>
+                      ),
+                    },
+                  ]}
+                  rows={transactions.data?.items ?? []}
+                  rowKey={(row: CashTransactionView) => row.transactionNo ?? String(row.id ?? '')}
+                  empty="暂无待审批记录"
+                />
+              </AsyncState>
+            </Card>
+
             <Card title="出入金审核">
               {approveNotice && <Notice tone={approveNotice.tone} live>{approveNotice.text}</Notice>}
               <Toolbar>
@@ -580,10 +725,93 @@ export default function FundPage() {
               {approveResult && (
                 <div className="mt-3">
                   <TransactionFields tx={approveResult} />
+                  <TransactionTimeline tx={approveResult} />
                   <JsonBlock value={approveResult} />
                 </div>
               )}
             </Card>
+          </div>
+        )}
+
+        {tab === 'transfer' && (
+          <div className="stack-sm">
+            {transferNotice && <Notice tone={transferNotice.tone} live>{transferNotice.text}</Notice>}
+            <Grid columns={3}>
+              <Field label="转出账户 fromAccountId">
+                <Select value={transferFrom} onChange={(event) => setTransferFrom(event.target.value)}>
+                  <option value="">请选择</option>
+                  {(accounts.data?.items ?? []).map((item) => (
+                    <option key={item.accountId} value={item.accountId}>
+                      {item.accountId}（可用 {fmt(item.availableCash)}）
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="转入账户 toAccountId">
+                <Select value={transferTo} onChange={(event) => setTransferTo(event.target.value)}>
+                  <option value="">请选择</option>
+                  {(accounts.data?.items ?? []).map((item) => (
+                    <option key={item.accountId} value={item.accountId}>
+                      {item.accountId}（可用 {fmt(item.availableCash)}）
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="金额 amount" error={transferAmountError ?? undefined}>
+                <Input
+                  value={transferAmount}
+                  onChange={(event) => {
+                    setTransferAmount(event.target.value);
+                    setTransferAmountError(null);
+                  }}
+                  placeholder="10000"
+                  inputMode="decimal"
+                />
+              </Field>
+              <Field label="币种 currency">
+                <Input value={transferCurrency} onChange={(event) => setTransferCurrency(event.target.value)} />
+              </Field>
+              <Field label="操作人 operator">
+                <Input value={transferOperator} onChange={(event) => setTransferOperator(event.target.value)} />
+              </Field>
+              <Field label="备注 remark（可选）">
+                <Input value={transferRemark} onChange={(event) => setTransferRemark(event.target.value)} />
+              </Field>
+            </Grid>
+            <Field label="幂等键 idempotencyKey" hint="重复提交相同幂等键只执行一次">
+              <Input value={transferKey} onChange={(event) => setTransferKey(event.target.value)} />
+            </Field>
+            <Toolbar>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setTransferNotice(null);
+                  setTransferAmountError(null);
+                  setTransferConfirmOpen(true);
+                }}
+                disabled={transferSubmitting}
+              >
+                {transferSubmitting ? '划转中…' : '提交划转'}
+              </Button>
+              <Button onClick={() => setTransferKey(`trf-${Date.now()}`)}>重新生成幂等键</Button>
+              <span className="muted">划转在同一事务内更新双方余额并写双边流水。</span>
+            </Toolbar>
+            {transferResult && (
+              <Card title="最近划转结果">
+                <KeyValue
+                  items={[
+                    { label: 'transferNo', value: transferResult.transferNo ?? '-' },
+                    { label: '状态', value: <Badge tone={transferResult.status === 'COMPLETED' ? 'ok' : 'warn'}>{transferResult.status ?? '-'}</Badge> },
+                    { label: '转出', value: transferResult.fromAccountId ?? '-' },
+                    { label: '转入', value: transferResult.toAccountId ?? '-' },
+                    { label: '金额', value: fmt(transferResult.amount) },
+                    { label: '转出余额', value: `${fmt(transferResult.fromBalanceBefore)} → ${fmt(transferResult.fromBalanceAfter)}` },
+                    { label: '转入余额', value: `${fmt(transferResult.toBalanceBefore)} → ${fmt(transferResult.toBalanceAfter)}` },
+                  ]}
+                />
+                <JsonBlock value={transferResult} />
+              </Card>
+            )}
           </div>
         )}
 
@@ -749,6 +977,32 @@ export default function FundPage() {
       </Card>
 
       <Modal
+        open={transferConfirmOpen}
+        title="确认账户划转"
+        onClose={() => setTransferConfirmOpen(false)}
+        footer={
+          <>
+            <Button onClick={() => setTransferConfirmOpen(false)} disabled={transferSubmitting}>
+              取消
+            </Button>
+            <Button variant="primary" onClick={submitTransfer} disabled={transferSubmitting}>
+              {transferSubmitting ? '划转中…' : '确认划转'}
+            </Button>
+          </>
+        }
+      >
+        <Notice tone="warn">划转将即时更新双方可用资金，请核对账户与金额。</Notice>
+        <KeyValue
+          items={[
+            { label: '转出', value: transferFrom || '-' },
+            { label: '转入', value: transferTo || '-' },
+            { label: '金额', value: `${fmt(toNum(transferAmount))} ${transferCurrency}` },
+            { label: '操作人', value: transferOperator || '-' },
+          ]}
+        />
+      </Modal>
+
+      <Modal
         open={txConfirmOpen}
         title="确认出入金申请"
         onClose={() => setTxConfirmOpen(false)}
@@ -811,6 +1065,33 @@ export default function FundPage() {
         />
       </Modal>
     </Page>
+  );
+}
+
+function TransactionTimeline({ tx }: { tx: CashTransactionView }) {
+  const steps = [
+    { label: '申请', at: tx.createTime, detail: tx.applicant ?? '-', tone: 'info' as Tone },
+    { label: '审核', at: tx.approveTime, detail: tx.approver ?? '-', tone: tx.status === 'REJECTED' ? 'danger' as Tone : 'ok' as Tone },
+    { label: '完成', at: tx.completeTime, detail: tx.status ?? '-', tone: tx.status === 'COMPLETED' ? 'ok' as Tone : 'muted' as Tone },
+  ].filter((step) => step.at);
+  if (steps.length === 0) {
+    return null;
+  }
+  return (
+    <ol className="timeline">
+      {steps.map((step) => (
+        <li className="timeline-item" key={step.label}>
+          <span className={`timeline-dot dot-${step.tone}`} aria-hidden="true" />
+          <div>
+            <div className="timeline-title">
+              {step.label}
+              <Badge tone={step.tone}>{step.detail}</Badge>
+            </div>
+            <div className="timeline-time">{step.at}</div>
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }
 

@@ -16,6 +16,7 @@ import {
   Select,
   Stat,
   statusTone,
+  Textarea,
   Toolbar,
 } from '../../components/ui';
 
@@ -65,6 +66,8 @@ interface RiskRuleView {
   enabled: boolean;
   configured: boolean;
   thresholdParams?: string;
+  defaultThresholdParams?: string;
+  editable?: boolean;
   action?: string;
   updatedAt?: string;
 }
@@ -113,6 +116,11 @@ export default function RiskPage() {
   const [budgetNotice, setBudgetNotice] = useState<string | null>(null);
   const [budgetBusy, setBudgetBusy] = useState(false);
   const [togglingRule, setTogglingRule] = useState<string | null>(null);
+  const [editingRule, setEditingRule] = useState<RiskRuleView | null>(null);
+  const [ruleParams, setRuleParams] = useState('');
+  const [ruleAction, setRuleAction] = useState('REJECT');
+  const [ruleError, setRuleError] = useState<string | null>(null);
+  const [savingRule, setSavingRule] = useState(false);
 
   const [form, setForm] = useState<TradeForm>(EMPTY_FORM);
   const [checking, setChecking] = useState(false);
@@ -231,6 +239,38 @@ export default function RiskPage() {
     }
   };
 
+  const openRule = (rule: RiskRuleView) => {
+    setEditingRule(rule);
+    setRuleParams(rule.thresholdParams ?? rule.defaultThresholdParams ?? '{}');
+    setRuleAction(rule.action ?? 'REJECT');
+    setRuleError(null);
+  };
+
+  const saveRule = async () => {
+    if (!editingRule) {
+      return;
+    }
+    setSavingRule(true);
+    setRuleError(null);
+    try {
+      await api.put<RiskRuleView>(
+        `/api/risk/rules/${encodeURIComponent(editingRule.ruleCode)}`,
+        {
+          thresholdParams: ruleParams.trim(),
+          action: ruleAction,
+          operator: 'ui',
+        },
+      );
+      setBudgetNotice(`规则 ${editingRule.ruleCode} 阈值已更新`);
+      setEditingRule(null);
+      rulesApi.reload();
+    } catch (err) {
+      setRuleError(errorText(err));
+    } finally {
+      setSavingRule(false);
+    }
+  };
+
   const openBudget = (budget: RiskBudget) => {
     setEditingBudget(budget);
     setBudgetLimit(budget.limitValue != null ? String(budget.limitValue) : '');
@@ -321,8 +361,21 @@ export default function RiskPage() {
                 key: 'usageRate',
                 title: '占用率',
                 align: 'right',
-                render: (row: RiskBudget) =>
-                  row.usageRate != null ? `${(row.usageRate * 100).toFixed(1)}%` : '-',
+                render: (row: RiskBudget) => {
+                  if (row.usageRate == null) {
+                    return '-';
+                  }
+                  const percent = Math.min(100, Math.max(0, row.usageRate * 100));
+                  const tone = percent >= 100 ? 'danger' : percent >= 80 ? 'warn' : '';
+                  return (
+                    <div className="usage-cell">
+                      <span className="num">{(row.usageRate * 100).toFixed(1)}%</span>
+                      <span className={`usage-track ${tone}`}>
+                        <span className="usage-fill" style={{ width: `${percent}%` }} />
+                      </span>
+                    </div>
+                  );
+                },
               },
               {
                 key: 'status',
@@ -419,6 +472,19 @@ export default function RiskPage() {
                     <span className="switch-track" />
                   </label>
                 ),
+              },
+              {
+                key: 'actions',
+                title: '阈值',
+                align: 'right',
+                render: (row: RiskRuleView) =>
+                  row.editable ? (
+                    <Button size="sm" onClick={() => openRule(row)}>
+                      编辑
+                    </Button>
+                  ) : (
+                    <span className="muted">不支持</span>
+                  ),
               },
             ]}
             rows={ruleRows}

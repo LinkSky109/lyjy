@@ -2,7 +2,8 @@ package com.lhjypt.core.service.risk.impl;
 
 import com.lhjypt.core.model.risk.RiskCheckResult;
 import com.lhjypt.core.model.trade.TradeRequest;
-import com.lhjypt.core.service.risk.RiskRule;
+import com.lhjypt.core.service.risk.DynamicRiskRule;
+import com.lhjypt.core.service.risk.RiskThresholds;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -14,7 +15,10 @@ import java.math.BigDecimal;
  * - 单品种持仓占总资金比例限制
  */
 @Component
-public class PositionLimitRule implements RiskRule {
+public class PositionLimitRule implements DynamicRiskRule {
+
+    private static final int DEFAULT_MAX_VOLUME = 100;
+    private static final double DEFAULT_MAX_RATIO = 0.3;
 
     @Value("${risk.position.max-volume:100}")
     private int maxPositionVolume;
@@ -32,6 +36,21 @@ public class PositionLimitRule implements RiskRule {
 
     @Override
     public boolean isEnabled() { return enabled; }
+
+    @Override
+    public String getDefaultThresholds() {
+        return String.format("{\"maxVolume\":%d,\"maxRatio\":%s}",
+                DEFAULT_MAX_VOLUME, BigDecimal.valueOf(DEFAULT_MAX_RATIO).stripTrailingZeros().toPlainString());
+    }
+
+    @Override
+    public void applyThresholds(String thresholdParams) {
+        var node = RiskThresholds.parse(thresholdParams);
+        int volume = RiskThresholds.positiveInt(node, "maxVolume", maxPositionVolume);
+        double ratio = RiskThresholds.ratio(node, "maxRatio", maxPositionRatio);
+        this.maxPositionVolume = volume;
+        this.maxPositionRatio = ratio;
+    }
 
     @Override
     public void check(TradeRequest request, RiskContext context, RiskCheckResult result) {

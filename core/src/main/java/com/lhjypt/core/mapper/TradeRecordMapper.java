@@ -38,6 +38,35 @@ public interface TradeRecordMapper extends BaseMapper<TradeRecord> {
                                                   @Param("start") LocalDateTime start,
                                                   @Param("end") LocalDateTime end);
 
+    /**
+     * 成交分页：accountId / symbol / 时间范围均可选。
+     */
+    @Select("<script>SELECT * FROM trade_record WHERE 1 = 1 "
+            + "<if test='accountId != null'> AND account_id = #{accountId}</if> "
+            + "<if test='symbol != null'> AND symbol = #{symbol}</if> "
+            + "<if test='start != null'> AND trade_time &gt;= #{start}</if> "
+            + "<if test='end != null'> AND trade_time &lt; #{end}</if> "
+            + "ORDER BY trade_time DESC LIMIT #{limit} OFFSET #{offset}</script>")
+    List<TradeRecord> selectPageFiltered(@Param("accountId") String accountId,
+                                         @Param("symbol") String symbol,
+                                         @Param("start") LocalDateTime start,
+                                         @Param("end") LocalDateTime end,
+                                         @Param("offset") long offset,
+                                         @Param("limit") int limit);
+
+    /**
+     * 成交分页总数。
+     */
+    @Select("<script>SELECT COUNT(*) FROM trade_record WHERE 1 = 1 "
+            + "<if test='accountId != null'> AND account_id = #{accountId}</if> "
+            + "<if test='symbol != null'> AND symbol = #{symbol}</if> "
+            + "<if test='start != null'> AND trade_time &gt;= #{start}</if> "
+            + "<if test='end != null'> AND trade_time &lt; #{end}</if></script>")
+    long countPageFiltered(@Param("accountId") String accountId,
+                           @Param("symbol") String symbol,
+                           @Param("start") LocalDateTime start,
+                           @Param("end") LocalDateTime end);
+
     @Select("SELECT * FROM trade_record WHERE turnover >= #{minTurnover} "
             + "AND trade_time >= #{start} ORDER BY trade_time")
     List<TradeRecord> selectLargeTrades(@Param("minTurnover") BigDecimal minTurnover,

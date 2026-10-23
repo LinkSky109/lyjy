@@ -3,6 +3,7 @@ package com.lhjypt.core.service.fund;
 import com.lhjypt.core.mapper.CashTransactionMapper;
 import com.lhjypt.core.mapper.FundAccountMapper;
 import com.lhjypt.core.mapper.FundFlowMapper;
+import com.lhjypt.core.mapper.FundTransferMapper;
 import com.lhjypt.core.model.FundAccount;
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +22,7 @@ class FundManagementServiceTest {
         FundFlowMapper flowMapper = mock(FundFlowMapper.class);
         FundAccountMapper accountMapper = mock(FundAccountMapper.class);
         FundManagementService service = new FundManagementService(
-                txMapper, flowMapper, accountMapper);
+                txMapper, flowMapper, accountMapper, mock(FundTransferMapper.class));
         FundAccount account = account("1000000", "1000000", "0");
         when(accountMapper.selectByAccountId("DEFAULT-001")).thenReturn(account);
 
@@ -41,7 +42,7 @@ class FundManagementServiceTest {
         FundFlowMapper flowMapper = mock(FundFlowMapper.class);
         FundAccountMapper accountMapper = mock(FundAccountMapper.class);
         FundManagementService service = new FundManagementService(
-                txMapper, flowMapper, accountMapper);
+                txMapper, flowMapper, accountMapper, mock(FundTransferMapper.class));
         FundAccount account = account("999997.9", "999300", "702.1");
         when(accountMapper.selectByAccountId("DEFAULT-001")).thenReturn(account);
 

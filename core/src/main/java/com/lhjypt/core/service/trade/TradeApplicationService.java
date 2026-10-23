@@ -5,6 +5,7 @@ import com.lhjypt.core.model.Order;
 import com.lhjypt.core.model.gateway.GatewaySubmission;
 import com.lhjypt.core.model.order.CreateOrderCommand;
 import com.lhjypt.core.model.risk.RiskCheckResult;
+import com.lhjypt.core.model.trade.BatchCancelResult;
 import com.lhjypt.core.model.trade.TradeRequest;
 import com.lhjypt.core.model.trade.TradeSubmissionResult;
 import com.lhjypt.core.service.fund.FundReservationService;
@@ -19,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -112,6 +114,45 @@ public class TradeApplicationService {
         Order updated = orderManagementService.cancel(orderId, reason);
         fundReservationService.releaseRemaining(orderId);
         return updated;
+    }
+
+    /**
+     * 批量撤单：逐单执行，单笔失败不影响其他订单。最多 50 笔。
+     */
+    public List<BatchCancelResult> batchCancel(List<String> orderIds, String reason) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            throw new IllegalArgumentException("orderIds 不能为空");
+        }
+        if (orderIds.size() > 50) {
+            throw new IllegalArgumentException("单次批量撤单最多 50 笔");
+        }
+        String cancelReason = reason == null || reason.isBlank() ? "批量撤单" : reason.trim();
+        List<BatchCancelResult> results = new ArrayList<>(orderIds.size());
+        for (String rawId : orderIds) {
+            if (rawId == null || rawId.isBlank()) {
+                results.add(new BatchCancelResult(rawId, false, null, "订单号为空"));
+                continue;
+            }
+            String orderId = rawId.trim();
+            try {
+                Order order = cancel(orderId, cancelReason);
+                String status = order.getStatus();
+                boolean canceled = OrderStatus.CANCELED.getCode().equals(status);
+                boolean filled = OrderStatus.FILLED.getCode().equals(status);
+                boolean rejected = OrderStatus.REJECTED.getCode().equals(status);
+                results.add(new BatchCancelResult(
+                        orderId,
+                        canceled,
+                        status,
+                        canceled ? "撤单成功"
+                                : filled ? "订单已全部成交，无法撤单"
+                                : rejected ? "订单已拒绝，无法撤单"
+                                : "订单已终态，未执行撤单"));
+            } catch (Exception error) {
+                results.add(new BatchCancelResult(orderId, false, null, error.getMessage()));
+            }
+        }
+        return results;
     }
 
     private void validate(TradeRequest request) {

@@ -33,6 +33,24 @@ public class InstrumentService {
                 .toList();
     }
 
+    /**
+     * 合约搜索：按交易所过滤，再按代码/名称模糊匹配，结果按代码排序。
+     */
+    public List<InstrumentView> search(String exchange, String keyword) {
+        String ex = exchange == null ? null : exchange.trim();
+        String kw = keyword == null ? null : keyword.trim().toLowerCase();
+        return properties.getContracts().entrySet().stream()
+                .filter(entry -> ex == null || ex.isEmpty()
+                        || ex.equalsIgnoreCase(entry.getValue().getExchange()))
+                .filter(entry -> kw == null || kw.isEmpty()
+                        || entry.getKey().toLowerCase().contains(kw)
+                        || (entry.getValue().getName() != null
+                            && entry.getValue().getName().toLowerCase().contains(kw)))
+                .sorted(java.util.Map.Entry.comparingByKey())
+                .map(entry -> toView(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
     private static InstrumentView toView(String symbol, InstrumentProperties.Spec spec) {
         return new InstrumentView(
                 symbol,
@@ -45,6 +63,7 @@ public class InstrumentService {
                 spec.getMinQty(),
                 spec.getMaxQty(),
                 spec.getQtyStep(),
+                spec.getMarginRatio(),
                 spec.getLimitUp(),
                 spec.getLimitDown(),
                 spec.isTrading());
@@ -61,6 +80,7 @@ public class InstrumentService {
             BigDecimal minQty,
             BigDecimal maxQty,
             BigDecimal qtyStep,
+            BigDecimal marginRatio,
             BigDecimal limitUp,
             BigDecimal limitDown,
             boolean trading) {

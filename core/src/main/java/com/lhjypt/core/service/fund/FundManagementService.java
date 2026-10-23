@@ -5,6 +5,7 @@ import com.lhjypt.core.mapper.*;
 import com.lhjypt.core.model.FundAccount;
 import com.lhjypt.core.model.fund.CashTransaction;
 import com.lhjypt.core.model.fund.FundFlow;
+import com.lhjypt.core.model.fund.FundTransfer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +37,7 @@ public class FundManagementService {
     private final CashTransactionMapper cashTransactionMapper;
     private final FundFlowMapper fundFlowMapper;
     private final FundAccountMapper fundAccountMapper;
+    private final FundTransferMapper fundTransferMapper;
 
     private final AtomicInteger flowCounter = new AtomicInteger(0);
     private final AtomicInteger txCounter = new AtomicInteger(0);
@@ -70,6 +72,119 @@ public class FundManagementService {
         log.info("出入金申请: no={} type={} amount={}",
                 request.getTransactionNo(), request.getType(), request.getAmount());
         return request;
+    }
+
+    /**
+     * 账户间资金划转。双边余额与流水在同一事务内完成，幂等键重复请求返回首次结果。
+     */
+    @Transactional
+    public FundTransfer transfer(FundTransfer request) {
+        if (request == null) {
+            throw new IllegalArgumentException("划转请求不能为空");
+        }
+        String fromId = trim(request.getFromAccountId());
+        String toId = trim(request.getToAccountId());
+        if (fromId == null || toId == null) {
+            throw new IllegalArgumentException("转出/转入账户不能为空");
+        }
+        if (fromId.equals(toId)) {
+            throw new IllegalArgumentException("转出与转入账户不能相同");
+        }
+        BigDecimal amount = request.getAmount();
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("划转金额必须大于 0");
+        }
+        String idempotencyKey = trim(request.getIdempotencyKey());
+        if (idempotencyKey != null) {
+            FundTransfer existing = fundTransferMapper.selectByIdempotencyKey(idempotencyKey);
+            if (existing != null) {
+                return existing;
+            }
+        }
+
+        FundAccount from = requireAccount(fromId);
+        FundAccount to = requireAccount(toId);
+        String currency = trim(request.getCurrency());
+        if (currency == null) {
+            currency = from.getCurrency();
+        }
+        if (!sameCurrency(from.getCurrency(), currency)) {
+            throw new IllegalArgumentException("转出账户币种与划转币种不一致");
+        }
+        if (!sameCurrency(to.getCurrency(), currency)) {
+            throw new IllegalArgumentException("转入账户币种与划转币种不一致");
+        }
+        if (from.getAvailableCash().compareTo(amount) < 0) {
+            throw new IllegalStateException("可用资金不足，当前 " + from.getAvailableCash());
+        }
+
+        BigDecimal fromBefore = from.getAvailableCash();
+        BigDecimal toBefore = to.getAvailableCash();
+        from.setAvailableCash(fromBefore.subtract(amount));
+        from.setTotalAsset(from.getTotalAsset().subtract(amount));
+        to.setAvailableCash(toBefore.add(amount));
+        to.setTotalAsset(to.getTotalAsset().add(amount));
+        fundAccountMapper.updateById(from);
+        fundAccountMapper.updateById(to);
+
+        FundTransfer transfer = new FundTransfer();
+        transfer.setTransferNo(generateNo("TRF"));
+        transfer.setFromAccountId(fromId);
+        transfer.setToAccountId(toId);
+        transfer.setAmount(amount);
+        transfer.setCurrency(currency);
+        transfer.setStatus("COMPLETED");
+        transfer.setIdempotencyKey(idempotencyKey);
+        transfer.setOperator(trim(request.getOperator()));
+        transfer.setRemark(trim(request.getRemark()));
+        transfer.setFromBalanceBefore(fromBefore);
+        transfer.setFromBalanceAfter(from.getAvailableCash());
+        transfer.setToBalanceBefore(toBefore);
+        transfer.setToBalanceAfter(to.getAvailableCash());
+        transfer.setCreateTime(LocalDateTime.now());
+        transfer.setCompleteTime(LocalDateTime.now());
+        fundTransferMapper.insert(transfer);
+
+        recordFlow(fromId, "TRANSFER", transfer.getTransferNo(), amount.negate(),
+                fromBefore, from.getAvailableCash(), null);
+        recordFlow(toId, "TRANSFER", transfer.getTransferNo(), amount,
+                toBefore, to.getAvailableCash(), null);
+        log.info("账户划转: no={} from={} to={} amount={} operator={}",
+                transfer.getTransferNo(), fromId, toId, amount, transfer.getOperator());
+        return transfer;
+    }
+
+    public FundTransfer getTransfer(String transferNo) {
+        FundTransfer transfer = fundTransferMapper.selectByTransferNo(transferNo);
+        if (transfer == null) {
+            throw new IllegalArgumentException("划转单不存在: " + transferNo);
+        }
+        return transfer;
+    }
+
+    /**
+     * 审批列表分页（出入金单）。
+     */
+    public java.util.Map<String, Object> pageTransactions(String status, int page, int size) {
+        int safePage = Math.max(1, page);
+        int safeSize = Math.min(200, Math.max(1, size));
+        long offset = (long) (safePage - 1) * safeSize;
+        String normalized = trim(status);
+        List<CashTransaction> items = cashTransactionMapper.selectPageFiltered(
+                normalized, offset, safeSize);
+        long total = cashTransactionMapper.countFiltered(normalized);
+        return pageResult(items, total, safePage, safeSize);
+    }
+
+    private static boolean sameCurrency(String left, String right) {
+        if (left == null || left.isBlank() || right == null || right.isBlank()) {
+            return true;
+        }
+        return left.equalsIgnoreCase(right);
+    }
+
+    private static String trim(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**

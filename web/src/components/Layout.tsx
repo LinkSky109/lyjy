@@ -6,10 +6,11 @@ import { Badge } from './ui';
 const NAV: Array<{ group: string; items: Array<{ to: string; label: string }> }> = [
   { group: '总览', items: [{ to: '/dashboard', label: '仪表盘' }] },
   {
-    group: '交易执行',
+    group: '交易',
     items: [
       { to: '/trading', label: '交易下单' },
       { to: '/fund', label: '资金管理' },
+      { to: '/portfolio', label: '组合管理' },
     ],
   },
   {
@@ -22,17 +23,16 @@ const NAV: Array<{ group: string; items: Array<{ to: string; label: string }> }>
     ],
   },
   {
-    group: '资产与清算',
+    group: '运营',
     items: [
-      { to: '/portfolio', label: '组合管理' },
       { to: '/settlement', label: '日终清算' },
+      { to: '/monitor', label: '监控告警' },
+      { to: '/gateway', label: '多柜台网关' },
     ],
   },
   {
-    group: '平台治理',
+    group: '策略与治理',
     items: [
-      { to: '/gateway', label: '多柜台网关' },
-      { to: '/monitor', label: '监控告警' },
       { to: '/strategy', label: '策略安全' },
       { to: '/backtest', label: '回测' },
       { to: '/risk-board', label: '风控看板' },
@@ -146,7 +146,7 @@ export default function Layout() {
             </div>
           ))}
         </nav>
-        <div className="sidebar-foot">v0.1.0 · P1</div>
+        <div className="sidebar-foot">v1.1 · 2026-10</div>
       </aside>
       <div className="main">
         <header className="topbar">

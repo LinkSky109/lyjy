@@ -76,6 +76,14 @@ interface OrderView {
   canceledAt?: string;
 }
 
+/** 批量撤单逐单结果（POST /api/trade/orders/batch-cancel） */
+interface BatchCancelResult {
+  orderId: string;
+  success: boolean;
+  status?: string;
+  message?: string;
+}
+
 /** 成交回报（/api/trade/trades） */
 interface TradeReportView {
   tradeId?: string;
@@ -121,6 +129,7 @@ interface InstrumentView {
   minQty?: number;
   maxQty?: number;
   qtyStep?: number;
+  marginRatio?: number;
   limitUp?: number;
   limitDown?: number;
   trading?: boolean;
@@ -229,7 +238,20 @@ export default function TradingPage() {
       }),
     [orderStatus, orderPage],
   );
-  const trades = useApi(() => api.get<TradeReportView[]>('/api/trade/trades'), []);
+  const [tradePage, setTradePage] = useState(1);
+  const [tradeSymbol, setTradeSymbol] = useState('');
+  const TRADE_PAGE_SIZE = 20;
+  const tradesPage = useApi<PageResult<TradeReportView>>(
+    () =>
+      api.get<PageResult<TradeReportView>>('/api/trade/trades', {
+        accountId: accountId || undefined,
+        symbol: tradeSymbol.trim() || undefined,
+        page: tradePage,
+        size: TRADE_PAGE_SIZE,
+      }),
+    [accountId, tradeSymbol, tradePage],
+  );
+  const instruments = useApi(() => api.get<InstrumentView[]>('/api/trade/instruments'), []);
 
   // 下单表单
   const [symbol, setSymbol] = useState('');
@@ -244,6 +266,8 @@ export default function TradingPage() {
   const [remark, setRemark] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [orderNotice, setOrderNotice] = useState<NoticeState>(null);
+  const [batchConfirmOpen, setBatchConfirmOpen] = useState(false);
+  const [batchCanceling, setBatchCanceling] = useState(false);
   const [lastOrder, setLastOrder] = useState<TradeSubmissionView | null>(null);
   const [formErrors, setFormErrors] = useState<{
     symbol?: string;
@@ -275,11 +299,22 @@ export default function TradingPage() {
     setStrategyId(strategyDraft.trim());
   };
 
+  const selectInstrument = (value: string) => {
+    setSymbol(value);
+    const found = instruments.data?.find(
+      (item) => item.symbol.toLowerCase() === value.trim().toLowerCase(),
+    );
+    if (found) {
+      setExchange(found.exchange ?? '');
+      setQuoteSymbol(found.symbol);
+    }
+  };
+
   const reloadAll = () => {
     account.reload();
     positions.reload();
     ordersPage.reload();
-    trades.reload();
+    tradesPage.reload();
     quote.reload();
   };
 
@@ -292,7 +327,7 @@ export default function TradingPage() {
     const timer = setInterval(() => {
       positions.reload();
       ordersPage.reload();
-      trades.reload();
+      tradesPage.reload();
       quote.reload();
     }, 10000);
     return () => clearInterval(timer);
@@ -323,6 +358,30 @@ export default function TradingPage() {
       }
     } else if (priceValue === undefined || priceValue <= 0) {
       errors.price = '限价单必须填写大于 0 的委托价格。';
+    }
+    const spec = instrument.data;
+    if (spec) {
+      if (spec.trading === false) {
+        errors.symbol = '该合约当前不可交易。';
+      }
+      if (priceValue !== undefined && spec.priceTick && spec.priceTick > 0) {
+        const steps = priceValue / spec.priceTick;
+        if (Math.abs(steps - Math.round(steps)) > 1e-6) {
+          errors.price = `价格需为最小变动 ${spec.priceTick} 的整数倍。`;
+        }
+      }
+      if (priceValue !== undefined && spec.limitUp != null && priceValue > spec.limitUp) {
+        errors.price = `价格高于涨停价 ${spec.limitUp}。`;
+      }
+      if (priceValue !== undefined && spec.limitDown != null && priceValue < spec.limitDown) {
+        errors.price = `价格低于跌停价 ${spec.limitDown}。`;
+      }
+      if (qty !== undefined && spec.qtyStep && spec.qtyStep > 0) {
+        const steps = qty / spec.qtyStep;
+        if (Math.abs(steps - Math.round(steps)) > 1e-6) {
+          errors.quantity = `数量需为步长 ${spec.qtyStep} 的整数倍。`;
+        }
+      }
     }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -372,6 +431,39 @@ export default function TradingPage() {
     }
   };
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target != null &&
+        (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable);
+      if (event.key === '/' && !typing) {
+        event.preventDefault();
+        document.getElementById('order-symbol')?.focus();
+        return;
+      }
+      if (event.altKey && (event.key === 'b' || event.key === 'B')) {
+        event.preventDefault();
+        setDirection('BUY');
+        return;
+      }
+      if (event.altKey && (event.key === 's' || event.key === 'S')) {
+        event.preventDefault();
+        setDirection('SELL');
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        event.preventDefault();
+        if (!confirmOpen) {
+          openConfirm();
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmOpen]);
+
   // 订单查询
   const [queryOrderId, setQueryOrderId] = useState('');
   const [queryLoading, setQueryLoading] = useState(false);
@@ -399,6 +491,41 @@ export default function TradingPage() {
     }
   };
 
+  const batchCancelOrders = async () => {
+    const ids = batchCancelable.map((row) => row.orderId);
+    if (ids.length === 0) {
+      return;
+    }
+    setOrderNotice(null);
+    setBatchCanceling(true);
+    try {
+      const results = await api.post<BatchCancelResult[]>(
+        '/api/trade/orders/batch-cancel',
+        { orderIds: ids, reason: cancelReason.trim() || '批量撤单' },
+      );
+      const ok = results.filter((item) => item.success).length;
+      const failed = results.filter((item) => !item.success);
+      setOrderNotice(
+        failed.length === 0
+          ? { tone: 'ok', text: `批量撤单成功 ${ok} 笔。` }
+          : {
+              tone: 'warn',
+              text: `批量撤单完成：成功 ${ok} 笔，失败 ${failed.length} 笔（${failed
+                .map((item) => `${item.orderId}: ${item.message ?? '未知原因'}`)
+                .join('；')}）`,
+            },
+      );
+      setBatchConfirmOpen(false);
+      ordersPage.reload();
+      tradesPage.reload();
+    } catch (error) {
+      setOrderNotice({ tone: 'danger', text: `批量撤单失败：${errorText(error)}` });
+      setBatchConfirmOpen(false);
+    } finally {
+      setBatchCanceling(false);
+    }
+  };
+
   const cancelOrder = async (id: string) => {
     setOrderNotice(null);
     try {
@@ -413,7 +540,7 @@ export default function TradingPage() {
         setQueriedOrder(order);
       }
       ordersPage.reload();
-      trades.reload();
+      tradesPage.reload();
     } catch (error) {
       setOrderNotice({ tone: 'danger', text: `撤单失败：${errorText(error)}` });
     }
@@ -422,9 +549,12 @@ export default function TradingPage() {
   const accountData = account.data;
   const positionRows = positions.data ?? [];
   const orderRows = ordersPage.data?.items ?? [];
+  const batchCancelable = orderRows.filter((row) => row.cancelable);
   const orderTotal = ordersPage.data?.total ?? 0;
   const orderPages = Math.max(1, Math.ceil(orderTotal / ORDER_PAGE_SIZE));
-  const tradeRows = trades.data ?? [];
+  const tradeRows = tradesPage.data?.items ?? [];
+  const tradeTotal = tradesPage.data?.total ?? 0;
+  const tradePages = Math.max(1, Math.ceil(tradeTotal / TRADE_PAGE_SIZE));
   const tick = quote.data;
   const last = tick?.lastPrice;
   const prev = tick?.preClose;
@@ -436,6 +566,42 @@ export default function TradingPage() {
     toNum(price) !== undefined && toNum(quantity) !== undefined
       ? (toNum(price) as number) * (toNum(quantity) as number) * multiplier
       : undefined;
+  const marginRatio = instrument.data?.marginRatio ?? 0.1;
+  const estimatedMargin = notional === undefined ? undefined : notional * marginRatio;
+  const availableAfter =
+    estimatedMargin !== undefined && accountData?.availableCash !== undefined
+      ? accountData.availableCash - estimatedMargin
+      : undefined;
+  const contractWarnings: string[] = [];
+  const priceValue = toNum(price);
+  const qtyValue = toNum(quantity);
+  if (instrument.data) {
+    const spec = instrument.data;
+    if (spec.trading === false) {
+      contractWarnings.push('该合约当前不可交易。');
+    }
+    if (priceValue !== undefined && spec.priceTick && spec.priceTick > 0) {
+      const steps = priceValue / spec.priceTick;
+      if (Math.abs(steps - Math.round(steps)) > 1e-6) {
+        contractWarnings.push(`价格需为最小变动 ${spec.priceTick} 的整数倍。`);
+      }
+    }
+    if (priceValue !== undefined && spec.limitUp != null && priceValue > spec.limitUp) {
+      contractWarnings.push(`价格高于涨停价 ${spec.limitUp}。`);
+    }
+    if (priceValue !== undefined && spec.limitDown != null && priceValue < spec.limitDown) {
+      contractWarnings.push(`价格低于跌停价 ${spec.limitDown}。`);
+    }
+    if (qtyValue !== undefined && spec.qtyStep && spec.qtyStep > 0) {
+      const steps = qtyValue / spec.qtyStep;
+      if (Math.abs(steps - Math.round(steps)) > 1e-6) {
+        contractWarnings.push(`数量需为步长 ${spec.qtyStep} 的整数倍。`);
+      }
+    }
+  }
+  if (availableAfter !== undefined && availableAfter < 0) {
+    contractWarnings.push('预计保证金将超过可用资金，请降低数量或先入金。');
+  }
 
   const bidRows = [5, 4, 3, 2, 1]
     .map((level) => ({
@@ -541,12 +707,21 @@ export default function TradingPage() {
             <Input
               id="order-symbol"
               value={symbol}
-              onChange={(event) => setSymbol(event.target.value)}
+              onChange={(event) => selectInstrument(event.target.value)}
               onBlur={() => setQuoteSymbol(symbol.trim())}
-              placeholder="rb2601 / BTC_USDT"
+              placeholder="搜索或输入 rb2410 / BTC_USDT"
+              list="instrument-options"
+              autoComplete="off"
               aria-invalid={formErrors.symbol ? 'true' : undefined}
               aria-describedby="order-symbol-error"
             />
+            <datalist id="instrument-options">
+              {(instruments.data ?? []).map((item) => (
+                <option key={item.symbol} value={item.symbol}>
+                  {item.name ?? item.symbol} · {item.exchange ?? '-'}
+                </option>
+              ))}
+            </datalist>
             {formErrors.symbol && (
               <span className="field-error" id="order-symbol-error" role="alert">
                 {formErrors.symbol}
@@ -658,14 +833,30 @@ export default function TradingPage() {
               <span className="num">{notional === undefined ? '-' : `¥${fmt(notional)}`}</span>
             </div>
             <div className="summary-row">
-              <span>可用资金</span>
-              <span className="num">{accountData ? `¥${fmt(accountData.availableCash)}` : '-'}</span>
+              <span>预计保证金（按 {(marginRatio * 100).toFixed(1)}%）</span>
+              <span className="num">{estimatedMargin === undefined ? '-' : `¥${fmt(estimatedMargin)}`}</span>
+            </div>
+            <div className="summary-row">
+              <span>可用资金 / 下单后</span>
+              <span className="num">
+                {accountData ? `¥${fmt(accountData.availableCash)}` : '-'}
+                {availableAfter !== undefined ? ` → ¥${fmt(availableAfter)}` : ''}
+              </span>
             </div>
             <div className="summary-row">
               <span>账户</span>
               <span className="num">{accountId || '-'}</span>
             </div>
           </div>
+          {contractWarnings.length > 0 && (
+            <Notice tone="warn">
+              <ul className="plain-list">
+                {contractWarnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </Notice>
+          )}
 
           <Grid columns={2}>
             <Field label="幂等键 idempotencyKey">
@@ -863,6 +1054,14 @@ export default function TradingPage() {
                   {queryLoading ? '查询中…' : '查询订单'}
                 </Button>
                 <Button onClick={() => ordersPage.reload()}>刷新列表</Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  disabled={batchCancelable.length === 0 || batchCanceling}
+                  onClick={() => setBatchConfirmOpen(true)}
+                >
+                  批量撤单（{batchCancelable.length}）
+                </Button>
               </Toolbar>
 
               {queryError && <Notice tone="danger">{queryError}</Notice>}
@@ -881,6 +1080,7 @@ export default function TradingPage() {
                   }
                 >
                   <OrderFields order={queriedOrder} />
+                  <OrderTimeline order={queriedOrder} />
                   <JsonBlock value={queriedOrder} />
                 </Card>
               )}
@@ -990,12 +1190,42 @@ export default function TradingPage() {
           )}
 
           {tab === 'trades' && (
+            <div className="stack">
+              <Toolbar>
+                <Field label="合约筛选">
+                  <Input
+                    value={tradeSymbol}
+                    onChange={(event) => {
+                      setTradeSymbol(event.target.value);
+                      setTradePage(1);
+                    }}
+                    placeholder="留空查询全部"
+                  />
+                </Field>
+                <span className="muted">
+                  第 {tradePage} / {tradePages} 页 · 共 {tradeTotal} 条
+                </span>
+                <Button
+                  size="sm"
+                  disabled={tradePage <= 1}
+                  onClick={() => setTradePage((value) => Math.max(1, value - 1))}
+                >
+                  上一页
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={tradePage >= tradePages}
+                  onClick={() => setTradePage((value) => Math.min(tradePages, value + 1))}
+                >
+                  下一页
+                </Button>
+              </Toolbar>
             <AsyncState
-              loading={trades.loading}
-              error={trades.error}
-              onRetry={trades.reload}
+              loading={tradesPage.loading}
+              error={tradesPage.error}
+              onRetry={tradesPage.reload}
               empty={
-                !trades.loading &&
+                !tradesPage.loading &&
                 tradeRows.length === 0 &&
                 '暂无成交回报。委托成交后由柜台回报写入，页面不本地伪造成交。'
               }
@@ -1031,6 +1261,7 @@ export default function TradingPage() {
                 empty="暂无成交回报"
               />
             </AsyncState>
+            </div>
           )}
 
           {tab === 'positions' && (
@@ -1141,6 +1372,32 @@ export default function TradingPage() {
       </Card>
 
       <Modal
+        open={batchConfirmOpen}
+        title="确认批量撤单"
+        onClose={() => setBatchConfirmOpen(false)}
+        footer={
+          <>
+            <Button onClick={() => setBatchConfirmOpen(false)} disabled={batchCanceling}>
+              取消
+            </Button>
+            <Button variant="danger" onClick={batchCancelOrders} disabled={batchCanceling}>
+              {batchCanceling ? '撤单中…' : '确认撤单'}
+            </Button>
+          </>
+        }
+      >
+        <Notice tone="warn">
+          将对当前页 {batchCancelable.length} 笔可撤委托执行撤单，撤单后不可逆。
+        </Notice>
+        <KeyValue
+          items={batchCancelable.map((row) => ({
+            label: row.symbol ?? row.orderId,
+            value: `${row.orderId} · ${row.status ?? '-'}`,
+          }))}
+        />
+      </Modal>
+
+      <Modal
         open={confirmOpen}
         title="确认提交委托"
         onClose={() => setConfirmOpen(false)}
@@ -1170,6 +1427,34 @@ export default function TradingPage() {
         />
       </Modal>
     </Page>
+  );
+}
+
+function OrderTimeline({ order }: { order: OrderView }) {
+  const steps = [
+    { label: '创建', at: order.createTime, status: 'PENDING' },
+    { label: '已提交', at: order.submittedAt, status: 'SUBMITTED' },
+    { label: '全部成交', at: order.filledAt, status: 'FILLED' },
+    { label: '已撤销', at: order.canceledAt, status: 'CANCELED' },
+  ].filter((step) => step.at);
+  if (steps.length === 0) {
+    return null;
+  }
+  return (
+    <div className="timeline">
+      {steps.map((step) => (
+        <div className="timeline-item" key={step.label}>
+          <span className="timeline-dot" aria-hidden="true" />
+          <div>
+            <div className="timeline-title">
+              {step.label}
+              <Badge tone={statusToneOf(step.status)}>{step.status}</Badge>
+            </div>
+            <div className="timeline-time">{step.at}</div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

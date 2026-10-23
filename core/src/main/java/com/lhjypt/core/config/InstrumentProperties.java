@@ -29,6 +29,7 @@ public class InstrumentProperties {
         private BigDecimal minQty;
         private BigDecimal maxQty;
         private BigDecimal qtyStep;
+        private BigDecimal marginRatio = new BigDecimal("0.1");
         private BigDecimal limitUp;
         private BigDecimal limitDown;
         private boolean trading = true;

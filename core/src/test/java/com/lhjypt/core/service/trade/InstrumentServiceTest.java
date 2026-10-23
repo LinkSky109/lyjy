@@ -52,4 +52,20 @@ class InstrumentServiceTest {
     void listsConfiguredContracts() {
         assertThat(service.list()).hasSize(1);
     }
+
+    @Test
+    @DisplayName("按交易所与关键字搜索合约")
+    void searchesByExchangeAndKeyword() {
+        assertThat(service.search("SHFE", "螺纹")).hasSize(1);
+        assertThat(service.search("CFFEX", null)).isEmpty();
+        assertThat(service.search(null, "RB241")).hasSize(1);
+        assertThat(service.search(null, "unknown")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("默认保证金比例 10%")
+    void exposesDefaultMarginRatio() {
+        assertThat(service.find("rb2410").orElseThrow().marginRatio())
+                .isEqualByComparingTo("0.1");
+    }
 }

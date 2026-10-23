@@ -5,6 +5,7 @@ import com.lhjypt.core.model.Order;
 import com.lhjypt.core.model.gateway.GatewaySubmission;
 import com.lhjypt.core.model.order.CreateOrderCommand;
 import com.lhjypt.core.model.risk.RiskCheckResult;
+import com.lhjypt.core.model.trade.BatchCancelResult;
 import com.lhjypt.core.model.trade.TradeRequest;
 import com.lhjypt.core.model.trade.TradeSubmissionResult;
 import com.lhjypt.core.service.fund.FundReservationService;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -161,6 +163,59 @@ class TradeApplicationServiceTest {
 
         assertEquals("ORD-001", result.getOrderId());
         verify(reservationService).releaseRemaining("ORD-001");
+    }
+
+    @Test
+    void batchCancelReturnsPerOrderResults() {
+        Order order = pendingOrder();
+        order.setStatus(OrderStatus.ACCEPTED.getCode());
+        order.setExchangeOrderId("EX000001");
+        order.setGatewayId("mock-default");
+        when(orderService.getOrderByOrderId("ORD-001")).thenReturn(order);
+        when(executionService.cancelOrder("mock-default", "EX000001", "rb2410"))
+                .thenReturn(true);
+        Order canceled = pendingOrder();
+        canceled.setStatus(OrderStatus.CANCELED.getCode());
+        when(orderService.cancel("ORD-001", "批量撤单")).thenReturn(canceled);
+
+        List<BatchCancelResult> results = service.batchCancel(List.of("ORD-001"), null);
+
+        assertEquals(1, results.size());
+        assertTrue(results.get(0).success());
+        assertEquals("CANCELED", results.get(0).status());
+        verify(reservationService).releaseRemaining("ORD-001");
+    }
+
+    @Test
+    void batchCancelKeepsGoingAfterSingleFailure() {
+        when(orderService.getOrderByOrderId("BAD"))
+                .thenThrow(new IllegalArgumentException("订单不存在"));
+        Order order = pendingOrder();
+        order.setStatus(OrderStatus.ACCEPTED.getCode());
+        order.setExchangeOrderId("EX000001");
+        order.setGatewayId("mock-default");
+        when(orderService.getOrderByOrderId("ORD-001")).thenReturn(order);
+        when(executionService.cancelOrder("mock-default", "EX000001", "rb2410"))
+                .thenReturn(true);
+        Order canceled = pendingOrder();
+        canceled.setStatus(OrderStatus.CANCELED.getCode());
+        when(orderService.cancel("ORD-001", "批量撤单")).thenReturn(canceled);
+
+        List<BatchCancelResult> results = service.batchCancel(
+                List.of("BAD", "ORD-001"), "批量撤单");
+
+        assertFalse(results.get(0).success());
+        assertTrue(results.get(1).success());
+    }
+
+    @Test
+    void batchCancelRejectsEmptyOrOversizedRequests() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.batchCancel(List.of(), "x"));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.batchCancel(
+                        java.util.stream.IntStream.range(0, 51)
+                                .mapToObj(i -> "O-" + i).toList(), "x"));
     }
 
     @Test

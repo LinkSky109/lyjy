@@ -354,7 +354,18 @@ export default function FundPage() {
 
   return (
     <Page title="资金管理" subtitle="出入金申请审核、资金流水查询与柜台对账">
-      <Card title="账户概览" actions={<span className="muted">{accountQueryId}</span>}>
+      <Card
+        title="账户概览"
+        padded={false}
+        actions={
+          <>
+            <span className="muted">{accountQueryId}</span>
+            <Button size="sm" variant="ghost" onClick={accountView.reload}>
+              刷新
+            </Button>
+          </>
+        }
+      >
         <AsyncState
           loading={accountView.loading}
           error={accountView.error}
@@ -362,24 +373,41 @@ export default function FundPage() {
           empty={!accountView.loading && !accountView.data && '后端未返回该账户数据，请核对账户 ID。'}
         >
           {accountView.data && (
-            <>
-              <Grid columns={4}>
-                <Stat label="总资产" value={fmt(accountView.data.totalAsset)} tone="info" />
-                <Stat label="可用资金" value={fmt(accountView.data.availableCash)} tone="ok" />
-                <Stat label="冻结资金" value={fmt(accountView.data.frozenCash)} tone="warn" />
-                <Stat label="保证金" value={fmt(accountView.data.margin)} tone="warn" />
-              </Grid>
-              <div className="mt-3">
-                <KeyValue
-                  items={[
-                    { label: 'accountId', value: accountView.data.accountId },
-                    { label: 'accountName', value: accountView.data.accountName ?? '-' },
-                    { label: 'accountType', value: accountView.data.accountType ?? '-' },
-                    { label: 'currency', value: accountView.data.currency ?? '-' },
-                  ]}
-                />
-              </div>
-            </>
+            <DataTable
+              columns={[
+                { key: 'accountId', title: '账户' },
+                { key: 'accountName', title: '名称' },
+                { key: 'accountType', title: '类型' },
+                { key: 'currency', title: '币种' },
+                {
+                  key: 'totalAsset',
+                  title: '总资产',
+                  align: 'right',
+                  render: (row: FundAccountView) => fmt(row.totalAsset),
+                },
+                {
+                  key: 'availableCash',
+                  title: '可用资金',
+                  align: 'right',
+                  render: (row: FundAccountView) => fmt(row.availableCash),
+                },
+                {
+                  key: 'frozenCash',
+                  title: '冻结资金',
+                  align: 'right',
+                  render: (row: FundAccountView) => fmt(row.frozenCash),
+                },
+                {
+                  key: 'margin',
+                  title: '保证金',
+                  align: 'right',
+                  render: (row: FundAccountView) => fmt(row.margin),
+                },
+              ]}
+              rows={[accountView.data]}
+              rowKey={(row: FundAccountView) => row.accountId}
+              empty="暂无账户数据"
+            />
           )}
         </AsyncState>
       </Card>

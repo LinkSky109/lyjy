@@ -220,26 +220,9 @@ export default function SurveillancePage() {
                 title: '操作',
                 align: 'right',
                 render: (row) => (
-                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                    <Button size="sm" onClick={() => openDetail(row)}>
-                      详情
-                    </Button>
-                    <Button
-                      size="sm"
-                      disabled={row.status !== 'OPEN'}
-                      onClick={() => openAction('confirm', row)}
-                    >
-                      确认上报
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      disabled={row.status === 'CLOSED'}
-                      onClick={() => openAction('close', row)}
-                    >
-                      关闭
-                    </Button>
-                  </div>
+                  <Button size="sm" onClick={() => openDetail(row)}>
+                    处理
+                  </Button>
                 ),
               },
             ]}
@@ -272,6 +255,35 @@ export default function SurveillancePage() {
         title={`告警详情${detail?.alertId ? `：${detail.alertId}` : ''}`}
         onClose={() => setDetailOpen(false)}
         wide
+        footer={
+          detail ? (
+            <>
+              <Button onClick={() => setDetailOpen(false)}>关闭</Button>
+              {detail.status === 'OPEN' && (
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setDetailOpen(false);
+                    openAction('confirm', detail);
+                  }}
+                >
+                  确认上报
+                </Button>
+              )}
+              {detail.status !== 'CLOSED' && (
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    setDetailOpen(false);
+                    openAction('close', detail);
+                  }}
+                >
+                  关闭告警
+                </Button>
+              )}
+            </>
+          ) : undefined
+        }
       >
         <AsyncState loading={detailLoading} error={detailError} onRetry={() => detail && openDetail(detail)}>
           {detail && (

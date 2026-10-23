@@ -83,6 +83,7 @@ export default function GatewayPage() {
 
   // 连接 / 健康
   const [connectTarget, setConnectTarget] = useState('');
+  const [manageTarget, setManageTarget] = useState<GatewaySummary | null>(null);
   const [connectJson, setConnectJson] = useState('');
   const [health, setHealth] = useState<Record<string, unknown> | null>(null);
 
@@ -237,21 +238,11 @@ export default function GatewayPage() {
     {
       key: 'actions',
       title: '操作',
+      align: 'right',
       render: (row) => (
-        <div className="page-actions">
-          <Button size="sm" disabled={busy} onClick={() => { setConnectTarget(row.gatewayId); setConnectJson(''); }}>
-            连接
-          </Button>
-          <Button size="sm" disabled={busy} onClick={() => disconnect(row.gatewayId)}>
-            断开
-          </Button>
-          <Button size="sm" disabled={busy} onClick={() => loadHealth(row.gatewayId)}>
-            健康
-          </Button>
-          <Button size="sm" disabled={busy} onClick={() => setSwitchTarget(row.gatewayId)}>
-            切换
-          </Button>
-        </div>
+        <Button size="sm" disabled={busy} onClick={() => setManageTarget(row)}>
+          管理
+        </Button>
       ),
     },
   ];
@@ -418,6 +409,77 @@ export default function GatewayPage() {
           </Card>
         </>
       )}
+
+      <Modal
+        open={manageTarget !== null}
+        title={`网关管理${manageTarget ? ` · ${manageTarget.gatewayId}` : ''}`}
+        onClose={() => setManageTarget(null)}
+        footer={
+          <Button onClick={() => setManageTarget(null)} disabled={busy}>
+            关闭
+          </Button>
+        }
+      >
+        {manageTarget && (
+          <>
+            <KeyValue
+              items={[
+                { label: '类型', value: manageTarget.type ?? '-' },
+                { label: '名称', value: manageTarget.name ?? '-' },
+                { label: '状态', value: <Badge tone={statusTone(manageTarget.status)}>{manageTarget.status ?? '-'}</Badge> },
+                { label: '已连接', value: manageTarget.connected ? '是' : '否' },
+                { label: '已认证', value: manageTarget.authenticated ? '是' : '否' },
+                { label: '熔断器', value: <Badge tone={statusTone(manageTarget.breaker)}>{manageTarget.breaker ?? '-'}</Badge> },
+                { label: '失败率', value: manageTarget.failureRate != null ? String(manageTarget.failureRate) : '-' },
+                { label: '最近错误', value: manageTarget.lastError ?? '-' },
+              ]}
+            />
+            <Toolbar>
+              <Button
+                size="sm"
+                disabled={busy}
+                onClick={() => {
+                  setConnectTarget(manageTarget.gatewayId);
+                  setConnectJson('');
+                  setManageTarget(null);
+                }}
+              >
+                连接
+              </Button>
+              <Button
+                size="sm"
+                disabled={busy}
+                onClick={() => {
+                  disconnect(manageTarget.gatewayId);
+                  setManageTarget(null);
+                }}
+              >
+                断开
+              </Button>
+              <Button
+                size="sm"
+                disabled={busy}
+                onClick={() => {
+                  loadHealth(manageTarget.gatewayId);
+                  setManageTarget(null);
+                }}
+              >
+                健康
+              </Button>
+              <Button
+                size="sm"
+                disabled={busy}
+                onClick={() => {
+                  setSwitchTarget(manageTarget.gatewayId);
+                  setManageTarget(null);
+                }}
+              >
+                切换
+              </Button>
+            </Toolbar>
+          </>
+        )}
+      </Modal>
 
       <Modal
         open={connectTarget !== ''}

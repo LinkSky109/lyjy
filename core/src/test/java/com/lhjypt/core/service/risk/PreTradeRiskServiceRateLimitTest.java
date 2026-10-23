@@ -4,6 +4,7 @@ import com.lhjypt.core.mapper.RiskInterceptLogMapper;
 import com.lhjypt.core.model.risk.RiskCheckResult;
 import com.lhjypt.core.model.trade.TradeRequest;
 import com.lhjypt.core.service.degrade.DegradeService;
+import com.lhjypt.core.service.risk.RiskRuleConfigService;
 import com.lhjypt.core.service.risk.impl.BlacklistRule;
 import com.lhjypt.core.service.risk.impl.FundRiskRule;
 import com.lhjypt.core.service.risk.impl.OrderFrequencyRule;
@@ -37,6 +38,7 @@ class PreTradeRiskServiceRateLimitTest {
                 mock(OrderFrequencyRule.class),
                 mock(SelfTradePreventionRule.class),
                 mock(BlacklistRule.class),
+                mock(RiskRuleConfigService.class),
                 mock(RiskInterceptLogMapper.class),
                 mock(OpenBlockRegistry.class),
                 degradeService);

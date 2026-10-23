@@ -6,6 +6,7 @@ import com.lhjypt.core.model.risk.RiskInterceptLog;
 import com.lhjypt.core.model.trade.TradeRequest;
 import com.lhjypt.core.service.risk.PreTradeRiskService;
 import com.lhjypt.core.service.risk.RiskRule;
+import com.lhjypt.core.service.risk.RiskRuleConfigService;
 import com.lhjypt.core.service.risk.impl.BlacklistRule;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +25,24 @@ import java.util.Set;
 public class RiskController {
 
     private final PreTradeRiskService riskService;
+    private final RiskRuleConfigService ruleConfigService;
+
+    /**
+     * 事前风控规则列表（含运行时开关状态）。
+     */
+    @GetMapping("/rules")
+    public Result<List<RiskRuleConfigService.RuleView>> rules() {
+        return Result.success(ruleConfigService.list());
+    }
+
+    /**
+     * 启用/停用某条事前风控规则，立即生效。
+     */
+    @PostMapping("/rules/{ruleCode}/toggle")
+    public Result<RiskRuleConfigService.RuleView> toggleRule(@PathVariable String ruleCode,
+                                                             @RequestParam boolean enabled) {
+        return Result.success(ruleConfigService.toggle(ruleCode, enabled));
+    }
 
     /**
      * 风控检查（下单前调用）

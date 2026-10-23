@@ -27,8 +27,9 @@ public class RiskBudgetController {
 
     @GetMapping("/list")
     public Result<List<RiskBudget>> list(@RequestParam(required = false) String scopeType,
-                                         @RequestParam(required = false) String scopeId) {
-        return Result.success(riskBudgetService.list(scopeType, scopeId));
+                                         @RequestParam(required = false) String scopeId,
+                                         @RequestParam(defaultValue = "false") boolean includeDisabled) {
+        return Result.success(riskBudgetService.list(scopeType, scopeId, includeDisabled));
     }
 
     @PostMapping("/save")

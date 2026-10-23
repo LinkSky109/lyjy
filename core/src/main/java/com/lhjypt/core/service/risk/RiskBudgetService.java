@@ -90,8 +90,13 @@ public class RiskBudgetService {
     }
 
     public List<RiskBudget> list(String scopeType, String scopeId) {
-        List<RiskBudget> budgets = budgetMapper.selectFiltered(
-                blankToNull(scopeType), blankToNull(scopeId));
+        return list(scopeType, scopeId, false);
+    }
+
+    public List<RiskBudget> list(String scopeType, String scopeId, boolean includeDisabled) {
+        List<RiskBudget> budgets = includeDisabled
+                ? budgetMapper.selectAllFiltered(blankToNull(scopeType), blankToNull(scopeId))
+                : budgetMapper.selectFiltered(blankToNull(scopeType), blankToNull(scopeId));
         if (isAdmin()) {
             return budgets;
         }

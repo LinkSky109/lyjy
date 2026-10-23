@@ -59,6 +59,16 @@ interface RiskBudget {
   enabled?: boolean;
 }
 
+interface RiskRuleView {
+  ruleCode: string;
+  ruleName: string;
+  enabled: boolean;
+  configured: boolean;
+  thresholdParams?: string;
+  action?: string;
+  updatedAt?: string;
+}
+
 interface TradeForm {
   symbol: string;
   exchange: string;
@@ -90,7 +100,11 @@ const EMPTY_FORM: TradeForm = {
 export default function RiskPage() {
   const intercepts = useApi(() => api.get<RiskInterceptLog[]>('/api/risk/intercepts'), []);
   const blacklist = useApi(() => api.get<string[]>('/api/risk/blacklist'), []);
-  const budgets = useApi(() => api.get<RiskBudget[]>('/api/risk/budget/list'), []);
+  const budgets = useApi(
+    () => api.get<RiskBudget[]>('/api/risk/budget/list', { includeDisabled: true }),
+    [],
+  );
+  const rulesApi = useApi(() => api.get<RiskRuleView[]>('/api/risk/rules'), []);
 
   const [editingBudget, setEditingBudget] = useState<RiskBudget | null>(null);
   const [budgetLimit, setBudgetLimit] = useState('');
@@ -98,7 +112,7 @@ export default function RiskPage() {
   const [budgetError, setBudgetError] = useState<string | null>(null);
   const [budgetNotice, setBudgetNotice] = useState<string | null>(null);
   const [budgetBusy, setBudgetBusy] = useState(false);
-  const [disabledBudgets, setDisabledBudgets] = useState<Record<string, RiskBudget>>({});
+  const [togglingRule, setTogglingRule] = useState<string | null>(null);
 
   const [form, setForm] = useState<TradeForm>(EMPTY_FORM);
   const [checking, setChecking] = useState(false);
@@ -195,27 +209,25 @@ export default function RiskPage() {
       setBudgetError('该预算缺少上限值，无法通过开关保存。请先编辑阈值。');
       return;
     }
-    setDisabledBudgets((prev) => {
-      const next = { ...prev };
-      if (enabled) {
-        delete next[budget.budgetId];
-      } else {
-        next[budget.budgetId] = { ...budget, enabled: false };
-      }
-      return next;
-    });
-    const ok = await saveBudget(budget, budget.limitValue, enabled);
-    if (!ok) {
-      setDisabledBudgets((prev) => {
-        const next = { ...prev };
-        if (enabled) {
-          next[budget.budgetId] = { ...budget, enabled: false };
-        } else {
-          delete next[budget.budgetId];
-        }
-        return next;
-      });
-      budgets.reload();
+    await saveBudget(budget, budget.limitValue, enabled);
+  };
+
+  const toggleRule = async (rule: RiskRuleView, enabled: boolean) => {
+    setTogglingRule(rule.ruleCode);
+    setBudgetError(null);
+    setBudgetNotice(null);
+    try {
+      await api.post<RiskRuleView>(
+        `/api/risk/rules/${encodeURIComponent(rule.ruleCode)}/toggle`,
+        undefined,
+        { params: { enabled } },
+      );
+      setBudgetNotice(`规则 ${rule.ruleCode} 已${enabled ? '启用' : '停用'}`);
+      rulesApi.reload();
+    } catch (err) {
+      setBudgetError(errorText(err));
+    } finally {
+      setTogglingRule(null);
     }
   };
 
@@ -240,12 +252,8 @@ export default function RiskPage() {
 
   const blacklistRows = (blacklist.data ?? []).map((symbol) => ({ symbol }));
   const violations = result?.violations ?? [];
-  const budgetRows = [
-    ...(budgets.data ?? []),
-    ...Object.values(disabledBudgets).filter(
-      (row) => !(budgets.data ?? []).some((item) => item.budgetId === row.budgetId),
-    ),
-  ];
+  const budgetRows = budgets.data ?? [];
+  const ruleRows = rulesApi.data ?? [];
 
   return (
     <Page title="事前风控" subtitle="下单前风控试算、黑名单管理与拦截日志">
@@ -353,6 +361,69 @@ export default function RiskPage() {
             rows={budgetRows}
             rowKey={(row: RiskBudget) => row.budgetId}
             empty="暂无风险预算规则"
+          />
+        </AsyncState>
+      </Card>
+
+      <Card
+        title="事前风控规则"
+        actions={
+          <>
+            <span className="muted">开关即时生效 · 阈值当前只读</span>
+            <Button size="sm" onClick={() => rulesApi.reload()} disabled={togglingRule !== null}>
+              刷新
+            </Button>
+          </>
+        }
+      >
+        <AsyncState
+          loading={rulesApi.loading}
+          error={rulesApi.error}
+          onRetry={rulesApi.reload}
+          empty={!rulesApi.loading && ruleRows.length === 0 && '暂无事前风控规则。'}
+        >
+          <DataTable
+            columns={[
+              { key: 'ruleCode', title: '规则编码' },
+              { key: 'ruleName', title: '规则名称' },
+              {
+                key: 'action',
+                title: '动作',
+                render: (row: RiskRuleView) => <Badge tone={row.action === 'WARN' ? 'warn' : 'danger'}>{row.action ?? 'REJECT'}</Badge>,
+              },
+              {
+                key: 'thresholdParams',
+                title: '阈值参数',
+                render: (row: RiskRuleView) =>
+                  row.thresholdParams ? <code className="inline-code">{row.thresholdParams}</code> : <span className="muted">规则内置</span>,
+              },
+              {
+                key: 'configured',
+                title: '来源',
+                render: (row: RiskRuleView) => (
+                  <Badge tone={row.configured ? 'info' : 'muted'}>{row.configured ? '配置覆盖' : '默认'}</Badge>
+                ),
+              },
+              {
+                key: 'enabled',
+                title: '启用',
+                render: (row: RiskRuleView) => (
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      aria-label={`${row.ruleCode} 启用开关`}
+                      checked={row.enabled}
+                      disabled={togglingRule === row.ruleCode}
+                      onChange={(event) => toggleRule(row, event.target.checked)}
+                    />
+                    <span className="switch-track" />
+                  </label>
+                ),
+              },
+            ]}
+            rows={ruleRows}
+            rowKey={(row: RiskRuleView) => row.ruleCode}
+            empty="暂无事前风控规则"
           />
         </AsyncState>
       </Card>

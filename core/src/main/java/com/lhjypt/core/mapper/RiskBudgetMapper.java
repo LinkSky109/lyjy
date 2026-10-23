@@ -30,6 +30,15 @@ public interface RiskBudgetMapper extends BaseMapper<RiskBudget> {
     List<RiskBudget> selectFiltered(@Param("scopeType") String scopeType,
                                     @Param("scopeId") String scopeId);
 
+    @Select("<script>"
+            + "SELECT * FROM risk_budget WHERE deleted = 0 "
+            + "<if test='scopeType != null'> AND scope_type = #{scopeType}</if> "
+            + "<if test='scopeId != null'> AND scope_id = #{scopeId}</if> "
+            + "ORDER BY scope_type, scope_id"
+            + "</script>")
+    List<RiskBudget> selectAllFiltered(@Param("scopeType") String scopeType,
+                                       @Param("scopeId") String scopeId);
+
     @Select("SELECT * FROM risk_budget WHERE deleted = 0 AND enabled = TRUE")
     List<RiskBudget> selectEnabled();
 }

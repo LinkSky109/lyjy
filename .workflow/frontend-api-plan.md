@@ -130,7 +130,7 @@
 - 默认 true，保持原有“即时成交”行为；生产无需该开关
 - 相比新增 `sim` 接口，无需额外攻击面与权限分支
 
-### 3.6 风险预算包含禁用项
+### 3.6 风险预算包含禁用项 · **状态：已实现（2026-10-23）**
 
 `GET /api/risk/budget/list?includeDisabled=true`
 
@@ -175,7 +175,7 @@
 - 需要 `PortfolioPosition` 增加 `strategyId`（或按订单归属聚合）
 - 前端按 `contribution` 排序展示条形贡献
 
-### 4.3 风控规则（通用）
+### 4.3 风控规则（通用）· **部分实现（列表/开关已上线，阈值编辑待规则支持动态参数）**
 
 - `GET /api/risk/rules` → 规则列表（ruleCode/name/enabled/threshold/action/updatedAt）
 - `PUT /api/risk/rules/{ruleCode}` → 更新阈值与动作
@@ -268,7 +268,7 @@
 1. **P0-a**：3.7 组件状态 + 3.1 仪表盘汇总（只读，低风险）· ✅ 已完成
 2. **P0-b**：3.2 合约元数据 + 3.3 行情快照（交易页真实性）· ✅ 已完成
 3. **P0-c**：3.4 委托历史/可撤 + 3.5 测试挂单（撤单闭环）· ✅ 已完成
-4. **P1-a**：3.6 预算禁用项 + 4.3 风控规则
+4. **P1-a**：3.6 预算禁用项 + 4.3 风控规则 · ✅ 列表/开关完成
 5. **P1-b**：4.4 资金账户/划转 + 4.5 分页
 6. **P1-c**：4.1/4.2 组合净值与归因（依赖数据表）
 
@@ -314,3 +314,17 @@
   - UI 回执：`撤单成功 orderId=... status=CANCELED`
 - 测试：`OrderManagementServicePagingTest`（3）+ `MockCTPGatewayHoldTest`（1）
 - 验证后已将后端恢复默认（自动成交开启）
+
+### 2026-10-23 · P1-a 完成（规则阈值编辑除外）
+
+- `GET /api/risk/budget/list?includeDisabled=true`
+  - 默认行为不变；前端风险页已改为始终展示禁用预算，移除本地临时保留逻辑
+- `GET /api/risk/rules`
+  - 返回 5 条事前规则：BLACKLIST/FUND_CHECK/FREQ_LIMIT/POSITION_LIMIT/SELF_TRADE
+  - 字段：ruleCode/ruleName/enabled/configured/thresholdParams/action/updatedAt
+- `POST /api/risk/rules/{ruleCode}/toggle?enabled=`
+  - 写 `risk_rule_config` 并更新运行时覆盖，下一次下单立即生效
+  - 权限：RISK_OFFICER / ADMIN；TRADER 实测 403
+- 前端风险页新增「事前风控规则」表：开关即时生效 + Toast/Notice 回执
+- 未开放阈值编辑：现有规则阈值来自 `@Value` 硬编码，需先为 5 条规则实现参数注入，避免提供“看似生效实则无效”的编辑入口
+- 测试：`RiskRuleConfigServiceTest`（4）+ 预算 includeDisabled（1）

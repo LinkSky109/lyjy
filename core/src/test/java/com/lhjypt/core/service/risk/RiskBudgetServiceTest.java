@@ -246,4 +246,25 @@ class RiskBudgetServiceTest {
         budget.setStatus(RiskBudget.STATUS_OK);
         return budget;
     }
+
+    @Test
+    @DisplayName("includeDisabled=true 返回禁用预算（ADMIN）")
+    void listIncludesDisabledWhenRequested() {
+        UserContextHolder.set(UserContext.of("admin", "ADMIN", null));
+        try {
+            RiskBudget disabled = enabledBudget("ACCOUNT", "ACC-X", "100");
+            disabled.setEnabled(false);
+            disabled.setTenantId("T1");
+            when(budgetMapper.selectAllFiltered(null, null)).thenReturn(List.of(disabled));
+
+            List<RiskBudget> result = service.list(null, null, true);
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).getEnabled()).isFalse();
+            verify(budgetMapper).selectAllFiltered(null, null);
+        } finally {
+            UserContextHolder.clear();
+            TenantContextHolder.clear();
+        }
+    }
 }

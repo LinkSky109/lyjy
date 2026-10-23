@@ -37,6 +37,7 @@ public class PreTradeRiskService {
     private final OrderFrequencyRule orderFrequencyRule;
     private final SelfTradePreventionRule selfTradeRule;
     private final BlacklistRule blacklistRule;
+    private final RiskRuleConfigService ruleConfigService;
     private final RiskInterceptLogMapper interceptLogMapper;
     private final OpenBlockRegistry openBlockRegistry;
     private final com.lhjypt.core.service.degrade.DegradeService degradeService;
@@ -74,7 +75,7 @@ public class PreTradeRiskService {
         }
 
         for (RiskRule rule : getRules()) {
-            if (rule.isEnabled()) {
+            if (ruleConfigService.isEnabled(rule.getCode(), rule.isEnabled())) {
                 try {
                     rule.check(request, context, result);
                 } catch (Exception e) {

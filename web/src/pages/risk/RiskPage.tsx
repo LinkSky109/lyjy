@@ -447,8 +447,14 @@ export default function RiskPage() {
               {
                 key: 'thresholdParams',
                 title: '阈值参数',
-                render: (row: RiskRuleView) =>
-                  row.thresholdParams ? <code className="inline-code">{row.thresholdParams}</code> : <span className="muted">规则内置</span>,
+                render: (row: RiskRuleView) => {
+                  const params = row.thresholdParams ?? row.defaultThresholdParams;
+                  return params ? (
+                    <code className="inline-code">{params}</code>
+                  ) : (
+                    <span className="muted">规则内置</span>
+                  );
+                },
               },
               {
                 key: 'configured',

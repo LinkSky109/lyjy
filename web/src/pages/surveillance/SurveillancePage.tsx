@@ -226,7 +226,6 @@ export default function SurveillancePage() {
                     </Button>
                     <Button
                       size="sm"
-                      variant="primary"
                       disabled={row.status !== 'OPEN'}
                       onClick={() => openAction('confirm', row)}
                     >

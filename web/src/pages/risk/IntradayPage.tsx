@@ -387,7 +387,7 @@ export default function IntradayPage() {
               />
             </Field>
             <Toolbar>
-              <Button variant="primary" onClick={saveRule} disabled={saving}>
+              <Button onClick={saveRule} disabled={saving}>
                 {saving ? '保存中…' : '保存规则'}
               </Button>
               <Button onClick={resetRuleForm} disabled={saving}>
@@ -463,7 +463,7 @@ export default function IntradayPage() {
                 placeholder="ACC001"
               />
             </Field>
-            <Button variant="primary" onClick={() => setCommittedAccount(statusAccount.trim())}>
+            <Button onClick={() => setCommittedAccount(statusAccount.trim())}>
               查询
             </Button>
           </Toolbar>
@@ -561,7 +561,6 @@ export default function IntradayPage() {
                 />
               </Field>
               <Button
-                variant="primary"
                 disabled={releasing}
                 onClick={() => releaseBlock(releaseScopeType, releaseScopeId)}
               >

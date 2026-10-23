@@ -790,7 +790,7 @@ export default function TradingPage() {
                     onChange={(event) => setCancelReason(event.target.value)}
                   />
                 </Field>
-                <Button variant="primary" onClick={loadOrder} disabled={queryLoading}>
+                <Button onClick={loadOrder} disabled={queryLoading}>
                   {queryLoading ? '查询中…' : '查询订单'}
                 </Button>
                 <Button onClick={() => activeOrders.reload()}>刷新在途</Button>

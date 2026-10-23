@@ -365,7 +365,7 @@ export default function BacktestPage() {
           </Field>
         </Grid>
         <Toolbar>
-          <Button variant="primary" disabled={optBusy} onClick={runOptimize}>
+          <Button disabled={optBusy} onClick={runOptimize}>
             {optBusy ? '优化中…' : '参数优化'}
           </Button>
         </Toolbar>
@@ -492,7 +492,7 @@ export default function BacktestPage() {
           </Field>
         </Grid>
         <Toolbar>
-          <Button variant="primary" disabled={pfBusy} onClick={runPortfolioOptimize}>
+          <Button disabled={pfBusy} onClick={runPortfolioOptimize}>
             {pfBusy ? '组合优化中…' : '组合优化'}
           </Button>
         </Toolbar>
@@ -540,7 +540,7 @@ export default function BacktestPage() {
           </Field>
         </Grid>
         <Toolbar>
-          <Button variant="primary" disabled={rbBusy} onClick={runRobustness}>
+          <Button disabled={rbBusy} onClick={runRobustness}>
             {rbBusy ? '检验中…' : '稳健性检验'}
           </Button>
         </Toolbar>

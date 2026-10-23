@@ -471,7 +471,7 @@ export default function RiskPage() {
               placeholder="添加到黑名单"
             />
           </Field>
-          <Button variant="primary" onClick={addBlacklist} disabled={acting || !blacklistInput.trim()}>
+          <Button onClick={addBlacklist} disabled={acting || !blacklistInput.trim()}>
             添加
           </Button>
         </Toolbar>

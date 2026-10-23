@@ -32,6 +32,12 @@ public interface TradeRecordMapper extends BaseMapper<TradeRecord> {
     @Select("SELECT * FROM trade_record WHERE trading_day = #{tradingDay} ORDER BY trade_time")
     List<TradeRecord> selectByTradingDay(@Param("tradingDay") String tradingDay);
 
+    @Select("SELECT * FROM trade_record WHERE account_id = #{accountId} "
+            + "AND trade_time >= #{start} AND trade_time < #{end} ORDER BY trade_time")
+    List<TradeRecord> selectByAccountAndTimeRange(@Param("accountId") String accountId,
+                                                  @Param("start") LocalDateTime start,
+                                                  @Param("end") LocalDateTime end);
+
     @Select("SELECT * FROM trade_record WHERE turnover >= #{minTurnover} "
             + "AND trade_time >= #{start} ORDER BY trade_time")
     List<TradeRecord> selectLargeTrades(@Param("minTurnover") BigDecimal minTurnover,

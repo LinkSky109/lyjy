@@ -74,10 +74,15 @@ class SchemaMigrationIntegrationTest {
             ScriptUtils.executeSqlScript(connection,
                     new FileSystemResource(
                             root.resolve("scripts/migration/p2_013_portfolio_circuit.sql")));
+            ScriptUtils.executeSqlScript(connection,
+                    new FileSystemResource(
+                            root.resolve("scripts/migration/p5_001_portfolio_nav.sql")));
 
             assertTrue(columnExists(connection, "orders", "offset_flag"));
             assertTrue(columnExists(connection, "orders", "broker_order_ref"));
             assertTrue(columnExists(connection, "orders", "gateway_id"));
+            assertTrue(columnExists(connection, "portfolio_nav", "nav_date"));
+            assertTrue(columnExists(connection, "portfolio_position", "strategy_id"));
             assertTrue(tableExists(connection, "trade_record"));
             assertTrue(columnExists(connection, "trade_record", "gateway_id"));
             assertTrue(columnExists(connection, "trade_record", "gateway_session_id"));

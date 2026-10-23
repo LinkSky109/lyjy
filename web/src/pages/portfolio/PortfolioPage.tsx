@@ -88,6 +88,26 @@ interface PortfolioDetail {
   deviations?: Deviation[];
 }
 
+interface NavPoint {
+  navDate: string;
+  nav: number;
+  equity: number;
+  cash?: number;
+}
+
+interface AttributionItem {
+  strategyId: string;
+  trades: number;
+  turnover: number;
+  realizedPnl: number;
+  contribution: number;
+}
+
+interface AttributionResult {
+  totalPnl: number;
+  items: AttributionItem[];
+}
+
 const TRIGGER_TYPES = ['MANUAL', 'SCHEDULED', 'RISK'];
 const EXECUTE_MODES = ['MANUAL', 'AUTO'];
 
@@ -122,6 +142,21 @@ export default function PortfolioPage() {
         : Promise.resolve(null),
     [selectedId],
   );
+  const navHistory = useApi<NavPoint[]>(
+    () =>
+      selectedId
+        ? api.get<NavPoint[]>(`/api/portfolio/${selectedId}/nav`)
+        : Promise.resolve([]),
+    [selectedId],
+  );
+  const attribution = useApi<AttributionResult | null>(
+    () =>
+      selectedId
+        ? api.get<AttributionResult>(`/api/portfolio/${selectedId}/attribution`)
+        : Promise.resolve(null),
+    [selectedId],
+  );
+  const [snapshotBusy, setSnapshotBusy] = useState(false);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -135,6 +170,22 @@ export default function PortfolioPage() {
       setBusy(false);
     }
   };
+
+  const recordSnapshot = () =>
+    run(async () => {
+      if (!selectedId) {
+        throw new Error('请先选择组合');
+      }
+      setSnapshotBusy(true);
+      try {
+        await api.post<NavPoint>(`/api/portfolio/${selectedId}/nav/snapshot`);
+        setOkMsg('已记录今日净值快照');
+        navHistory.reload();
+        attribution.reload();
+      } finally {
+        setSnapshotBusy(false);
+      }
+    });
 
   const createPortfolio = () =>
     run(async () => {
@@ -228,6 +279,8 @@ export default function PortfolioPage() {
       setOkMsg(`再平衡执行完成，状态：${result.status ?? '-'}`);
       setExecuteConfirmOpen(false);
       detail.reload();
+      navHistory.reload();
+      attribution.reload();
     });
 
   const portfolioColumns: Column[] = [
@@ -375,6 +428,54 @@ export default function PortfolioPage() {
 
                 <h3 className="subsection-title">再平衡预览</h3>
                 <DataTable columns={instructionColumns} rows={detailData?.preview?.instructions ?? []} empty="暂无预览" rowKey={(row, index) => `${row.symbol}-${index}`} />
+              </AsyncState>
+            )}
+          </Card>
+
+          <Card
+            title="净值曲线"
+            actions={
+              <>
+                <span className="muted">近 30 天 · 账户权益口径</span>
+                <Button size="sm" variant="ghost" disabled={snapshotBusy || !selectedId} onClick={recordSnapshot}>
+                  {snapshotBusy ? '记录中…' : '记录今日快照'}
+                </Button>
+              </>
+            }
+          >
+            {!selectedId ? (
+              <div className="empty">请先选择组合，再查看净值曲线。</div>
+            ) : (
+              <AsyncState
+                loading={navHistory.loading}
+                error={navHistory.error}
+                onRetry={navHistory.reload}
+                empty={
+                  !navHistory.loading &&
+                  (navHistory.data ?? []).length === 0 &&
+                  '暂无净值快照。点击「记录今日快照」开始积累，或执行再平衡自动记录。'
+                }
+              >
+                {(navHistory.data ?? []).length > 0 && <NavChart points={navHistory.data ?? []} />}
+              </AsyncState>
+            )}
+          </Card>
+
+          <Card title="策略贡献" actions={<span className="muted">近 30 天已实现盈亏</span>}>
+            {!selectedId ? (
+              <div className="empty">请先选择组合，再查看策略贡献。</div>
+            ) : (
+              <AsyncState
+                loading={attribution.loading}
+                error={attribution.error}
+                onRetry={attribution.reload}
+                empty={
+                  !attribution.loading &&
+                  (attribution.data?.items ?? []).length === 0 &&
+                  '该区间没有成交，暂无法计算策略贡献。'
+                }
+              >
+                <AttributionBars items={attribution.data?.items ?? []} />
               </AsyncState>
             )}
           </Card>
@@ -554,5 +655,86 @@ export default function PortfolioPage() {
         />
       </Modal>
     </Page>
+  );
+}
+
+function NavChart({ points }: { points: NavPoint[] }) {
+  const width = 720;
+  const height = 220;
+  const padX = 36;
+  const padY = 28;
+  const values = points.map((point) => Number(point.equity));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const stepX = points.length > 1 ? (width - padX * 2) / (points.length - 1) : 0;
+  const yOf = (value: number) => height - padY - ((value - min) / span) * (height - padY * 2);
+  const line = points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'}${padX + index * stepX},${yOf(Number(point.equity))}`)
+    .join(' ');
+  const lastX = padX + (points.length - 1) * stepX;
+  const area = `${line} L ${lastX},${height - padY} L ${padX},${height - padY} Z`;
+  const first = points[0]?.navDate ?? '';
+  const last = points[points.length - 1]?.navDate ?? '';
+  return (
+    <svg
+      className="chart"
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label={`组合净值曲线，${first} 至 ${last}，共 ${points.length} 个快照`}
+    >
+      {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
+        <line
+          key={ratio}
+          x1={padX}
+          x2={width - padX}
+          y1={padY + ratio * (height - padY * 2)}
+          y2={padY + ratio * (height - padY * 2)}
+          className="chart-grid"
+        />
+      ))}
+      <path d={area} className="chart-area" />
+      <path d={line} className="chart-line" />
+      {points.length === 1 && (
+        <circle cx={padX} cy={yOf(values[0])} r={3.5} className="chart-dot" />
+      )}
+      <text x={padX} y={height - 8} className="chart-label">
+        {first}
+      </text>
+      <text x={width - padX} y={height - 8} className="chart-label" textAnchor="end">
+        {last}
+      </text>
+      <text x={padX} y={padY - 8} className="chart-label">
+        {max.toLocaleString('zh-CN')}
+      </text>
+      <text x={width - padX} y={height - padY + 14} className="chart-label" textAnchor="end">
+        {min.toLocaleString('zh-CN')}
+      </text>
+    </svg>
+  );
+}
+
+function AttributionBars({ items }: { items: AttributionItem[] }) {
+  const maxAbs = Math.max(...items.map((item) => Math.abs(item.contribution)), 1);
+  return (
+    <div className="bar-list">
+      {items.map((item) => (
+        <div className="bar-item" key={item.strategyId}>
+          <div className="bar-item-head">
+            <span>{item.strategyId}</span>
+            <span className="num">
+              {item.realizedPnl.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} ·{' '}
+              {item.contribution.toFixed(1)}%
+            </span>
+          </div>
+          <div className="bar-track">
+            <div
+              className="bar-fill"
+              style={{ width: `${Math.max(2, (Math.abs(item.contribution) / maxAbs) * 100)}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

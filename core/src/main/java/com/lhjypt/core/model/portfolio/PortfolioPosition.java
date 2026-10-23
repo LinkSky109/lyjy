@@ -29,5 +29,8 @@ public class PortfolioPosition {
 
     private BigDecimal weightLimit;
 
+    /** 策略归属（用于组合贡献归因，可空）。 */
+    private String strategyId;
+
     private LocalDateTime updateTime;
 }

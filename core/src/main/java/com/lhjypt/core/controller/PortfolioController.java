@@ -5,9 +5,11 @@ import com.lhjypt.core.common.auth.ConfirmTokenService;
 import com.lhjypt.core.common.auth.UserContext;
 import com.lhjypt.core.common.auth.UserContextHolder;
 import com.lhjypt.core.model.portfolio.Portfolio;
+import com.lhjypt.core.model.portfolio.PortfolioNav;
 import com.lhjypt.core.model.portfolio.PortfolioPosition;
 import com.lhjypt.core.model.portfolio.PortfolioRebalanceJob;
 import com.lhjypt.core.model.portfolio.RebalancePreview;
+import com.lhjypt.core.service.portfolio.PortfolioAnalyticsService;
 import com.lhjypt.core.service.portfolio.PortfolioService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,7 +19,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import java.util.List;
 import java.util.Map;
@@ -31,6 +37,7 @@ import java.util.Map;
 public class PortfolioController {
 
     private final PortfolioService portfolioService;
+    private final PortfolioAnalyticsService analyticsService;
     private final ConfirmTokenService confirmTokenService;
 
     @PostMapping
@@ -62,6 +69,27 @@ public class PortfolioController {
                 context.hasAnyRole(UserContext.ROLE_ADMIN)));
     }
 
+    @GetMapping("/{portfolioId}/nav")
+    public Result<List<PortfolioNav>> nav(
+            @PathVariable String portfolioId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return Result.success(analyticsService.nav(portfolioId, from, to));
+    }
+
+    @PostMapping("/{portfolioId}/nav/snapshot")
+    public Result<PortfolioNav> snapshot(@PathVariable String portfolioId) {
+        return Result.success(analyticsService.snapshot(portfolioId));
+    }
+
+    @GetMapping("/{portfolioId}/attribution")
+    public Result<Map<String, Object>> attribution(
+            @PathVariable String portfolioId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+        return Result.success(analyticsService.attribution(portfolioId, from, to));
+    }
+
     @PostMapping("/{portfolioId}/rebalance")
     public Result<PortfolioRebalanceJob> trigger(
             @PathVariable String portfolioId,
@@ -89,8 +117,10 @@ public class PortfolioController {
             return Result.error(409, "执行再平衡需要有效的二次确认令牌");
         }
         UserContext context = UserContextHolder.get();
-        return Result.success(portfolioService.confirm(
+        PortfolioRebalanceJob job = portfolioService.confirm(
                 jobId, context.userId(),
-                context.hasAnyRole(UserContext.ROLE_ADMIN)));
+                context.hasAnyRole(UserContext.ROLE_ADMIN));
+        analyticsService.snapshotQuietly(job.getPortfolioId());
+        return Result.success(job);
     }
 }

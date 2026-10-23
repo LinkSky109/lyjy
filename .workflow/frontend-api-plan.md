@@ -148,7 +148,7 @@
 
 ## 4. P1：精做页面的数据完整性
 
-### 4.1 组合净值历史
+### 4.1 组合净值历史 · **状态：已实现（快照式，权益口径）**
 
 `GET /api/portfolio/{portfolioId}/nav?from=&to=&interval=1d`
 
@@ -161,7 +161,7 @@
 - 数据源建议：`clickhouse` 日快照表 或 新增 `portfolio_nav` 表（日终清算时写入）
 - 无数据返回空数组 + `message`，前端显示空状态
 
-### 4.2 策略贡献
+### 4.2 策略贡献 · **状态：已实现（按成交记录聚合）**
 
 `GET /api/portfolio/{portfolioId}/attribution?from=&to=`
 
@@ -270,7 +270,7 @@
 3. **P0-c**：3.4 委托历史/可撤 + 3.5 测试挂单（撤单闭环）· ✅ 已完成
 4. **P1-a**：3.6 预算禁用项 + 4.3 风控规则 · ✅ 列表/开关完成
 5. **P1-b**：4.4 资金账户/划转 + 4.5 分页 · ✅ 账户/流水/校验完成
-6. **P1-c**：4.1/4.2 组合净值与归因（依赖数据表）
+6. **P1-c**：4.1/4.2 组合净值与归因（依赖数据表）· ✅ 已完成
 
 
 ---
@@ -343,3 +343,23 @@
   - 实测：账户 1 个；流水 `共 11 条`，筛选 `DEPOSIT` 后 `共 1 条`
 - 未做账户间 `transfer`：当前资金模型只有出入金单，账户互转需新增转账台账/双边流水，单独立项
 - 测试：`FundManagementServicePagingTest`（5）
+
+### 2026-10-23 · P1-c 完成
+
+- 迁移 `scripts/migration/p5_001_portfolio_nav.sql`
+  - 新表 `portfolio_nav`（portfolio_id + nav_date 唯一）
+  - `portfolio_position.strategy_id`
+  - `dev.sh` 改为应用 `scripts/migration/*.sql`；schema 测试同步
+- 接口
+  - `GET /api/portfolio/{id}/nav?from=&to=`（默认近 30 天）
+  - `POST /api/portfolio/{id}/nav/snapshot`（按 configJson.accountId 的账户总权益记录当日快照）
+  - `GET /api/portfolio/{id}/attribution?from=&to=`（按 `trade_record.strategy_id` 聚合已实现盈亏）
+  - 再平衡确认成功后自动记录一次快照（失败仅告警，不影响执行）
+- 前端组合页
+  - 新增净值曲线（SVG，1.6px 线 + 面积 + `role=img` aria-label）
+  - 新增策略贡献条形图；净值卡片支持「记录今日快照」
+  - 实测：1 个快照、3 条策略贡献、无错误
+- 口径说明
+  - 净值暂以账户权益表示，未引入份额/单位净值
+  - 策略贡献基于成交记录的 `strategy_id` 与 `realized_pnl`
+- 测试：`PortfolioAnalyticsServiceTest`（5）

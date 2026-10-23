@@ -69,7 +69,7 @@ start_middleware() {
 
 apply_sql() {
   echo "[dev] 应用增量初始化 SQL（幂等，可重复执行）..."
-  for f in scripts/init-p1.sql scripts/init-p2.sql scripts/migration/p2_*.sql; do
+  for f in scripts/init-p1.sql scripts/init-p2.sql scripts/migration/*.sql; do
     echo "      <- $f"
     docker exec -i lhjypt-postgres psql -U lhjypt -d lhjypt < "$ROOT/$f" >/dev/null
   done

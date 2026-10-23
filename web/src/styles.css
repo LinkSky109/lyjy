@@ -1483,6 +1483,40 @@ textarea.input {
   }
 }
 
+/* ---------- chart ---------- */
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chart-grid {
+  stroke: var(--border-soft);
+  stroke-width: 1;
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.chart-area {
+  fill: var(--accent-tint);
+  opacity: 0.9;
+}
+
+.chart-dot {
+  fill: var(--fg);
+}
+
+.chart-label {
+  font-size: 10px;
+  fill: var(--meta);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- login (preserved) ---------- */
 .login-shell {
   min-height: 100vh;

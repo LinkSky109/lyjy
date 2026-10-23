@@ -448,13 +448,6 @@ export default function TradingPage() {
 
       <Card title="账户上下文" actions={<span className="muted">查询条件</span>}>
         <Toolbar>
-          <Field label="账户 ID（accountId）">
-            <Input
-              value={accountDraft}
-              onChange={(event) => setAccountDraft(event.target.value)}
-              placeholder="DEFAULT-001"
-            />
-          </Field>
           <Field label="策略 ID（strategyId，可选）">
             <Input
               value={strategyDraft}
@@ -477,6 +470,14 @@ export default function TradingPage() {
       <div className="split">
         <Card title="委托下单" actions={<span className="muted">事前风控已启用</span>}>
           {orderNotice && <Notice tone={orderNotice.tone}>{orderNotice.text}</Notice>}
+          <Field label="资金账户 accountId">
+            <Input
+              value={accountDraft}
+              onChange={(event) => setAccountDraft(event.target.value)}
+              onBlur={() => setAccountId(accountDraft.trim() || 'DEFAULT-001')}
+              placeholder="DEFAULT-001"
+            />
+          </Field>
           <div className="field">
             <label className="field-label" htmlFor="order-symbol">
               标的代码

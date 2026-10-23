@@ -134,14 +134,8 @@ export default function MonitorPage() {
   const [statusFilter, setStatusFilter] = useState('OPEN');
   const [severityFilter, setSeverityFilter] = useState('');
   const [ackBy, setAckBy] = useState('admin');
-  const health = useApi(
-    () =>
-      api.get<{
-        status: string;
-        components?: Record<string, { status: string; components?: Record<string, { status: string }> }>;
-      }>(
-        '/actuator/health',
-      ),
+  const componentsApi = useApi(
+    () => api.get<Record<string, string>>('/api/monitor/components'),
     [],
   );
   const alerts = useApi(
@@ -298,7 +292,7 @@ export default function MonitorPage() {
 
   const alertsEmpty = !alerts.loading && filteredAlertRows.length === 0 &&
     '当前筛选没有告警事件。切换筛选或到「告警规则」确认阈值是否已配置。';
-  const components = health.data?.components ?? {};
+  const components = componentsApi.data ?? {};
 
   return (
     <Page title="监控告警" subtitle="运行指标、告警规则与告警事件闭环">
@@ -565,49 +559,29 @@ export default function MonitorPage() {
             <div className="status-item">
               <span className="status-label">核心服务</span>
               <span className="status-value">
-                <span
-                  className={`dot ${health.data?.status === 'UP' ? 'dot-ok' : health.data ? 'dot-danger' : ''}`}
-                />
-                {health.data?.status ?? '未上报'}
+                <span className={`dot ${components.service === 'UP' ? 'dot-ok' : components.service ? 'dot-danger' : ''}`} />
+                {components.service ?? '未上报'}
               </span>
             </div>
             <div className="status-item">
               <span className="status-label">PostgreSQL</span>
               <span className="status-value">
-                <span
-                  className={`dot ${
-                    components.db?.components?.primaryDataSource?.status === 'UP'
-                      ? 'dot-ok'
-                      : components.db
-                        ? 'dot-danger'
-                        : ''
-                  }`}
-                />
-                {components.db?.components?.primaryDataSource?.status ?? '未上报'}
+                <span className={`dot ${components.postgres === 'UP' ? 'dot-ok' : components.postgres ? 'dot-danger' : ''}`} />
+                {components.postgres ?? '未上报'}
               </span>
             </div>
             <div className="status-item">
               <span className="status-label">ClickHouse</span>
               <span className="status-value">
-                <span
-                  className={`dot ${
-                    components.db?.components?.clickHouseDataSource?.status === 'UP'
-                      ? 'dot-ok'
-                      : components.db
-                        ? 'dot-danger'
-                        : ''
-                  }`}
-                />
-                {components.db?.components?.clickHouseDataSource?.status ?? '未上报'}
+                <span className={`dot ${components.clickhouse === 'UP' ? 'dot-ok' : components.clickhouse ? 'dot-danger' : ''}`} />
+                {components.clickhouse ?? '未上报'}
               </span>
             </div>
             <div className="status-item">
               <span className="status-label">Redis</span>
               <span className="status-value">
-                <span
-                  className={`dot ${components.redis?.status === 'UP' ? 'dot-ok' : components.redis ? 'dot-danger' : ''}`}
-                />
-                {components.redis?.status ?? '未上报'}
+                <span className={`dot ${components.redis === 'UP' ? 'dot-ok' : components.redis ? 'dot-danger' : ''}`} />
+                {components.redis ?? '未上报'}
               </span>
             </div>
           </div>

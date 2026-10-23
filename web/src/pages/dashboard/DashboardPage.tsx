@@ -14,31 +14,22 @@ import {
   statusTone,
 } from '../../components/ui';
 
-interface HealthComponent {
-  status: string;
-  components?: Record<string, HealthComponent>;
-}
-
-interface Health {
-  status: string;
-  components?: Record<string, HealthComponent>;
-}
-
-interface MarketStatus {
-  running?: boolean;
-  subscribed?: string[];
-}
-
-interface FundAccountView {
-  accountId: string;
-  accountName?: string;
-  currency?: string;
-  totalAsset?: number;
-  availableCash?: number;
-  frozenCash?: number;
-  margin?: number;
-  unrealizedPnl?: number;
-  realizedPnl?: number;
+interface DashboardSummary {
+  service: { status: string };
+  market: { running: boolean; subscribed: number };
+  components: Record<string, string>;
+  equity: {
+    total: number;
+    available: number;
+    frozen: number;
+    margin: number;
+    marginRatio: number;
+    accounts: number;
+  };
+  pnl: { unrealized: number; realized: number; combined: number; basis: string };
+  alerts: { open: number; critical: number };
+  orders: { active: number; filledToday: number };
+  asOf?: string;
 }
 
 interface PositionView {
@@ -105,51 +96,43 @@ function dotClass(ok: boolean | undefined): string {
   return ok ? 'dot dot-ok' : 'dot dot-danger';
 }
 
+function statusOk(status: string | undefined): boolean | undefined {
+  if (!status) {
+    return undefined;
+  }
+  return status === 'UP';
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [refreshedAt, setRefreshedAt] = useState(() => new Date());
 
-  const health = useApi(() => api.get<Health>('/actuator/health'), []);
-  const market = useApi(() => api.get<MarketStatus>('/api/market/status'), []);
-  const metrics = useApi(() => api.get<Record<string, unknown>>('/api/monitor/metrics/latest'), []);
+  const summary = useApi(() => api.get<DashboardSummary>('/api/dashboard/summary'), []);
   const alerts = useApi(() => api.get<AlertEvent[]>('/api/monitor/alerts', { status: 'OPEN' }), []);
-  const account = useApi(
-    () => api.get<FundAccountView>('/api/trade/platform/account', { accountId: 'DEFAULT-001' }),
-    [],
-  );
   const positions = useApi(
     () => api.get<PositionView[]>('/api/trade/platform/positions', { accountId: 'DEFAULT-001' }),
     [],
   );
   const orders = useApi(() => api.get<OrderView[]>('/api/oms/orders/active'), []);
 
-  const components = health.data?.components ?? {};
-  const serviceOk = health.data?.status === 'UP';
-  const marketOk = market.data?.running;
-  const dbOk = components.db?.components?.primaryDataSource?.status === 'UP';
-  const kafkaStatus = components.kafka?.status;
+  const data = summary.data;
+  const components = data?.components ?? {};
+  const serviceStatus = data?.service.status;
+  const marketRunning = data?.market.running;
   const openAlerts = alerts.data ?? [];
-  const accountData = account.data;
   const positionRows = positions.data ?? [];
   const orderRows = orders.data ?? [];
-  const metricEntries = Object.entries(metrics.data ?? {});
 
-  const equity = accountData?.totalAsset;
-  const pnl =
-    accountData?.unrealizedPnl !== undefined || accountData?.realizedPnl !== undefined
-      ? (accountData?.unrealizedPnl ?? 0) + (accountData?.realizedPnl ?? 0)
-      : undefined;
-  const available = accountData?.availableCash;
-  const margin = accountData?.margin;
-  const marginRatio =
-    equity !== undefined && equity > 0 && margin !== undefined ? (margin / equity) * 100 : undefined;
+  const equity = data?.equity.total;
+  const pnl = data?.pnl.combined;
+  const available = data?.equity.available;
+  const margin = data?.equity.margin;
+  const marginRatio = data?.equity.marginRatio;
+  const frozen = data?.equity.frozen;
 
   const reloadAll = () => {
-    health.reload();
-    market.reload();
-    metrics.reload();
+    summary.reload();
     alerts.reload();
-    account.reload();
     positions.reload();
     orders.reload();
     setRefreshedAt(new Date());
@@ -171,37 +154,49 @@ export default function DashboardPage() {
         </>
       }
     >
+      {summary.error && (
+        <div className="error-box" role="alert">
+          <div className="error-copy">
+            <strong>仪表盘汇总加载失败</strong>
+            <span className="error-detail">{summary.error}</span>
+            <span className="error-hint">请确认 `/api/dashboard/summary` 可用，然后重试。</span>
+          </div>
+          <Button size="sm" onClick={summary.reload}>
+            重试
+          </Button>
+        </div>
+      )}
+
       <div className="status-strip">
         <div className="status-item">
           <span className="status-label">核心服务</span>
           <span className="status-value">
-            <span className={dotClass(serviceOk)} />
-            {health.data ? (serviceOk ? '健康' : '异常') : '未上报'}
-            {health.error && <span className="num">{health.error}</span>}
+            <span className={dotClass(statusOk(serviceStatus))} />
+            {serviceStatus ? (serviceStatus === 'UP' ? '健康' : serviceStatus) : '未上报'}
           </span>
         </div>
         <div className="status-item">
           <span className="status-label">行情服务</span>
           <span className="status-value">
-            <span className={dotClass(marketOk)} />
-            {market.data ? (marketOk ? '运行中' : '已停止') : '未上报'}
+            <span className={dotClass(marketRunning)} />
+            {data?.market ? (marketRunning ? '运行中' : '已停止') : '未上报'}
             <span className="num">
-              {market.data?.subscribed ? `${market.data.subscribed.length} 个订阅` : ''}
+              {data?.market ? `${data.market.subscribed} 个订阅` : ''}
             </span>
           </span>
         </div>
         <div className="status-item">
           <span className="status-label">PostgreSQL</span>
           <span className="status-value">
-            <span className={dotClass(components.db?.components?.primaryDataSource ? dbOk : undefined)} />
-            {components.db?.components?.primaryDataSource?.status ?? '未上报'}
+            <span className={dotClass(statusOk(components.postgres))} />
+            {components.postgres ?? '未上报'}
           </span>
         </div>
         <div className="status-item">
           <span className="status-label">Kafka</span>
           <span className="status-value">
-            <span className={dotClass(kafkaStatus ? kafkaStatus === 'UP' : undefined)} />
-            {kafkaStatus ?? '未上报'}
+            <span className={dotClass(statusOk(components.kafka))} />
+            {components.kafka ?? '未上报'}
           </span>
         </div>
       </div>
@@ -211,13 +206,13 @@ export default function DashboardPage() {
           label="总权益"
           value={money(equity)}
           tone="info"
-          hint={accountData ? `${accountData.accountName ?? accountData.accountId} · 模拟盘` : '后端未返回账户聚合'}
+          hint={data?.equity ? `${data.equity.accounts} 个资金账户 · 模拟盘` : '后端未返回资金聚合'}
         />
         <Stat
           label="浮动 + 已实现盈亏"
           value={money(pnl)}
           tone={pnl === undefined ? 'muted' : pnl >= 0 ? 'ok' : 'danger'}
-          hint={accountData ? '后端无当日聚合，按账户累计展示' : '后端未返回账户数据'}
+          hint={data?.pnl ? '累计口径（后端 basis=CUMULATIVE）' : '后端未返回盈亏数据'}
         />
         <Stat
           label="可用资金"
@@ -226,14 +221,14 @@ export default function DashboardPage() {
           hint={
             available !== undefined && equity
               ? `占总权益 ${pct((available / equity) * 100)}`
-              : '后端未返回账户数据'
+              : '后端未返回资金数据'
           }
         />
         <Stat
           label="保证金占用"
           value={pct(marginRatio)}
           tone={marginRatio !== undefined && marginRatio >= 70 ? 'danger' : 'warn'}
-          hint={margin !== undefined ? `保证金 ${money(margin)} · 预警线 70%` : '后端未返回账户数据'}
+          hint={margin !== undefined ? `保证金 ${money(margin)} · 预警线 70%` : '后端未返回资金数据'}
         />
       </Grid>
 
@@ -342,12 +337,7 @@ export default function DashboardPage() {
 
         <div className="col">
           <Card title="账户与风险" actions={<span className="muted">实时</span>}>
-            <AsyncState
-              loading={account.loading}
-              error={account.error}
-              onRetry={account.reload}
-              empty={!account.loading && !accountData && '后端未返回账户数据'}
-            >
+            <AsyncState loading={summary.loading} error={summary.error} onRetry={summary.reload}>
               <dl className="kv kv-single">
                 <div className="kv-row">
                   <dt>总权益</dt>
@@ -356,13 +346,13 @@ export default function DashboardPage() {
                 <div className="kv-row">
                   <dt>可用 / 冻结</dt>
                   <dd>
-                    {money(available)} / {money(accountData?.frozenCash)}
+                    {money(available)} / {money(frozen)}
                   </dd>
                 </div>
                 <div className="kv-row">
                   <dt>浮动 / 已实现</dt>
                   <dd>
-                    {money(accountData?.unrealizedPnl)} / {money(accountData?.realizedPnl)}
+                    {money(data?.pnl.unrealized)} / {money(data?.pnl.realized)}
                   </dd>
                 </div>
               </dl>
@@ -383,7 +373,7 @@ export default function DashboardPage() {
                     style={{ width: `${Math.min(100, marginRatio ?? 0)}%` }}
                   />
                 </div>
-                <span className="field-hint">预警线 70% · 以账户聚合值计算</span>
+                <span className="field-hint">预警线 70% · 以全部资金账户聚合</span>
               </div>
             </AsyncState>
           </Card>
@@ -413,8 +403,7 @@ export default function DashboardPage() {
         actions={
           <>
             <span className="muted">
-              {orderRows.length} 笔在途
-              {metricEntries.length > 0 ? ` · ${metricEntries.length} 项指标已上报` : ''}
+              {orderRows.length} 笔在途 · 今日成交 {data?.orders.filledToday ?? '-'} 笔
             </span>
             <Button size="sm" variant="ghost" onClick={() => navigate('/trading')}>
               委托列表

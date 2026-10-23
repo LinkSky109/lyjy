@@ -7,6 +7,7 @@ import com.lhjypt.core.mapper.MetricSampleMapper;
 import com.lhjypt.core.model.monitor.AlertEvent;
 import com.lhjypt.core.model.monitor.AlertRule;
 import com.lhjypt.core.model.monitor.MetricSample;
+import com.lhjypt.core.service.dashboard.DashboardService;
 import com.lhjypt.core.service.monitor.MetricSampler;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,15 +28,27 @@ public class MonitorController {
     private final AlertRuleMapper alertRuleMapper;
     private final AlertEventMapper alertEventMapper;
     private final MetricSampler metricSampler;
-    
+    private final DashboardService dashboardService;
+
     public MonitorController(MetricSampleMapper metricSampleMapper,
                              AlertRuleMapper alertRuleMapper,
                              AlertEventMapper alertEventMapper,
-                             MetricSampler metricSampler) {
+                             MetricSampler metricSampler,
+                             DashboardService dashboardService) {
         this.metricSampleMapper = metricSampleMapper;
         this.alertRuleMapper = alertRuleMapper;
         this.alertEventMapper = alertEventMapper;
         this.metricSampler = metricSampler;
+        this.dashboardService = dashboardService;
+    }
+
+    /**
+     * 服务组件状态（PostgreSQL / ClickHouse / Redis / Kafka）。
+     * Kafka 未注册健康组件时返回 UNKNOWN。
+     */
+    @GetMapping("/components")
+    public Result<Map<String, Object>> components() {
+        return Result.success(dashboardService.components());
     }
     
     /**

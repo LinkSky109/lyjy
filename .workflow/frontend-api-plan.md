@@ -63,7 +63,7 @@
 
 ### 3.1 仪表盘汇总
 
-`GET /api/dashboard/summary`
+`GET /api/dashboard/summary` · **状态：已实现（2026-10-23）**
 
 - 角色：`ADMIN`（其他角色返回本租户可见范围）
 - 用途：一次请求渲染状态条 + 4 指标，避免前端拼装
@@ -75,7 +75,7 @@
   "market": { "running": true, "subscribed": 3, "lastTickAt": "2026-10-23T10:00:00" },
   "components": { "postgres": "UP", "clickhouse": "UP", "redis": "UP", "kafka": "UP" },
   "equity": { "total": 999256.86, "available": 893824.38, "frozen": 14932.05, "margin": 90500.42, "marginRatio": 9.1 },
-  "pnl": { "today": -460.20, "unrealized": 0.0, "realized": -460.20 },
+  "pnl": { "unrealized": 0.0, "realized": -460.20, "combined": -460.20, "basis": "CUMULATIVE" },
   "alerts": { "open": 2, "critical": 0 },
   "orders": { "active": 2, "filledToday": 1 },
   "asOf": "2026-10-23T10:00:00"
@@ -139,7 +139,7 @@
 
 ### 3.7 服务组件
 
-`GET /api/monitor/components`
+`GET /api/monitor/components` · **状态：已实现（2026-10-23）**
 
 - 返回 `postgres/clickhouse/redis/kafka/market` 状态与延迟
 - 替代前端直接解析 `/actuator/health` 的嵌套结构
@@ -222,7 +222,7 @@
 
 | 页面 | 依赖接口 | 优先级 |
 |---|---|---|
-| 仪表盘 | 3.1、3.7 | P0 |
+| 仪表盘 | 3.1、3.7（已接入） | P0 ✅ |
 | 交易下单 | 3.2、3.3、3.4、3.5 | P0 |
 | 事前风控 | 3.6、4.3 | P0/P1 |
 | 资金管理 | 4.4 | P1 |
@@ -265,9 +265,25 @@
 
 ## 10. 建议落地顺序
 
-1. **P0-a**：3.7 组件状态 + 3.1 仪表盘汇总（只读，低风险）
+1. **P0-a**：3.7 组件状态 + 3.1 仪表盘汇总（只读，低风险）· ✅ 已完成
 2. **P0-b**：3.2 合约元数据 + 3.3 行情快照（交易页真实性）
 3. **P0-c**：3.4 委托历史/可撤 + 3.5 测试挂单（撤单闭环）
 4. **P1-a**：3.6 预算禁用项 + 4.3 风控规则
 5. **P1-b**：4.4 资金账户/划转 + 4.5 分页
 6. **P1-c**：4.1/4.2 组合净值与归因（依赖数据表）
+
+
+---
+
+## 11. 实施记录
+
+### 2026-10-23 · P0-a 完成
+
+- 新增 `GET /api/dashboard/summary`（`DashboardController` + `DashboardService`）
+  - 聚合：服务状态、行情运行/订阅、PostgreSQL/ClickHouse/Redis/Kafka 组件、全部资金账户权益、累计盈亏、未确认告警、在途/当日成交委托
+  - 盈亏口径：`unrealized + realized = combined`，`basis=CUMULATIVE`；后端暂无“当日盈亏”聚合，故不虚构 `today`
+- 新增 `GET /api/monitor/components`
+  - Kafka 未注册健康组件时返回 `UNKNOWN`
+- 前端 `DashboardPage` 改为消费 `/api/dashboard/summary`，请求数 7 → 4；汇总失败展示可重试错误块
+- 测试：`DashboardServiceTest`（2）+ `DashboardControllerTest`（1）
+- 验证：`mvn -pl core verify` → 307 tests / 0 fail / 1 skip，JaCoCo 通过；`npm run build` 通过

@@ -312,19 +312,6 @@ html[data-theme="dark"] .nav-item.active {
   min-width: 0;
 }
 
-.avatar {
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--surface-3);
-  color: var(--fg);
-  font-size: 11px;
-  font-weight: 600;
-  flex: none;
-}
-
 .env-pill {
   display: inline-flex;
   align-items: center;
@@ -912,26 +899,6 @@ textarea.input {
   white-space: nowrap;
 }
 
-.cell-stack {
-  display: block;
-  min-width: 0;
-}
-
-.cell-main {
-  display: block;
-  color: var(--fg);
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.cell-sub {
-  display: block;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.5;
-  margin-top: 1px;
-}
-
 /* ---------- status strip / split ---------- */
 .status-strip {
   display: grid;
@@ -1001,13 +968,6 @@ textarea.input {
 .split {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-  gap: var(--space-5);
-  align-items: start;
-}
-
-.split-wide {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
   gap: var(--space-5);
   align-items: start;
 }
@@ -1198,9 +1158,6 @@ textarea.input {
 .delta-down {
   color: var(--down);
 }
-.delta-flat {
-  color: var(--muted);
-}
 
 .summary-box {
   border: 1px solid var(--border-soft);
@@ -1235,27 +1192,6 @@ textarea.input {
   color: var(--muted);
   font-size: var(--text-sm);
   line-height: 1.6;
-}
-
-.empty-state {
-  padding: 40px 24px;
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  text-align: center;
-}
-
-.empty-title {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--fg);
-}
-
-.empty-copy {
-  font-size: var(--text-xs);
-  color: var(--muted);
-  max-width: 40ch;
-  text-wrap: pretty;
 }
 
 .skeleton {
@@ -1595,8 +1531,7 @@ textarea.input {
 
 /* ---------- responsive ---------- */
 @media (max-width: 1180px) {
-  .split,
-  .split-wide {
+  .split {
     grid-template-columns: minmax(0, 1fr);
   }
   .grid-cols-4 {

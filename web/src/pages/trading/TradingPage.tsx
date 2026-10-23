@@ -469,7 +469,7 @@ export default function TradingPage() {
 
       <div className="split">
         <Card title="委托下单" actions={<span className="muted">事前风控已启用</span>}>
-          {orderNotice && <Notice tone={orderNotice.tone}>{orderNotice.text}</Notice>}
+          {orderNotice && <Notice tone={orderNotice.tone} live>{orderNotice.text}</Notice>}
           <Field label="资金账户 accountId">
             <Input
               value={accountDraft}

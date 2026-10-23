@@ -516,6 +516,22 @@ export function Grid({ columns = 3, children }: { columns?: number; children: Re
   return <div className={`grid grid-cols-${safe}`}>{children}</div>;
 }
 
-export function Notice({ tone = 'info', children }: { tone?: Tone; children: ReactNode }) {
-  return <div className={`notice notice-${tone}`}>{children}</div>;
+export function Notice({
+  tone = 'info',
+  live = false,
+  children,
+}: {
+  tone?: Tone;
+  live?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`notice notice-${tone}`}
+      role={live ? (tone === 'danger' ? 'alert' : 'status') : undefined}
+      aria-live={live ? (tone === 'danger' ? 'assertive' : 'polite') : undefined}
+    >
+      {children}
+    </div>
+  );
 }

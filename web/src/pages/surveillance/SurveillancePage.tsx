@@ -189,8 +189,8 @@ export default function SurveillancePage() {
             {scanning ? '扫描中…' : '手动扫描'}
           </Button>
         </Toolbar>
-        {scanError && <Notice tone="danger">{scanError}</Notice>}
-        {scanMessage && <Notice tone="ok">{scanMessage}</Notice>}
+        {scanError && <Notice tone="danger" live>{scanError}</Notice>}
+        {scanMessage && <Notice tone="ok" live>{scanMessage}</Notice>}
         <AsyncState
           loading={alerts.loading}
           error={alerts.error}
@@ -326,7 +326,7 @@ export default function SurveillancePage() {
         <Field label="处置说明">
           <Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} />
         </Field>
-        {actionError && <Notice tone="danger">{actionError}</Notice>}
+        {actionError && <Notice tone="danger" live>{actionError}</Notice>}
       </Modal>
     </Page>
   );

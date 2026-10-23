@@ -274,8 +274,8 @@ export default function GatewayPage() {
         onChange={setTab}
       />
 
-      {actionError && <Notice tone="danger">{actionError}</Notice>}
-      {okMsg && <Notice tone="ok">{okMsg}</Notice>}
+      {actionError && <Notice tone="danger" live>{actionError}</Notice>}
+      {okMsg && <Notice tone="ok" live>{okMsg}</Notice>}
 
       {tab === 'gateways' && (
         <>

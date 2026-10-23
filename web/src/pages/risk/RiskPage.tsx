@@ -279,8 +279,8 @@ export default function RiskPage() {
           </>
         }
       >
-        {budgetError && <Notice tone="danger">{budgetError}</Notice>}
-        {budgetNotice && <Notice tone="ok">{budgetNotice}</Notice>}
+        {budgetError && <Notice tone="danger" live>{budgetError}</Notice>}
+        {budgetNotice && <Notice tone="ok" live>{budgetNotice}</Notice>}
         <AsyncState
           loading={budgets.loading}
           error={budgets.error}
@@ -433,7 +433,7 @@ export default function RiskPage() {
           </Button>
         </Toolbar>
 
-        {checkError && <Notice tone="danger">{checkError}</Notice>}
+        {checkError && <Notice tone="danger" live>{checkError}</Notice>}
 
         {result && (
           <div className="mt-3">
@@ -476,7 +476,7 @@ export default function RiskPage() {
           </Button>
         </Toolbar>
 
-        {actionError && <Notice tone="danger">{actionError}</Notice>}
+        {actionError && <Notice tone="danger" live>{actionError}</Notice>}
 
         <AsyncState
           loading={blacklist.loading}

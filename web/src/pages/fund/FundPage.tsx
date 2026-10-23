@@ -425,7 +425,7 @@ export default function FundPage() {
 
         {tab === 'transaction' && (
           <div className="stack-sm">
-            {txNotice && <Notice tone={txNotice.tone}>{txNotice.text}</Notice>}
+            {txNotice && <Notice tone={txNotice.tone} live>{txNotice.text}</Notice>}
             <Grid columns={3}>
               <Field label="账户 ID accountId">
                 <Input
@@ -503,7 +503,7 @@ export default function FundPage() {
             )}
 
             <Card title="出入金审核">
-              {approveNotice && <Notice tone={approveNotice.tone}>{approveNotice.text}</Notice>}
+              {approveNotice && <Notice tone={approveNotice.tone} live>{approveNotice.text}</Notice>}
               <Toolbar>
                 <Field label="流水号 transactionNo">
                   <Input
@@ -626,7 +626,7 @@ export default function FundPage() {
 
         {tab === 'reconcile' && (
           <div className="stack-sm">
-            {reconNotice && <Notice tone={reconNotice.tone}>{reconNotice.text}</Notice>}
+            {reconNotice && <Notice tone={reconNotice.tone} live>{reconNotice.text}</Notice>}
             <Field label="账户 ID accountId">
               <Input
                 value={reconAccountId}

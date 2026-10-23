@@ -475,8 +475,8 @@ export default function MonitorPage() {
                 清空表单
               </Button>
             </Toolbar>
-            {ruleError && <Notice tone="danger">{ruleError}</Notice>}
-            {ruleMessage && <Notice tone="ok">{ruleMessage}</Notice>}
+            {ruleError && <Notice tone="danger" live>{ruleError}</Notice>}
+            {ruleMessage && <Notice tone="ok" live>{ruleMessage}</Notice>}
           </Card>
 
           <Card title="告警规则列表">
@@ -612,7 +612,7 @@ export default function MonitorPage() {
             </div>
           </div>
 
-          {alertError && <Notice tone="danger">{alertError}</Notice>}
+          {alertError && <Notice tone="danger" live>{alertError}</Notice>}
           <AsyncState
             loading={alerts.loading}
             error={alerts.error}

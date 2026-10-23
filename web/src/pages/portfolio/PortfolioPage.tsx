@@ -311,8 +311,8 @@ export default function PortfolioPage() {
         onChange={setTab}
       />
 
-      {actionError && <Notice tone="danger">{actionError}</Notice>}
-      {okMsg && <Notice tone="ok">{okMsg}</Notice>}
+      {actionError && <Notice tone="danger" live>{actionError}</Notice>}
+      {okMsg && <Notice tone="ok" live>{okMsg}</Notice>}
 
       {tab === 'portfolio' && (
         <>

@@ -4,15 +4,15 @@
 
 | 模块 | 职责 | 状态 |
 |------|------|------|
-| market-data | 行情接入、清洗、存储、分发 | P0 |
-| order-management (OMS) | 订单全生命周期管理 | P0 |
-| execution (EMS) | 柜台对接、订单路由、算法交易 | P0(CTP) / P1(多柜台) |
-| risk-control | 事前/事中风控、黑白名单、止损 | P0 |
-| fund-management | 资金冻结/解冻、账户管理、清算 | P0(基础) / P1(清算) |
-| backtest-engine | tick级回测、撮合模拟、成本模型 | P0 |
-| strategy-sdk | Python策略开发工具包 | P0 |
-| portfolio | 组合管理、再平衡、风险预算 | P1 |
-| compliance | 监管报送、异常交易、AML | P2 |
+| market-data | 行情接入、清洗、存储、分发、回补与质量巡检 | 已实现 |
+| order-management (OMS) | 订单全生命周期、分页历史与可撤状态 | 已实现 |
+| execution (EMS) | Mock/CTP 网关、订单路由、故障切换 | 已实现（CTP 适配层预留） |
+| risk-control | 事前规则/开关、风险预算、事中限制、黑白名单 | 已实现 |
+| fund-management | 资金冻结/解冻、账户/流水、对账、清算 | 已实现 |
+| backtest-engine | K 线回测、撮合、参数/组合优化、稳健性 | 已实现 |
+| strategy-sdk | Python 策略 SDK、沙箱、水印 | 已实现 |
+| portfolio | 组合管理、再平衡、净值快照、策略归因 | 已实现 |
+| compliance | 监管报送、异常交易、AML、审计 | 已实现 |
 
 ## 二、核心数据流
 

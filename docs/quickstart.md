@@ -1,85 +1,127 @@
-# lhjypt 单人快速上手（Quickstart）
+# lhjypt 单人快速上手
 
-> 目标：**一条命令跑起全平台**，从启动到第一次策略运行不超过 5 分钟。
-> 适用：单人使用（仅你本人），本机 macOS/Linux，Docker + JDK17 + Maven + Node 已安装。
+> 目标：一条命令跑起全平台，从启动到第一次策略/交易闭环不超过 5 分钟。
+> 适用：本机 macOS/Linux，已安装 Docker + JDK17 + Maven + Node。
 
 ## 1. 一键启动
 
 ```bash
+cd /Users/link/myApp/lhjypt
 ./scripts/dev.sh up
 ```
 
-该命令幂等、可重复执行，依次完成：
-1. 启动中间件 5 容器（PostgreSQL / ClickHouse / Kafka / Zookeeper / Redis）并等待健康
-2. 应用增量初始化 SQL（init-p1 / init-p2 / 全部 p2 迁移，均为 `IF NOT EXISTS` 幂等）
-3. 构建（仅首次或 `LHJYPT_REBUILD=1`）并启动后端 8081
-4. 构建（仅首次）并启动前端 5173（代理到 8081）
+依次完成：
+1. 启动中间件（PostgreSQL / ClickHouse / Kafka / Zookeeper / Redis）并等待健康
+2. 应用 `init-p1.sql`、`init-p2.sql` 与 `scripts/migration/*.sql`（幂等）
+3. 构建（首次或 `LHJYPT_REBUILD=1`）并启动后端 `8081`
+4. 构建（首次）并启动前端（端口取 `LHJYPT_WEB_PORT`，默认 5173）
+
+本机 `.env` 已配置：
+- `LHJYPT_WEB_PORT=5180`（5173 被其它服务占用）
+- `POSTGRES_URL=jdbc:postgresql://127.0.0.1:5433/lhjypt`（5432 被其它项目占用）
+
+访问：
+- 前端：http://localhost:5180
+- 后端：http://localhost:8081
+- 登录：默认 `ADMIN / admin`（本地模拟身份）
 
 ## 2. 常用命令
 
 | 命令 | 说明 |
-|------|------|
-| `./scripts/dev.sh status` | 中间件/后端/前端健康一览 |
-| `./scripts/dev.sh down` | 停止前后端与中间件（保留数据库卷） |
-| `./scripts/dev.sh reset-db` | 删除数据卷并重建初始化（数据归零） |
+|---|---|
+| `./scripts/dev.sh status` | 中间件/后端/前端状态 |
+| `./scripts/dev.sh down` | 停止前后端与中间件（保留数据卷） |
+| `./scripts/dev.sh reset-db` | 删除数据卷并重建（数据归零） |
 | `./scripts/dev.sh logs backend` | 跟踪后端日志 |
-| `./scripts/demo.sh` | 一键演示：上传策略→水印→沙箱运行→停止→审计 |
-| `mvn verify`（Docker 可用时） | 全量构建 + 252 测试 + Testcontainers schema + JaCoCo |
+| `./scripts/demo.sh` | 策略上传→水印→沙箱运行→停止→审计 |
+| `./scripts/channel-demo.sh` | Mock 通道下单→成交→持仓/资金闭环 |
+| `./scripts/obs.sh up` | Prometheus(9090) + Grafana(3000) |
+| `./scripts/healthcheck.sh` | 中间件/后端/数据质量巡检 |
 
-> 本机当前使用 Lima Docker（`~/.lima/tuna-docker`）；其他 Docker 环境设置
-> `LHJYPT_DOCKER_HOST=unix:///path/docker.sock` 即可。
+## 3. 模拟盘
 
-## 3. 一次策略开发闭环（最小路径）
+1. 登录 http://localhost:5180，角色选 `TRADER`。
+2. 连接 Mock 柜台：
 
 ```bash
-# 1) 启动平台
-./scripts/dev.sh up
-
-# 2) 跑演示验证链路
-./scripts/demo.sh
-
-# 3) 写策略（Python SDK）
-#    SDK 位于 python/strategy_sdk，示例策略见 python/strategy_sdk/examples
-#    BacktestAPI：回测；LiveOrderAPI：实盘下单（API 均指向前端 5173 代理）
-
-# 4) 用前端管理
-#    打开 http://localhost:5173 —— 策略、交易、风控、监控、数据等页面
+./scripts/channel-demo.sh
 ```
 
-## 4. 角色与请求头（接口调试用）
+3. 「交易下单」填标的/价格/数量 → 提交 → 二次确认。
+   - 默认 Mock 即时成交
+   - 验证待成交/撤单：
 
-接口以 `X-User-Id` / `X-User-Role` / `X-Tenant-Id` 头模拟身份：
+```bash
+LHJYPT_TRADE_MOCK_FILL=false ./scripts/dev.sh restart
+# 下单停在 SUBMITTED，可在「委托」页撤单；验证后恢复
+./scripts/dev.sh restart
+```
 
-| 角色 | X-User-Role | 可访问 |
-|------|-------------|--------|
-| 管理员 | ADMIN | 全部，含租户/容量/汇率/监管配置 |
+## 4. 策略开发与回测
+
+```bash
+cd strategy-sdk
+pip install -e ".[dev]"
+
+# 示例：双均线真实行情回测
+PYTHONPATH=. python lhjypt/examples/real_backtest_demo.py BTC_USDT 1h 7
+
+# 示例：RSI 均值回归
+PYTHONPATH=. python lhjypt/examples/rsi_backtest.py BTC_USDT 1h 7
+```
+
+策略继承 `lhjypt.Strategy`，实现 `on_init` / `on_bar`；示例见
+`strategy-sdk/lhjypt/examples/`。
+
+前端「回测」页支持：
+- 基线回测
+- 参数网格优化（`/api/backtest/optimize`）
+- 组合资金分配（`/api/backtest/portfolio-optimize`）
+- 稳健性检验（`/api/backtest/optimize/robustness`）
+- 应用最优参数（`/api/backtest/optimize/apply`）
+
+## 5. 角色与请求头
+
+接口用 `X-User-Id` / `X-User-Role` / `X-Tenant-Id` 模拟身份：
+
+| 角色 | X-User-Role | 主要权限 |
+|---|---|---|
+| 管理员 | ADMIN | 全部 |
 | 交易员 | TRADER | 策略、交易、组合 |
-| 风控 | RISK_OFFICER | 风险预算、盘中风控 |
-| 合规 | COMPLIANCE | 监管报送、AML、归因 |
+| 风控 | RISK_OFFICER | 风控规则/预算、盘中、监控 |
+| 合规 | COMPLIANCE | 监管、AML、归因、异常交易 |
 | 资金 | FUND_MANAGER | 资金、清算、结算 |
-
-示例：
 
 ```bash
 curl -X POST http://localhost:8081/api/strategy/S-1/code \
-  -H 'X-User-Role: TRADER' -H 'X-User-Id: trader-1' -H 'Content-Type: application/json' \
-  -d '{"sourceCode":"def on_bar(ctx):\n    pass\n"}'
+  -H 'X-User-Role: TRADER' -H 'X-User-Id: trader-1' \
+  -H 'Content-Type: application/json' \
+  -d '{"sourceCode":"from lhjypt import Strategy\nclass S(Strategy):\n    def on_init(self): pass\n"}'
 ```
 
-## 5. 关键约束（单人场景备注）
+## 6. 回归测试
 
-- **多租户**：默认 `DEFAULT` 租户，单人可完全忽略；`X-Tenant-Id` 不传即可。
-- **环境绑定**：策略上传绑定本机（hostname+MAC）指纹；换机器运行需重新上传。
-- **实盘**：默认 `MOCK` 网关（本地模拟成交）；接入真实柜台时补齐柜台适配层（见 `docs/architecture.md`）。
-- **数据**：行情默认 Mock 源；接入真实数据源后策略与回测面向真实数据。
+```bash
+cd /Users/link/myApp/lhjypt && mvn -pl core verify   # 331 tests
+cd strategy-sdk && python -m pytest tests -q          # 29 passed
+cd web && npm run build                               # 类型检查 + 构建
+```
 
-## 6. 排障
+## 7. 关键约束
+
+- 多租户：默认 `DEFAULT`，单人可忽略
+- 策略上传绑定本机指纹，换机器需重新上传
+- 实盘默认 `MOCK`；接真实柜台需补齐适配层
+- 行情默认 Mock，真实行情通过 `/api/market/real/refresh` 刷新
+
+## 8. 排障
 
 | 现象 | 处置 |
-|------|------|
-| `dev.sh up` 中间件等待超时 | 检查 Docker 连接与镜像，`docker ps` 看 5 容器状态 |
-| 后端 8081 起不来 | `./scripts/dev.sh logs backend` 查看；多为端口占用或 DB 未就绪 |
-| 前端 5173 白屏 | `./scripts/dev.sh logs frontend`；`npm install` 后重试 |
-| 数据库重置 | `./scripts/dev.sh reset-db`（清空全部数据） |
+|---|---|
+| 中间件等待超时 | `docker ps` 看 5 容器；必要时 `./scripts/dev.sh up` |
+| 后端 8081 起不来 | `./scripts/dev.sh logs backend`；检查端口/DB |
+| 前端白屏 | `./scripts/dev.sh logs frontend`；`npm install` |
+| 5173 被占用 | 使用 `.env` 的 `LHJYPT_WEB_PORT=5180` |
+| 数据重置 | `./scripts/dev.sh reset-db`（清空全部数据） |
 
-详细架构与技术栈见 `docs/architecture.md`、`docs/tech-stack.md`；开发基线见 `.workflow/` 下各交付报告。
+更多：[架构](architecture.md) · [部署](deploy.md) · [观测](observability.md) · [交易通道](channel.md) · [接口规划](../.workflow/frontend-api-plan.md)

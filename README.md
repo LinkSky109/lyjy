@@ -1,100 +1,98 @@
-# lhjypt - 企业级量化交易平台
+# lhjypt · 量化交易平台
 
-> 覆盖行情、回测、交易、风控、资金、合规的全链路量化交易平台
+覆盖行情、回测、模拟/实盘交易、风控、资金清算与合规的单机量化平台。
 
 ## 项目状态
 
-| 阶段 | 状态 | 截止时间 |
-|------|------|----------|
-| P0 一期（基础闭环） | 已完成 | 2026-11-15 |
-| P1 二期（机构化） | 已完成 | 2026-12-31 |
-| P1.5 交易主链路闭环与工程化加固 | 已完成 | - |
-| P2 三期（合规监管·多租户·自动伸缩） | 已完成 | - |
-| P2 观察期补强（多租户横切：策略/组合/风险预算） | 已完成 | - |
-| P3 单机生产化（部署常驻/备份/可观测/密钥/行情可靠/性能） | 已完成 | - |
-| P4 后续加固（行情分页回补 / 巡检时区口径 / 观测栈） | 已完成 | - |
+| 阶段 | 内容 | 状态 |
+|---|---|---|
+| P0 | 行情 / OMS / 风控 / 资金 / 回测基础闭环 | 已完成 |
+| P1 / P1.5 | 机构化、交易主链路闭环与工程化加固 | 已完成 |
+| P2 | 合规监管、多租户、容量与归因 | 已完成 |
+| P3 | 单机生产化：常驻、备份、可观测、密钥、行情可靠 | 已完成 |
+| P4 | 行情分页回补、巡检时区、Prometheus/Grafana/Alertmanager | 已完成 |
+| P5 | 前端改版（设计令牌、深浅主题、15 页统一交互） | 已完成 |
+| P5 API | 仪表盘聚合、合约/行情、委托分页、风控规则、资金分页、组合净值/归因 | 已完成 |
 
-> 单人使用场景：`GLOBAL_DONE`，当前重心为开箱即用与日常可用性。
-
-## 快速开始（单人一键）
-
-```bash
-./scripts/dev.sh up      # 中间件 + 增量SQL + 后端8081 + 前端5173（幂等）
-./scripts/demo.sh        # 上传策略→水印→沙箱运行→停止→审计 一键演示
-./scripts/channel-demo.sh # 真实交易通道演练：策略内SDK下单→Mock成交→撤单拒绝→持仓/资金闭环
-./scripts/obs.sh up      # 可选观测栈：Prometheus(9090)+Grafana(3000) 预置看板
-```
-
-详细指南见 **[docs/quickstart.md](docs/quickstart.md)**、**[docs/channel.md](docs/channel.md)**；常用运维见 `./scripts/dev.sh status|down|reset-db|logs`。
-
-## 技术栈
-
-- **核心服务**：Java 17 + Spring Boot 3.2
-- **策略SDK**：Python 3.9+
-- **数据存储**：PostgreSQL 15 + ClickHouse 23
-- **消息队列**：Kafka 3.7
-- **缓存**：Redis 7
+> 单人使用场景：`GLOBAL_DONE`。当前重心：开箱即用、日常可用与前端一致性。
 
 ## 快速开始
 
-### 1. 启动依赖环境
 ```bash
-cp .env.example .env
-docker compose -f config/docker-compose.yaml up -d
+cd /Users/link/myApp/lhjypt
+./scripts/dev.sh up        # 中间件 + 增量SQL + 后端 8081 + 前端（默认 5173）
 ```
 
-### 2. 启动核心服务
+- 前端：**http://localhost:5180**（本机 `.env` 配置 `LHJYPT_WEB_PORT=5180`，避开 5173 的其它服务）
+- 后端：http://localhost:8081
+- 登录：本地模拟身份，默认 `ADMIN / admin`
+- 观测栈（可选）：`./scripts/obs.sh up` → Prometheus `9090`、Grafana `3000`
+
 ```bash
-mvn clean package
-java -jar core/target/core-0.1.0-SNAPSHOT.jar
+./scripts/demo.sh           # 上传策略→水印→沙箱运行→停止→审计
+./scripts/channel-demo.sh   # Mock 通道：SDK 下单→成交→持仓/资金闭环
+./scripts/dev.sh status|down|reset-db|logs backend
 ```
 
-### 3. 安装策略SDK
+> `.env` 不入库；本机 PostgreSQL 发布在 **5433**（5432 被其它项目占用），`dev.sh` 会自动加载 `.env`。
+
+## 技术栈
+
+- 核心：Java 17 + Spring Boot 3.2.5 + MyBatis-Plus
+- 策略：Python 3.9+ SDK（回测 / 实盘 / 指标 / 沙箱）
+- 存储：PostgreSQL 15（交易/资金）+ ClickHouse 23（行情）
+- 中间件：Kafka 3.7、Redis 7、Zookeeper
+- 前端：React 18 + TypeScript + Vite（15 条路由，CSS 变量主题）
+- 运维：Docker Compose、Prometheus + Grafana + Alertmanager
+
+## 目录
+
+```
+core/           Java 核心服务（controller/service/mapper/model）
+strategy-sdk/   Python 策略 SDK 与示例
+web/            React 管理端
+config/         docker-compose 与观测栈
+scripts/        启动、演示、巡检、迁移脚本
+docs/           架构、快速上手、部署、观测、行情、安全
+.workflow/      分阶段计划、交付报告、一致性校验
+design/         前端规范与静态原型（只读参考，不入库）
+```
+
+## 主要能力
+
+| 域 | 能力 |
+|---|---|
+| 行情 | Gate.io / Binance Vision、真实 K 线、分页回补、质量巡检、多源容灾 |
+| 交易 | OMS 全生命周期、Mock/CTP 网关、委托分页、可撤状态、成交回报 |
+| 风控 | 事前规则（持仓/资金/频率/自成交/黑名单）、运行时开关、风险预算、VaR、事中限制 |
+| 资金 | 出入金申请/审核、账户与流水分页、服务端余额二次校验、对账 |
+| 组合 | 组合定义、再平衡、净值快照、策略贡献归因 |
+| 治理 | 多租户、监管报送、异常交易、策略加密/水印/沙箱、降级开关、审计 |
+| 前端 | 仪表盘聚合、交易下单、告警闭环、深浅主题、移动端抽屉与表格堆叠 |
+
+## 验证
+
 ```bash
-cd strategy-sdk
-pip install -e ".[dev]"
-pytest tests/ --cov=lhjypt --cov-report=term --cov-fail-under=80
+mvn -pl core verify                              # 331 tests / 0 fail / 1 skip + JaCoCo
+cd strategy-sdk && python -m pytest tests -q     # 29 passed
+cd web && npm run build                          # tsc --noEmit + vite build
 ```
-
-## 项目结构
-
-```
-lhjypt/
-├── core/                    # Java核心服务（行情/交易/风控/资金）
-│   └── src/main/java/com/lhjypt/core/
-├── strategy-sdk/            # Python策略SDK
-│   └── lhjypt/
-├── config/                  # 配置文件（docker-compose等）
-├── scripts/                 # 脚本（数据库初始化等）
-├── docs/                    # 文档（架构、技术选型）
-└── .workflow/               # 工作流管理（任务跟踪、上下文）
-```
-
-## 模块说明
-
-| 模块 | 说明 |
-|------|------|
-| market-data | 行情接入、清洗、存储、分发 |
-| order-management | OMS订单全生命周期管理 |
-| execution | CTP柜台对接、订单路由 |
-| risk-control | 事前/事中风控、黑白名单 |
-| fund-management | 资金冻结/解冻、账户管理 |
-| backtest-engine | tick级回测引擎 |
-| strategy-sdk | Python策略开发工具包 |
-
-## 开发规范
-
-- 代码提交前通过 `mvn verify` 和 `pytest`
-- 接口返回统一使用 `Result<T>` 包装
-- 数据库操作使用 MyBatis-Plus
-- 策略开发继承 `lhjypt.Strategy` 基类
-- 生产凭据只能通过环境变量注入，禁止提交到仓库
 
 ## 文档
 
-- [技术选型](docs/tech-stack.md)
+- [快速上手](docs/quickstart.md)
 - [架构设计](docs/architecture.md)
-- [观测栈（Prometheus/Grafana）](docs/observability.md)
-- [P1.5 交易主链路闭环需求](docs/p1.5-trade-closure-requirements.md)
-- [需求规格（补充）](.workflow/requirements-supplement.md)
-- [P0任务拆解](.workflow/tasks-p0.md)
+- [技术选型](docs/tech-stack.md)
+- [部署与常驻](docs/deploy.md)
+- [观测栈](docs/observability.md)
+- [交易通道](docs/channel.md)
+- [真实行情](docs/market-real.md) · [行情可靠性](docs/market-reliability.md)
+- [指标口径](docs/metrics.md) · [安全](docs/security.md) · [备份](docs/backup.md)
+- [前端改版规范](design/DESIGN-SPEC.md) · [后端接口规划](.workflow/frontend-api-plan.md)
+
+## 开发约定
+
+- 提交前：`mvn -pl core verify`、`python -m pytest tests`、`npm run build`
+- 接口统一 `Result<T>`；数据库使用 MyBatis-Plus；策略继承 `lhjypt.Strategy`
+- 生产凭据仅通过环境变量 / 密钥服务注入，禁止入库
+- 单人场景默认 `DEFAULT` 租户、`MOCK` 交易网关

@@ -21,11 +21,13 @@
 
 ```bash
 cd /Users/link/myApp/lhjypt
-./scripts/dev.sh up        # 中间件 + 增量SQL + 后端 8081 + 前端（默认 5173）
+./scripts/start.sh         # 一键：中间件 + 增量SQL + 后端 8081 + 前端 5180
 ```
 
 - 前端：**http://localhost:5180**（本机 `.env` 配置 `LHJYPT_WEB_PORT=5180`，避开 5173 的其它服务）
-- 后端：http://localhost:8081
+- 后端：**http://localhost:8081**（健康检查 `/actuator/health`）
+- 数据库：PostgreSQL **5433**（5432 被其它项目占用）
+- 重建后端：`LHJYPT_REBUILD=1 ./scripts/start.sh`
 - 登录：本地模拟身份，默认 `ADMIN / admin`
 - 观测栈（可选）：`./scripts/obs.sh up` → Prometheus `9090`、Grafana `3000`
 

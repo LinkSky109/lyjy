@@ -7,23 +7,35 @@
 
 ```bash
 cd /Users/link/myApp/lhjypt
-./scripts/dev.sh up
+./scripts/start.sh
 ```
 
-依次完成：
+`scripts/start.sh` 等价于 `./scripts/dev.sh start`，可重复执行（已健康的服务会复用）。依次完成：
 1. 启动中间件（PostgreSQL / ClickHouse / Kafka / Zookeeper / Redis）并等待健康
 2. 应用 `init-p1.sql`、`init-p2.sql` 与 `scripts/migration/*.sql`（幂等）
 3. 构建（首次或 `LHJYPT_REBUILD=1`）并启动后端 `8081`
-4. 构建（首次）并启动前端（端口取 `LHJYPT_WEB_PORT`，默认 5173）
+4. 构建（首次）并启动前端（端口取 `LHJYPT_WEB_PORT`，默认 5180）
 
-本机 `.env` 已配置：
-- `LHJYPT_WEB_PORT=5180`（5173 被其它服务占用）
-- `POSTGRES_URL=jdbc:postgresql://127.0.0.1:5433/lhjypt`（5432 被其它项目占用）
+端口约定（本机 `.env` 已覆盖冲突端口）：
+
+| 服务 | 端口 | 说明 |
+|---|---|---|
+| 前端 Vite | **5180** | `LHJYPT_WEB_PORT=5180`；5173 被其它项目占用 |
+| 后端 Spring Boot | **8081** | `scripts/dev.sh` 健康检查 `/actuator/health` |
+| PostgreSQL | **5433** | `POSTGRES_URL=...:5433/lhjypt`；5432 被 `deploy-postgres-1` 占用 |
+| ClickHouse | 8123 / 9000 | 行情库 |
+| Kafka | 9092 | 事件总线 |
+| Redis | 6379 | 缓存/锁 |
+| Prometheus / Grafana | 9090 / 3000 | 可选观测栈 `./scripts/obs.sh up` |
 
 访问：
 - 前端：http://localhost:5180
 - 后端：http://localhost:8081
+- 健康检查：http://localhost:8081/actuator/health
 - 登录：默认 `ADMIN / admin`（本地模拟身份）
+
+> 代码更新后需要重建后端 jar：`LHJYPT_REBUILD=1 ./scripts/start.sh`。
+> 端口被其它进程占用时，脚本会打印占用进程并退出，不会误杀非本项目进程。
 
 ## 2. 常用命令
 
